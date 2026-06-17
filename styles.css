@@ -3537,6 +3537,28 @@ h2 {
   -webkit-overflow-scrolling: touch;
 }
 
+/* ── Leaderboard: clickable user row ───────────────────────────────────── */
+.leaderboard-user-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  border-radius: 0.5rem;
+}
+.leaderboard-user-btn:hover .leaderboard-title,
+.leaderboard-user-btn:focus-visible .leaderboard-title {
+  text-decoration: underline;
+}
+
+
 /* ── Desktop layout (≥700px) ──────────────────────────────────────────────
    Mobile (< 700px) is completely unaffected — these rules are dead to narrow
    viewports because they live inside the media query.               ──────── */

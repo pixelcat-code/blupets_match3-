@@ -9,7 +9,7 @@
     <title>Blupets Match</title>
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260617-148" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-149" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -321,9 +321,30 @@
           </button>
         </div>
       </div>
+
+      <section class="screen profile-screen" id="publicProfileScreen" hidden>
+        <div class="leaderboard-card profile-card">
+          <header class="leaderboard-head profile-head">
+            <button id="publicProfileBackBtn" class="icon-btn" type="button" title="Back">
+              ←
+            </button>
+            <div>
+              <h2>Profile</h2>
+            </div>
+          </header>
+          <div class="profile-summary">
+            <span class="profile-avatar" id="publicProfileAvatarEl" aria-hidden="true"></span>
+            <div class="profile-meta">
+              <div class="profile-name" id="publicProfileNameEl"></div>
+            </div>
+          </div>
+          <div class="profile-section-head">Form Gallery</div>
+          <div id="public-profile-content" class="leaderboard-content profile-content"></div>
+        </div>
+      </section>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260618-142"></script>
+    <script type="module" src="./src/main.js?v=20260618-146"></script>
   </body>
 </html>

@@ -47,6 +47,29 @@ export async function fetchUserProgress() {
   };
 }
 
+export async function fetchPublicUserEntries(userId) {
+  const { configured } = getSupabaseConfig();
+  if (!configured) return [];
+
+  const client = await getSupabaseClient();
+  const { data, error } = await client
+    .from("leaderboard_entries")
+    .select("score, moves_used, t4_color, t4_partner, t4_form_key, created_at")
+    .eq("user_id", userId)
+    .order("score", { ascending: false })
+    .limit(500);
+
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    score: row.score,
+    movesUsed: row.moves_used,
+    t4Color: row.t4_color,
+    t4Partner: row.t4_partner,
+    t4FormKey: row.t4_form_key,
+    timestamp: row.created_at ? new Date(row.created_at).getTime() : 0,
+  }));
+}
+
 export async function fetchGlobalLeaderboard(limit = 100) {
   const { configured } = getSupabaseConfig();
   if (!configured) return [];

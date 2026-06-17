@@ -34,10 +34,11 @@ import {
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
+  fetchPublicUserEntries,
   fetchUserProgress,
   startTrustedRun,
   submitTrustedRun,
-} from "./sync.js?v=20260618-9";
+} from "./sync.js?v=20260618-10";
 
 const SWAP_ANIMATION_MS = 210;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
@@ -96,6 +97,11 @@ const elements = {
   leaderboardBackBtn: document.querySelector("#leaderboardBackBtn"),
   leaderboardContent: document.querySelector("#leaderboard-content"),
   leaderboardScreen: document.querySelector("#leaderboardScreen"),
+  publicProfileScreen: document.querySelector("#publicProfileScreen"),
+  publicProfileBackBtn: document.querySelector("#publicProfileBackBtn"),
+  publicProfileAvatarEl: document.querySelector("#publicProfileAvatarEl"),
+  publicProfileNameEl: document.querySelector("#publicProfileNameEl"),
+  publicProfileContent: document.querySelector("#public-profile-content"),
   profileAvatar: document.querySelector("#profileAvatar"),
   profileBackBtn: document.querySelector("#profileBackBtn"),
   profileChip: document.querySelector("#profileChip"),
@@ -300,7 +306,7 @@ function setScreen(screen) {
     _historyDepth++;
   }
   // Keep the Blupix ambience through the menu and active run.
-  if (screen === "start" || screen === "game" || screen === "leaderboard" || screen === "profile") {
+  if (screen === "start" || screen === "game" || screen === "leaderboard" || screen === "profile" || screen === "public-profile") {
     startMusic();
   } else {
     stopMusic();
@@ -312,6 +318,9 @@ function setScreen(screen) {
   elements.leaderboardScreen.hidden = screen !== "leaderboard";
   if (elements.profileScreen) {
     elements.profileScreen.hidden = screen !== "profile";
+  }
+  if (elements.publicProfileScreen) {
+    elements.publicProfileScreen.hidden = screen !== "public-profile";
   }
 }
 
@@ -461,6 +470,92 @@ function closeLeaderboard() {
   } else {
     setScreen(lastScreenBeforeLeaderboard === "game" && state ? "game" : "start");
     render();
+  }
+}
+
+function openPublicProfile(userId, accountName, avatarUrl) {
+  if (!elements.publicProfileScreen) return;
+  if (elements.publicProfileAvatarEl) {
+    elements.publicProfileAvatarEl.style.backgroundImage = safeCssUrl(avatarUrl || "");
+  }
+  if (elements.publicProfileNameEl) {
+    elements.publicProfileNameEl.textContent = accountName;
+  }
+  if (elements.publicProfileContent) {
+    elements.publicProfileContent.innerHTML = `<div class="leaderboard-empty">Loading…</div>`;
+  }
+  // Clear injected stats block from a previous visit.
+  elements.publicProfileScreen.querySelector(".profile-stats")?.remove();
+
+  setScreen("public-profile");
+
+  fetchPublicUserEntries(userId)
+    .then((entries) => renderPublicProfile(entries))
+    .catch(() => {
+      if (currentScreen === "public-profile" && elements.publicProfileContent) {
+        elements.publicProfileContent.innerHTML = `<div class="leaderboard-empty">Could not load profile.</div>`;
+      }
+    });
+}
+
+function closePublicProfile() {
+  if (_historyDepth > 0) {
+    history.back();
+  } else {
+    setScreen("leaderboard");
+    renderLeaderboard();
+  }
+}
+
+function renderPublicProfile(entries) {
+  if (currentScreen !== "public-profile") return;
+
+  // Build discovered-forms map from all their leaderboard entries.
+  const forms = {};
+  for (const e of entries) {
+    if (!e.t4FormKey) continue;
+    forms[e.t4FormKey] = { count: (forms[e.t4FormKey]?.count ?? 0) + 1 };
+  }
+
+  const wins = entries.length;
+  const bestScore = entries.reduce((m, e) => Math.max(m, e.score || 0), 0);
+  const fastestMoves = entries.reduce((m, e) => Math.min(m, e.movesUsed ?? Infinity), Infinity);
+  const formsCount = Object.keys(forms).length;
+
+  const stat = (label, val) =>
+    `<div class="lifetime-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(val))}</strong></div>`;
+
+  const sectionHead = elements.publicProfileScreen?.querySelector(".profile-section-head");
+  if (sectionHead) {
+    let statsBlock = elements.publicProfileScreen.querySelector(".profile-stats");
+    if (!statsBlock) {
+      statsBlock = document.createElement("div");
+      statsBlock.className = "profile-stats";
+      sectionHead.before(statsBlock);
+    }
+    statsBlock.innerHTML = `<div class="lifetime-stats">
+      ${stat("Wins", wins)}
+      ${stat("Best", bestScore)}
+      ${fastestMoves < Infinity ? stat("Fastest", `${fastestMoves} mv`) : ""}
+      ${stat("Forms", `${formsCount}/${TOTAL_APEX_FORMS}`)}
+    </div>`;
+  }
+
+  if (elements.publicProfileContent) {
+    const collectionEntries = getCollectionEntries({ forms });
+    const cards = collectionEntries.map((entry) => `
+      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
+        <div class="collection-art">
+          ${
+            entry.discovered
+              ? `<img src="${entry.asset}" alt="${escapeHtml(entry.name)}" />`
+              : `<img class="collection-art-blurred" src="${entry.asset}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
+          }
+        </div>
+        <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
+      </div>
+    `).join("");
+    elements.publicProfileContent.innerHTML = `<div class="collection-grid">${cards}</div>`;
   }
 }
 
@@ -1722,6 +1817,7 @@ function renderLeaderboard() {
 
   const toRow = (entry, index, value, title) => ({
     rank: index + 1,
+    userId: entry.userId ?? "",
     account: escapeHtml(entry.accountName || "Guest"),
     avatarUrl: safeImgSrc(entry.avatarUrl || ""),
     title,
@@ -1768,14 +1864,13 @@ function renderLeaderboard() {
             const avatar = row.avatarUrl
               ? `<img class="leaderboard-avatar" src="${row.avatarUrl}" alt="" aria-hidden="true" />`
               : `<span class="leaderboard-avatar leaderboard-avatar--placeholder" aria-hidden="true"></span>`;
+            const userBtn = row.userId
+              ? `<button class="leaderboard-user-btn" type="button" data-user-id="${escapeHtml(row.userId)}" data-account="${row.account}" data-avatar="${row.avatarUrl}" aria-label="View ${row.account}'s profile">${avatar}<div class="leaderboard-user"><span class="leaderboard-title">${row.account}</span><span class="leaderboard-meta">${escapeHtml(row.title)}</span></div></button>`
+              : `${avatar}<div class="leaderboard-user"><span class="leaderboard-title">${row.account}</span><span class="leaderboard-meta">${escapeHtml(row.title)}</span></div>`;
             return `
               <div class="leaderboard-row${tierClass}">
                 <div class="leaderboard-rank">${rankCell}</div>
-                ${avatar}
-                <div class="leaderboard-user">
-                  <span class="leaderboard-title">${row.account}</span>
-                  <span class="leaderboard-meta">${escapeHtml(row.title)}</span>
-                </div>
+                ${userBtn}
                 <div class="leaderboard-value">${escapeHtml(row.value)}</div>
               </div>
             `;
@@ -1832,7 +1927,6 @@ function renderCollectionGrid() {
                 ? `<img src="${entry.asset}" alt="${escapeHtml(entry.name)}" />`
                 : `<img class="collection-art-blurred" src="${entry.asset}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
             }
-            ${entry.count > 1 ? `<span class="collection-count">×${entry.count}</span>` : ""}
           </div>
           <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
         </div>
@@ -2172,6 +2266,13 @@ bindClick(elements.authSkipBtn, handleAuthSkip);
 bindClick(elements.backToStart, goToStart);
 bindClick(elements.leaderboardBackBtn, closeLeaderboard);
 bindClick(elements.profileBackBtn, closeProfile);
+bindClick(elements.publicProfileBackBtn, closePublicProfile);
+elements.leaderboardContent?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".leaderboard-user-btn");
+  if (btn?.dataset.userId) {
+    openPublicProfile(btn.dataset.userId, btn.dataset.account, btn.dataset.avatar);
+  }
+});
 bindClick(elements.profileSignInBtn, () => openAuthModal({ force: true }));
 bindClick(elements.profileLogoutBtn, handleAuthLogout);
 bindClick(elements.victoryLeaderboardBtn, () => openLeaderboard("victory"));
