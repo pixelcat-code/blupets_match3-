@@ -93,7 +93,6 @@ const elements = {
   gameoverDetail: document.querySelector("#gameoverDetail"),
   gameoverScore: document.querySelector("#gameoverScore"),
   gameoverScreen: document.querySelector("#gameoverScreen"),
-  gameoverRerollBtn: document.querySelector("#reroll-gameoverBtn"),
   leaderboardBackBtn: document.querySelector("#leaderboardBackBtn"),
   leaderboardContent: document.querySelector("#leaderboard-content"),
   leaderboardScreen: document.querySelector("#leaderboardScreen"),
@@ -576,6 +575,7 @@ function renderTopBar(stateLike) {
     isAnimating ||
     stateLike.pendingEvolutionQueue.length > 0 ||
     stateLike.victory ||
+    movesRemaining <= 0 ||
     charges <= 0;
   elements.rerollRun.disabled = rerollDisabled;
 
@@ -1655,16 +1655,8 @@ function renderGameoverScreen(stateLike) {
     return;
   }
 
-  const charges = stateLike.rerollCharges ?? 0;
-  elements.gameoverDetail.textContent =
-    charges > 0
-      ? `${getBestProgressSummary(stateLike)} Spend a hatched reroll or start a new run.`
-      : `${getBestProgressSummary(stateLike)} No rerolls left — start a new run.`;
+  elements.gameoverDetail.textContent = `${getBestProgressSummary(stateLike)} Start a new run.`;
   elements.gameoverScore.textContent = `${stateLike.score}`;
-  if (elements.gameoverRerollBtn) {
-    elements.gameoverRerollBtn.disabled = charges <= 0;
-    elements.gameoverRerollBtn.textContent = charges > 0 ? `Reroll (${charges})` : "Reroll";
-  }
 }
 
 function getVictoryRank() {
@@ -2201,17 +2193,6 @@ window.addEventListener(
   },
   { once: true },
 );
-bindClick(elements.gameoverRerollBtn, () => {
-  if (!state) {
-    return;
-  }
-
-  resetInteractionState();
-  setScreen("game");
-  const nextState = rerollBoard(state, runRng);
-  if (nextState !== state) logRunAction({ type: "reroll" });
-  applyState(nextState);
-});
 bindClick(elements.rerollRun, () => {
   if (!state) {
     return;
@@ -2290,10 +2271,31 @@ window.addEventListener("popstate", (e) => {
 // PKCE flow returns ?code=… in query string; implicit flow returns #access_token in hash.
 const _hasOAuthCode = new URLSearchParams(location.search).has("code");
 if (!_hasOAuthCode && !/access_token|error_description/.test(location.hash)) {
-  history.replaceState({ screen: "start" }, "", location.pathname);
+  // Restore navigable screens from the URL hash on page refresh.
+  // Game/victory/gameover can't be restored (no persisted game state) — fall back to start.
+  const hashScreen = location.hash.replace(/^#/, "") || "start";
+  const initialScreen = ["profile", "leaderboard"].includes(hashScreen) ? hashScreen : "start";
+  if (initialScreen === "leaderboard") lastScreenBeforeLeaderboard = "start";
+  if (initialScreen === "profile") lastScreenBeforeProfile = "start";
+  currentScreen = initialScreen;
+  history.replaceState(
+    { screen: initialScreen },
+    "",
+    location.pathname + (initialScreen !== "start" ? "#" + initialScreen : ""),
+  );
 }
 syncMuteButton();
 updateProfileChip();
 initializeAuth();
 
 render();
+
+// If restored to leaderboard on refresh, kick off the remote data fetch.
+if (currentScreen === "leaderboard") {
+  fetchGlobalLeaderboard()
+    .then((entries) => {
+      remoteLeaderboard = entries;
+      if (currentScreen === "leaderboard") renderLeaderboard();
+    })
+    .catch(() => {});
+}

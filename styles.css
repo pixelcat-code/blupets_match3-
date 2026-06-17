@@ -3560,6 +3560,10 @@ h2 {
     height: auto;
     max-height: none;
     aspect-ratio: var(--desktop-aspect);
+    /* At narrow desktop widths (700-900px) 16:9 collapses the card to ~370px —
+       not tall enough for the game content. Floor the height so the board and
+       left-column controls always fit. */
+    min-height: min(560px, calc(100dvh - 40px));
   }
 
   .start-card,
