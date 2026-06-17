@@ -550,6 +550,8 @@ function renderTopBar(stateLike) {
 
   if (elements.rerollPips?.length) {
     elements.rerollPips.forEach((pip, i) => pip.classList.toggle("is-active", i < charges));
+    const pipsEl = elements.rerollPips[0]?.parentElement;
+    if (pipsEl) pipsEl.dataset.charges = String(charges);
   }
   // Halo the egg only while there's a charge to spend, so it reads as a button.
   elements.rerollRun.classList.toggle("has-charge", charges > 0);

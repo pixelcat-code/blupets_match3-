@@ -3965,10 +3965,11 @@ h2 {
   .game-frame .topbar {
     grid-column: 1;
     grid-row: 1;
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto;
     gap: 10px;
     align-self: start;
+    align-items: center;
   }
 
   .game-frame .topbar-left {
@@ -3977,8 +3978,8 @@ h2 {
   }
 
   .game-frame .topbar-stats {
-    grid-column: 1;
-    grid-row: 2;
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .game-frame .roster-row {
@@ -4021,7 +4022,16 @@ h2 {
   }
 
   .game-frame .game-footer .mute-btn {
-    --hud-h: clamp(48px, 5.5dvh, 64px);
+    --hud-h: 58px;
+    width: 108px;
+    height: var(--hud-h);
+    border-radius: 999px;
+    border: 2px solid #2f80ff;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(238, 245, 255, 0.96));
+    box-shadow:
+      0 0 0 4px rgba(47, 128, 255, 0.12),
+      0 14px 28px rgba(48, 98, 168, 0.16);
+    color: #2f80ff;
   }
 
   /* Desktop: mute is in game-footer; hide the topbar-embedded mobile buttons. */
@@ -4130,4 +4140,117 @@ h2 {
   .tile-burst i {
     animation-duration: 210ms;
   }
-}
+
+  /* ── Desktop reroll dock: variant 2 — fill-as-background ────── */
+  .game-frame .reroll-dock {
+    display: block;
+  }
+
+  /* Hide the SVG medallion and the original track */
+  .game-frame .reroll-medallion,
+  .game-frame .reroll-track { display: none; }
+
+  /* Button: vertical flex column, clipped for fill overlay */
+  .game-frame .reroll-bar {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+    padding: 14px;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    background: var(--color-surface-strong);
+    border: 1.5px solid var(--color-border);
+    box-shadow: 0 4px 18px rgba(15, 39, 66, 0.1);
+    color: var(--color-text);
+  }
+
+  /* Fill overlay grows left→right behind text */
+  .game-frame .reroll-bar::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: calc(var(--pct, 0) * 1%);
+    background: linear-gradient(
+      90deg,
+      rgba(232, 64, 112, 0.22) 0%,
+      rgba(232, 64, 112, 0.07) 100%
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* "REROLL" label — top of button (order: -1 pushes before pips in flex) */
+  .game-frame .reroll-bar::after {
+    content: "REROLL";
+    display: block;
+    order: -1;
+    position: relative;
+    z-index: 1;
+    font-size: 0.82rem;
+    font-weight: 900;
+    letter-spacing: 0.09em;
+    color: #075faf;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(15, 39, 66, 0.1);
+    margin-bottom: 10px;
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Count block — below the label */
+  .game-frame .reroll-pip { display: none; }
+
+  .game-frame .reroll-bar .reroll-pips {
+    order: 1;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+
+  .game-frame .reroll-bar .reroll-pips::before {
+    content: "×" attr(data-charges);
+    font-size: 1.8rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--color-text);
+    transition: color 0.3s;
+  }
+
+  .game-frame .reroll-bar .reroll-pips::after {
+    content: "rerolls";
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--color-text-soft);
+  }
+
+  /* has-charge: cyan fill + glow border */
+  .game-frame .reroll-bar.has-charge {
+    border-color: rgba(92, 232, 255, 0.45);
+    box-shadow:
+      0 4px 18px rgba(15, 39, 66, 0.1),
+      0 0 0 2px rgba(92, 232, 255, 0.18);
+  }
+
+  .game-frame .reroll-bar.has-charge::before {
+    background: linear-gradient(
+      90deg,
+      rgba(92, 232, 255, 0.28) 0%,
+      rgba(92, 232, 255, 0.07) 100%
+    );
+  }
+
+  .game-frame .reroll-bar.has-charge .reroll-pips::before {
+    color: #0a8faf;
+  }
+
+  .game-frame .reroll-bar:not(:disabled):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.02);
+  }
