@@ -541,18 +541,18 @@ function vibeBudget(vibe) {
     (vibe.startMoves ?? 0) +
     (vibe.scoreMultiplier ? Math.round((vibe.scoreMultiplier - 1) * 10) : 0) +
     (vibe.rerollRecovery ?? 0) / 2 +
-    (vibe.startEssence ?? 0) / 5 +
-    (vibe.comboEssence ?? 0) * 2 +
+    (vibe.startEssence ?? 0) / 3 +
+    (vibe.comboEssence ?? 0) * 3 +
     (vibe.evolveMoves ?? 0) * 2 +
     (vibe.decayResist ?? 0) / 0.25 * 2
   );
 }
 
-test("the vibe generator yields 64 equally-budgeted, named vibes", () => {
-  assert.equal(VIBES.length, 64);
+test("the vibe generator yields 56 equally-budgeted, named vibes", () => {
+  assert.equal(VIBES.length, 56);
 
   const names = new Set(VIBES.map((vibe) => vibe.label));
-  assert.equal(names.size, 64);
+  assert.equal(names.size, 56);
 
   for (const vibe of VIBES) {
     assert.ok(vibe.blurb.length > 0, `${vibe.id} has a blurb`);

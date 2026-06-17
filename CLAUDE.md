@@ -47,7 +47,7 @@ Unchanged from before: 2-column grid, reroll dock in left column, footer with mu
 ## Current versions (bump on change)
 
 - `styles.css` query string: `?v=20260617-148`
-- `main.js` query string: `?v=20260618-135`
+- `main.js` query string: `?v=20260618-136`
 - `auth-config.js` query string: `?v=20260617-2`
 
 Always bump `?v=` on `styles.css` in `index.html` after any CSS edit, or the browser serves stale CSS.
