@@ -945,7 +945,6 @@ h2 {
   image-rendering: pixelated;
   object-fit: contain;
   display: block;
-  filter: brightness(0) invert(1);
 }
 
 .reroll-hud-badge {
