@@ -109,3 +109,8 @@ npm test
 
 - If you need to verify browser behavior, use the local server already running on `http://127.0.0.1:4174`.
 - LAN address for phone testing: `http://10.1.1.168:4174` (add to Supabase allowed URLs for OAuth to work).
+
+## Deploy Configuration (configured by /setup-deploy)
+- Platform: auto-deploy on git push (Netlify/Vercel/similar)
+- Deploy trigger: `git push origin main`
+- Project type: static web app (vanilla JS, no build step)
