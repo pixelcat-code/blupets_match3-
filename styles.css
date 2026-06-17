@@ -161,6 +161,32 @@ button {
   overflow: hidden;
 }
 
+.game-frame::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(42% - 76px);
+  width: min(188vw, 1260px);
+  height: min(118vw, 820px);
+  background:
+    radial-gradient(ellipse at 50% 76%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.15) 18%, transparent 40%),
+    repeating-conic-gradient(
+      from -22deg at 50% 76%,
+      transparent 0deg 4.4deg,
+      rgba(255, 255, 255, 0.14) 5.4deg 8.2deg,
+      rgba(255, 255, 255, 0.42) 8.2deg 11.8deg,
+      rgba(255, 255, 255, 0.12) 11.8deg 14.4deg,
+      transparent 14.4deg 24deg
+    );
+  opacity: 0.72;
+  transform: translate(-50%, -45%) scale(0.96, 0.92);
+  transform-origin: 50% 76%;
+  animation: entry-rays-breathe 4.2s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse at 50% 76%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Mobile explicit ordering: board (row 3) above vibe-status (row 4).
    DOM order is vibe-status → board-shell, so we must override. */
 .game-frame .topbar     { grid-row: 1; }
@@ -4181,23 +4207,6 @@ h2 {
     z-index: 0;
   }
 
-  /* "REROLL" label — top of button (order: -1 pushes before pips in flex) */
-  .game-frame .reroll-bar::after {
-    content: "REROLL";
-    display: block;
-    order: -1;
-    position: relative;
-    z-index: 1;
-    font-size: 0.82rem;
-    font-weight: 900;
-    letter-spacing: 0.09em;
-    color: #075faf;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(15, 39, 66, 0.1);
-    margin-bottom: 10px;
-    width: 100%;
-    text-align: center;
-  }
 
   /* Count block — below the label */
   .game-frame .reroll-pip { display: none; }

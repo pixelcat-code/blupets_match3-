@@ -329,8 +329,8 @@ function startGuideTour() {
     },
     {
       target: () => elements.rerollRun,
-      title: "Hatch & reroll",
-      body: "Matches fill the egg. A full egg hatches a reroll charge — tap the egg to spend one and reshuffle the whole board. You start with one.",
+      title: "Reroll",
+      body: "Matches charge the meter. When it's full, you earn a reroll — tap to spend one and reshuffle the whole board. You start with one.",
     },
     {
       target: () => document.querySelector(".topbar-stats"),
