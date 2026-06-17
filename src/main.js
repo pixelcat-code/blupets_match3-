@@ -424,6 +424,12 @@ function openProfile(fromScreen = currentScreen) {
   lastScreenBeforeProfile = fromScreen;
   setScreen("profile");
   render();
+  if (authState.user) {
+    fetchUserProgress()
+      .then(applyRemoteProgress)
+      .catch(() => {})
+      .then(() => { if (currentScreen === "profile") render(); });
+  }
 }
 
 function closeProfile() {
