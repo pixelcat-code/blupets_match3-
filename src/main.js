@@ -23,12 +23,13 @@ import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } fr
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
+  setProgressUser,
   recordRunStart,
   recordWin,
   discoveredCount,
   getCollectionEntries,
   TOTAL_APEX_FORMS,
-} from "./progress.js?v=20260617-1";
+} from "./progress.js?v=20260617-2";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -837,7 +838,7 @@ function renderAuth() {
 }
 
 function shouldShowAuthModal() {
-  return currentScreen === "start" && !authState.user && !authModalDismissed;
+  return currentScreen === "start" && !authState.loading && !authState.user && !authModalDismissed;
 }
 
 function renderAuthModal() {
@@ -911,7 +912,12 @@ async function initializeAuth() {
     onChange(nextState) {
       const prevUser = authState.user;
       authState = { ...authState, ...nextState, loading: false };
+      if (prevUser?.id !== authState.user?.id) {
+        setProgressUser(authState.user?.id ?? null);
+        progress = loadProgress();
+      }
       renderAuth();
+      render();
       if (!prevUser && authState.user) {
         const returnTo = consumeReturnTo();
         if (returnTo === "game") startRun();
@@ -919,6 +925,8 @@ async function initializeAuth() {
     },
   });
   authState.loading = false;
+  setProgressUser(authState.user?.id ?? null);
+  progress = loadProgress();
   renderAuth();
   renderAuthModal();
   // Clean up OAuth fragment/code now that Supabase has consumed the tokens.
@@ -978,6 +986,7 @@ async function handleAuthLogout() {
       label: "",
       avatarUrl: "",
     };
+    setProgressUser(null);
     progress = loadProgress(); // restore local guest progress after sign-out
     authModalDismissed = true;  // don't pop auth modal immediately after sign-out
     setScreen("start");

@@ -5,7 +5,15 @@
 
 import { BLUPETS_FAMILIES } from "./blupets-canon-data.js";
 
-const PROGRESS_KEY = "blupets-progress-v1";
+let _progressUserId = null;
+
+export function setProgressUser(userId) {
+  _progressUserId = userId || null;
+}
+
+function progressKey() {
+  return _progressUserId ? `blupets-progress-v1-${_progressUserId}` : "blupets-progress-v1";
+}
 
 // Total distinct apex forms that can ever be discovered — the "X / TOTAL"
 // denominator for the collection. Derived from the canon so it stays correct if
@@ -26,7 +34,7 @@ function emptyProgress() {
 
 export function loadProgress() {
   try {
-    const raw = window.localStorage.getItem(PROGRESS_KEY);
+    const raw = window.localStorage.getItem(progressKey());
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
@@ -41,7 +49,7 @@ export function loadProgress() {
 
 function save(progress) {
   try {
-    window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+    window.localStorage.setItem(progressKey(), JSON.stringify(progress));
   } catch {
     // Storage unavailable — keep the in-memory copy for this session.
   }
