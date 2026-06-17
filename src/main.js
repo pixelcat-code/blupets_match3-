@@ -558,7 +558,10 @@ function renderTopBar(stateLike) {
     const pct = atMax ? 100 : Math.min(100, Math.round(((stateLike.hatchProgress ?? 0) / HATCH_GOAL) * 100));
     elements.rerollRun.style.setProperty("--pct", String(pct));
     if (elements.rerollHud) {
-      elements.rerollHud.style.setProperty("--pct", String(pct));
+      const pctStr = String(pct);
+      if (elements.rerollHud.style.getPropertyValue("--pct") !== pctStr) {
+        elements.rerollHud.style.setProperty("--pct", pctStr);
+      }
     }
   }
 }
