@@ -34,7 +34,6 @@ function toState({ configured, loading = false, user = null, error = "" }) {
 function getRedirectUrl() {
   const url = new URL(window.location.href);
   url.hash = "";
-  url.searchParams.delete("demo");
   return url.toString();
 }
 

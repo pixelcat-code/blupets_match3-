@@ -47,10 +47,6 @@ function save(progress) {
   }
 }
 
-export function saveProgress(progress) {
-  save(progress);
-}
-
 export function recordRunStart(progress) {
   progress.runs = (progress.runs ?? 0) + 1;
   save(progress);
@@ -83,49 +79,6 @@ export function recordWin(progress, { formKey, formName, asset, color, partner, 
 
 export function discoveredCount(progress) {
   return Object.keys(progress?.forms ?? {}).length;
-}
-
-// Reconcile lifetime stats with the recorded win list (the persisted
-// leaderboard). The leaderboard predates this stats system, so wins logged
-// before it existed wouldn't otherwise be counted — which leaves the banner
-// showing fewer wins / a lower best than the visible records. Monotonic and
-// idempotent: only raises wins/bestScore and lowers fewestMovesWin, never the
-// reverse, so it's safe to run on every load.
-export function reconcileFromLeaderboard(progress, entries) {
-  if (!Array.isArray(entries) || entries.length === 0) {
-    return progress;
-  }
-  let changed = false;
-
-  if ((progress.wins ?? 0) < entries.length) {
-    progress.wins = entries.length;
-    changed = true;
-  }
-
-  const scores = entries.map((e) => Number(e?.score)).filter(Number.isFinite);
-  if (scores.length) {
-    const top = Math.max(...scores);
-    if (top > (progress.bestScore ?? 0)) {
-      progress.bestScore = top;
-      changed = true;
-    }
-  }
-
-  const moves = entries
-    .map((e) => Number(e?.movesUsed))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  if (moves.length) {
-    const fewest = Math.min(...moves);
-    if (progress.fewestMovesWin == null || fewest < progress.fewestMovesWin) {
-      progress.fewestMovesWin = fewest;
-      changed = true;
-    }
-  }
-
-  if (changed) {
-    save(progress);
-  }
-  return progress;
 }
 
 // Every apex form in canon, flagged with whether it's been discovered, so the

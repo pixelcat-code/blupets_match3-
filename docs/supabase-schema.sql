@@ -1,8 +1,12 @@
 -- Run this in the Supabase SQL editor (Dashboard → SQL Editor → New query).
--- Creates both tables and RLS policies needed for cloud sync.
+-- Creates read-only tables and RLS policies for browser clients.
+--
+-- Do not allow browser clients to write progress or leaderboard rows directly:
+-- public clients can forge score, moves, forms, and progress. Trusted writes
+-- must go through a server or Supabase Edge Function that validates a run.
 
 -- ─── user_progress ───────────────────────────────────────────────────────────
--- One row per authenticated user. Upserted on every win and on sign-in load.
+-- One row per authenticated user. Reserved for trusted backend writes.
 
 create table if not exists public.user_progress (
   user_id          uuid        references auth.users on delete cascade primary key,
@@ -16,23 +20,20 @@ create table if not exists public.user_progress (
 
 alter table public.user_progress enable row level security;
 
--- Users can only read and write their own row.
+drop policy if exists "user_progress: own read" on public.user_progress;
+drop policy if exists "user_progress: own insert" on public.user_progress;
+drop policy if exists "user_progress: own update" on public.user_progress;
+
+-- Browser clients may only read their own row. No direct insert/update policy is
+-- created here; writes require trusted server-side validation.
 create policy "user_progress: own read"
   on public.user_progress for select
-  using (auth.uid() = user_id);
-
-create policy "user_progress: own insert"
-  on public.user_progress for insert
-  with check (auth.uid() = user_id);
-
-create policy "user_progress: own update"
-  on public.user_progress for update
   using (auth.uid() = user_id);
 
 
 -- ─── leaderboard_entries ─────────────────────────────────────────────────────
 -- One row per win. Anyone (including guests with the anon key) can read.
--- Only the row owner can insert.
+-- Trusted backend code should insert validated rows.
 
 create table if not exists public.leaderboard_entries (
   id           uuid        primary key default gen_random_uuid(),
@@ -49,15 +50,13 @@ create table if not exists public.leaderboard_entries (
 
 alter table public.leaderboard_entries enable row level security;
 
+drop policy if exists "leaderboard_entries: global read" on public.leaderboard_entries;
+drop policy if exists "leaderboard_entries: own insert" on public.leaderboard_entries;
+
 -- Global read — guests see the board too.
 create policy "leaderboard_entries: global read"
   on public.leaderboard_entries for select
   using (true);
-
--- Only authenticated users can insert their own entries.
-create policy "leaderboard_entries: own insert"
-  on public.leaderboard_entries for insert
-  with check (auth.uid() = user_id);
 
 
 -- ─── Optional: speed-run index ───────────────────────────────────────────────

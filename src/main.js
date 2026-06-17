@@ -20,22 +20,16 @@ import {
 } from "./game.js?v=20260617-gameplay-3";
 import { runTour } from "./coachmarks.js";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } from "./audio.js?v=20260617-3";
-import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-2";
+import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
-  saveProgress,
   recordRunStart,
   recordWin,
   discoveredCount,
   getCollectionEntries,
   TOTAL_APEX_FORMS,
 } from "./progress.js?v=20260617-1";
-import {
-  loadCloudProgress,
-  saveProgressToCloud,
-  recordWinToCloud,
-  fetchGlobalLeaderboard,
-} from "./sync.js?v=20260617-3";
+import { fetchGlobalLeaderboard } from "./sync.js?v=20260617-4";
 
 const SWAP_ANIMATION_MS = 210;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
@@ -177,7 +171,6 @@ let authState = {
 };
 let authModalDismissed = false;
 let authModalForced = false;
-let boardIntroArmed = false;
 let boardSizeFrame = null;
 let hintMoves = [];
 let hintCursor = 0;
@@ -284,10 +277,6 @@ function setScreen(screen) {
   }
 }
 
-function armBoardIntro() {
-  boardIntroArmed = true;
-}
-
 function startRun({ guided = false } = {}) {
   unlockAudio();
   sfx("ui");
@@ -296,7 +285,6 @@ function startRun({ guided = false } = {}) {
     diagonalAssist: true,
   });
   resetInteractionState();
-  armBoardIntro();
   // Reset reroll bar immediately so the transition doesn't replay the old pct.
   if (elements.rerollRun) elements.rerollRun.style.removeProperty("--pct");
   setScreen("game");
@@ -426,17 +414,6 @@ function recordVictory(nextState) {
 
   const { colorId, partnerColorId, formKey, formName } = nextState.victoryMeta;
   const resolvedFormKey = formKey ?? nextState.evolutionChoices[colorId]?.[4] ?? "UNKNOWN";
-  const accountName = authState.user ? shortAuthLabel(authState.label) : "Guest";
-  const winEntry = {
-    score: nextState.score,
-    t4Color: colorId,
-    t4Partner: partnerColorId,
-    t4FormKey: resolvedFormKey,
-    movesUsed: nextState.movesUsed,
-    vibe: nextState.vibe.id,
-    accountName,
-  };
-
   // Persist the apex form into the cross-run collection / lifetime stats.
   recordWin(progress, {
     formKey: resolvedFormKey,
@@ -448,14 +425,6 @@ function recordVictory(nextState) {
     movesUsed: nextState.movesUsed,
   });
   updateProfileChip();
-
-  if (authState.user) {
-    recordWinToCloud(authState.user.id, accountName, safeImgSrc(authState.avatarUrl), winEntry)
-      .then(() => fetchGlobalLeaderboard())
-      .then((entries) => { remoteLeaderboard = entries; })
-      .catch((e) => console.error("[sync] recordWin failed:", e));
-    saveProgressToCloud(authState.user.id, progress).catch((e) => console.error("[sync] saveProgress failed:", e));
-  }
 }
 
 
@@ -463,9 +432,6 @@ function applyState(nextState) {
   const wasVictory = state?.victory;
   const prevCharges = state?.rerollCharges ?? 0;
   state = nextState;
-  if (nextState?._lastResolution?.shuffled) {
-    armBoardIntro();
-  }
   if ((nextState?.rerollCharges ?? 0) > prevCharges) {
     pulseHatch();
   }
@@ -863,8 +829,8 @@ function renderProfile() {
   }
   if (elements.profileStatus) {
     elements.profileStatus.textContent = signedIn
-      ? "Signed in — progress synced to your account."
-      : "Sign in to sync your progress and appear on the global leaderboard.";
+      ? "Signed in. Progress stays local until trusted cloud sync is enabled."
+      : "Sign in is available, but progress and leaderboard data stay local.";
   }
   if (elements.profileLogoutBtn) {
     elements.profileLogoutBtn.hidden = !signedIn;
@@ -899,20 +865,9 @@ async function initializeAuth() {
       const prevUser = authState.user;
       authState = { ...authState, ...nextState, loading: false };
       renderAuth();
-      // On fresh sign-in: load cloud progress. New accounts start clean — guest
-      // progress belongs to the guest, not the account.
       if (!prevUser && authState.user) {
-        const uid = authState.user.id;
         const returnTo = consumeReturnTo();
-        loadCloudProgress(uid)
-          .then((cloud) => {
-            // Cloud data lives only in memory — localStorage stays as guest-only data.
-            progress = cloud ?? { forms: {}, runs: 0, wins: 0, bestScore: 0, fewestMovesWin: null };
-            updateProfileChip();
-            renderProfile();
-            if (returnTo === "game") startRun();
-          })
-          .catch(() => {});
+        if (returnTo === "game") startRun();
       }
     },
   });
@@ -923,22 +878,10 @@ async function initializeAuth() {
   if (/access_token|error_description/.test(location.hash) || new URLSearchParams(location.search).has("code")) {
     history.replaceState({ screen: "start" }, "", location.pathname);
   }
-  // If already signed in on page load (session restored from storage), load cloud progress now.
-  // The onChange handler only fires for *new* sign-ins; the initial INITIAL_SESSION event
-  // arrives after initAuth returns, at which point prevUser is already non-null, so the
-  // onChange guard (!prevUser && user) never triggers for restored sessions.
   if (authState.user) {
-    const uid = authState.user.id;
     const returnTo = consumeReturnTo();
-    loadCloudProgress(uid)
-      .then((cloud) => {
-        progress = cloud ?? { forms: {}, runs: 0, wins: 0, bestScore: 0, fewestMovesWin: null };
-        updateProfileChip();
-        renderProfile();
-        // After OAuth redirect: return to where the user was (game → start a new run).
-        if (returnTo === "game") startRun();
-      })
-      .catch(() => {});
+    // After OAuth redirect: return to where the user was (game -> start a new run).
+    if (returnTo === "game") startRun();
   }
 }
 
@@ -1414,7 +1357,6 @@ function renderBoard(stateLike) {
       },
     )
     .join("");
-  boardIntroArmed = false;
 }
 
 function syncBoardSize() {
@@ -1710,7 +1652,7 @@ function renderLeaderboard() {
       `${colorLabel(entry.t4Color)} sprint`,
     ));
 
-  const emptyMsg = "No global records yet — be the first to win!";
+  const emptyMsg = "Global leaderboard is disabled until trusted score validation is enabled.";
 
   const renderRows = (rows) =>
     rows.length === 0
@@ -1762,7 +1704,7 @@ function renderLeaderboard() {
   `;
 }
 
-// Lifetime meta-progression banner shown on every leaderboard tab.
+// Lifetime meta-progression banner shown on profile and leaderboard surfaces.
 function renderStatsHeader() {
   const fewest = progress.fewestMovesWin;
   const stat = (label, value) =>
@@ -2142,7 +2084,6 @@ bindClick(elements.startMuteBtn, handleMuteToggle);
 bindClick(elements.rerollHud, () => {
   if (!state) return;
   resetInteractionState();
-  armBoardIntro();
   applyState(rerollBoard(state));
 });
 bindClick(elements.profileChip, () => {
@@ -2170,7 +2111,6 @@ bindClick(elements.gameoverRerollBtn, () => {
   }
 
   resetInteractionState();
-  armBoardIntro();
   setScreen("game");
   applyState(rerollBoard(state));
 });
@@ -2180,7 +2120,6 @@ bindClick(elements.rerollRun, () => {
   }
 
   resetInteractionState();
-  armBoardIntro();
   applyState(rerollBoard(state));
 });
 elements.partnerOptions.addEventListener("click", (event) => {
@@ -2242,36 +2181,5 @@ if (!_hasOAuthCode && !/access_token|error_description/.test(location.hash)) {
 syncMuteButton();
 updateProfileChip();
 initializeAuth();
-
-// Demo/preview hook: open with ?demo=victory or ?demo=gameover to jump straight
-// to that end screen with sample data (no need to play a full run). Dev-only
-// convenience for previewing on a phone — it builds a real, fully-formed engine
-// state so the whole render pipeline has every field it expects, then overlays
-// the demo outcome.
-const demoMode = new URLSearchParams(window.location.search).get("demo");
-if (demoMode === "victory") {
-  state = createInitialState({ diagonalAssist: true });
-  state.victory = true;
-  state.score = 3000;
-  state.movesUsed = 12;
-  // Drive a real apex form (Red + Blue → Vynbloom) so the demo shows the actual
-  // winning artwork instead of the default blue base block.
-  state.evolutionTiers.red = 4;
-  state.evolutionFusions.red = { partnerColorId: "blue" };
-  state.evolutionChoices.red = { 4: "T4_VYNBLOOM" };
-  state.victoryMeta = {
-    colorId: "red",
-    partnerColorId: "blue",
-    formName: "Vynbloom",
-  };
-  setScreen("victory");
-} else if (demoMode === "gameover") {
-  state = createInitialState({ diagonalAssist: true });
-  state.gameOver = true;
-  state.score = 1240;
-  state.movesUsed = 40;
-  state.rerollCharges = 0;
-  setScreen("gameover");
-}
 
 render();

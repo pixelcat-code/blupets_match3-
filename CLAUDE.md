@@ -17,8 +17,7 @@ This repo is a vanilla JS match-3 game with a responsive mobile-first layout and
 - Profile screen includes `Sign in` and `Sign out`.
 - Google + X/Twitter login is wired through Supabase Auth.
 - Supabase config is already filled in `auth-config.js`.
-- Leaderboard shows `All Time` and `Speed Run` side by side on one page.
-- Leaderboard entries now store/display the account name that set the record.
+- Leaderboard shows a safe disabled state until trusted score validation exists.
 - Browser history routing: every screen push calls `history.pushState` with a URL fragment (`#game`, `#profile`, `#leaderboard`, `#victory`, `#gameover`, no fragment for start). Browser back/forward buttons navigate between screens.
 
 ## Mobile game screen layout (≤699px)
@@ -47,8 +46,8 @@ Unchanged from before: 2-column grid, reroll dock in left column, footer with mu
 
 ## Current versions (bump on change)
 
-- `styles.css` query string: `?v=20260617-145`
-- `main.js` query string: `?v=20260617-121`
+- `styles.css` query string: `?v=20260617-147`
+- `main.js` query string: `?v=20260617-125`
 - `auth-config.js` query string: `?v=20260617-2`
 
 Always bump `?v=` on `styles.css` in `index.html` after any CSS edit, or the browser serves stale CSS.
@@ -71,9 +70,9 @@ Always bump `?v=` on `styles.css` in `index.html` after any CSS edit, or the bro
 - On page load, the auth modal opens.
 - `Skip` closes the modal and lets the player continue.
 - `Profile` opens the profile screen (shows `N/36` count on mobile chip).
-- `Leaderboard` opens a two-column board with `All Time` and `Speed Run` visible together.
+- `Leaderboard` opens a disabled-state board; direct browser leaderboard writes are blocked.
 - The profile gallery is dense enough to show all 36 forms without scroll on the current desktop target.
-- Leaderboard rows include the account name above the record summary.
+- Progress stays local in browser storage.
 - Browser back button navigates between screens (start ↔ game ↔ leaderboard ↔ profile ↔ victory/gameover).
 
 ## Current test status
@@ -94,18 +93,16 @@ npm test
 - **History routing**: `setScreen(screen)` pushes `history.pushState` when the screen changes (guarded by `_inPopstate` flag). `closeProfile()` and `closeLeaderboard()` call `history.back()` — do not revert these to `setScreen()` calls or the back-stack breaks. If you add new screens, follow the same pattern: `setScreen()` pushes, close buttons call `history.back()`, popstate handler restores.
 - **`_historyDepth`** counts how many pushes we've made. Close functions check `_historyDepth > 0` before calling `history.back()` to avoid navigating away from the app if there's no stack.
 - If you change auth flow, update both `src/main.js` and `src/auth.js`.
-- If you change leaderboard storage or record structure, update the record payload in `recordVictory()` and the render logic together.
+- Do not re-enable direct browser writes for leaderboard/progress. Add a trusted server or Supabase Edge Function first.
 - If you change provider settings or redirect URLs, update `docs/supabase-auth-setup.md` too.
 - If you add or rename OAuth token cleanup, make sure `initializeAuth()` still calls `history.replaceState` to strip the `#access_token` fragment after Supabase consumes it.
 
-## Cloud sync (implemented)
+## Cloud sync status
 
-- `src/supabase-client.js` — shared Supabase client singleton (used by auth.js and sync.js).
-- `src/sync.js` — four exported functions: `loadCloudProgress`, `saveProgressToCloud`, `recordWinToCloud`, `fetchGlobalLeaderboard`.
-- On sign-in: cloud progress overwrites local (cloud wins).
-- On each win: progress + leaderboard entry saved to Supabase.
-- Leaderboard: global read for all users (guests see it too, read-only). Local fallback if offline.
-- Schema: `docs/supabase-schema.sql` — run once in the Supabase SQL editor.
+- `src/sync.js` intentionally does not write progress or leaderboard rows.
+- Progress remains local. Sign-in is identity-only until trusted sync exists.
+- Schema: `docs/supabase-schema.sql` keeps browser clients read-only.
+- Trusted cloud sync requires a server/Edge Function that validates runs before writing.
 - Avatar URLs from OAuth are validated (`https:` only) before use in CSS or `<img>` src.
 
 ## Notes

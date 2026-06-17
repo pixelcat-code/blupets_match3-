@@ -1,6 +1,6 @@
 # Supabase Setup
 
-This app supports optional Google and X/Twitter login through Supabase Auth, with cloud sync for progress and a global leaderboard. The game still works without auth; missing config only disables sign-in and cloud features.
+This app supports optional Google and X/Twitter login through Supabase Auth. Progress and leaderboard writes are intentionally local-only in the browser until a trusted server or Supabase Edge Function validates runs before writing shared data.
 
 ## 1. Create Supabase project
 
@@ -22,12 +22,12 @@ The anon key is intended for browser use. Never put service-role keys in this fi
 
 ## 2. Run the database schema
 
-Open **Dashboard → SQL Editor → New query**, paste the contents of `docs/supabase-schema.sql`, and run it. This creates:
+Open **Dashboard → SQL Editor → New query**, paste the contents of `docs/supabase-schema.sql`, and run it. This creates read-only browser policies for:
 
-- `user_progress` — one row per user, stores wins/runs/forms/bestScore
-- `leaderboard_entries` — one row per win, globally readable
+- `user_progress` — one row per user, reserved for trusted backend writes
+- `leaderboard_entries` — one row per validated win, globally readable
 
-Row Level Security is enabled on both tables.
+Row Level Security is enabled on both tables. Browser clients can read allowed rows but cannot insert/update progress or leaderboard rows directly.
 
 ## 3. Enable auth providers
 
@@ -48,17 +48,22 @@ http://localhost:4174
 https://your-deployed-domain.example
 ```
 
-The app redirects back to the current page, stripping the `#hash` and `?demo=` param.
+The app redirects back to the current page, stripping the `#hash`.
 
 ## 5. Implemented features
 
 - Google sign-in
 - X/Twitter sign-in
 - Sign-out
-- **Cloud progress sync** — on sign-in, local progress is replaced by cloud data; on each win, progress and the leaderboard entry are saved to Supabase
-- **Global leaderboard** — all players (including guests) see the shared board; guests' wins are local-only
+- **Local progress** — wins/runs/forms stay in browser storage
+- **Cloud writes disabled** — direct browser writes to progress and leaderboard are blocked because they are forgeable
 - **Avatar URL security** — provider avatar URLs are validated (`https:` only) before use in CSS or `<img>` src
 
-## 6. Account merge policy
+## 6. Enabling trusted cloud sync later
 
-Currently: **cloud wins on first sign-in**. Local-only progress played as a guest is replaced by whatever is stored in Supabase. This is the simplest model. Merge logic can be added to `initializeAuth` in `src/main.js` if needed later.
+To enable a real global leaderboard or cloud progress, add a server-side endpoint or Supabase Edge Function that:
+
+- verifies the user's JWT server-side
+- validates/replays the run or applies another anti-tamper proof
+- writes `user_progress` and `leaderboard_entries` using service-role credentials
+- keeps the browser anon key limited to read-only RLS policies
