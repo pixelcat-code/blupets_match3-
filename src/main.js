@@ -307,8 +307,8 @@ async function startRun({ guided = false } = {}) {
     try {
       runProof = await startTrustedRun();
       seed = runProof.seed;
-    } catch (error) {
-      showToast("Trusted leaderboard unavailable — run stays local.");
+    } catch {
+      // Trusted run unavailable — fall back to local seed silently.
     }
   }
   runRng = createSeededRng(seed);

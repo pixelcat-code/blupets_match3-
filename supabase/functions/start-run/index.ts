@@ -26,7 +26,19 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    // Block seed cherry-picking: reject if user already has too many open (unsubmitted) runs.
+    // Clean up stale open runs (>30 min old) before checking the cap.
+    // Abandoned runs accumulate when the user quits mid-game; purging them
+    // here prevents legitimate players from hitting the cherry-pick guard.
+    const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    await supabase
+      .from("game_runs")
+      .delete()
+      .eq("user_id", userData.user.id)
+      .is("submitted_at", null)
+      .lt("created_at", staleThreshold);
+
+    // Block seed cherry-picking: reject if user already has too many recent
+    // open (unsubmitted) runs even after cleanup.
     const { count, error: countError } = await supabase
       .from("game_runs")
       .select("id", { count: "exact", head: true })
