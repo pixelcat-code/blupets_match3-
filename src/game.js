@@ -690,7 +690,12 @@ export function getProgressPercent(state, colorId) {
     return 0;
   }
 
-  return Math.max(0, Math.min(100, Math.round((state.colorMatchCounts[colorId] / threshold) * 100)));
+  const count = state.colorMatchCounts[colorId];
+  if (!Number.isFinite(count)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round((count / threshold) * 100)));
 }
 
 export function getBestProgressSummary(state) {
@@ -823,7 +828,7 @@ function applyCascadeProgress(state, cascadeSteps) {
         continue;
       }
 
-      colorMatchCounts[clearedTile.color] += 1 + auraBonus;
+      colorMatchCounts[clearedTile.color] = (colorMatchCounts[clearedTile.color] ?? 0) + 1 + auraBonus;
     }
 
     // comboEssence vibe: a 5+ tile match grants bonus essence to each base color
@@ -847,7 +852,7 @@ function applyCascadeProgress(state, cascadeSteps) {
             continue;
           }
 
-          colorMatchCounts[colorId] += comboEssence;
+          colorMatchCounts[colorId] = (colorMatchCounts[colorId] ?? 0) + comboEssence;
         }
       }
     }
@@ -1039,6 +1044,9 @@ export function selectFusionPartner(state, colorId, partnerColorId) {
   if (!getColor(colorId) || !getColor(partnerColorId)) {
     return state;
   }
+
+  // Note: self-partner (mono-color) fusion is intentionally allowed — see the
+  // "selectFusionPartner allows choosing the same color as its own partner" test.
 
   let nextState = promoteColorTier(state, colorId, 2);
   nextState = {

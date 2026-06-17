@@ -1,0 +1,20 @@
+# Security headers for Netlify (and Netlify-compatible static hosts).
+# This file is served from the publish root. Vercel users: see vercel.json
+# (each platform ignores the other's config file).
+#
+# CSP origins (keep in sync with vercel.json):
+#   script-src  esm.sh        -> Supabase JS SDK is loaded via dynamic import()
+#   connect-src *.supabase.co -> REST + Auth + Realtime (wss) + Edge Functions
+#   img-src     https:        -> OAuth avatars come from arbitrary providers
+#                                (Google lh3.googleusercontent.com, X pbs.twimg.com, ...)
+#   style-src   'unsafe-inline' -> inline style="" attributes in index.html
+#
+# IMPORTANT: after the first deploy with this policy, smoke-test in a real
+# browser — sign in with Google/X, confirm avatars render, open the
+# leaderboard, and submit a run. A too-tight CSP silently breaks OAuth.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://esm.sh; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://esm.sh https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), microphone=(), camera=()

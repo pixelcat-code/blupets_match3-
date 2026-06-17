@@ -17,8 +17,8 @@ import {
   rerollBoard,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260617-gameplay-3";
-import { runTour } from "./coachmarks.js";
+} from "./game.js?v=20260618-gameplay-4";
+import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } from "./audio.js?v=20260617-3";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
@@ -30,7 +30,7 @@ import {
   discoveredCount,
   getCollectionEntries,
   TOTAL_APEX_FORMS,
-} from "./progress.js?v=20260617-4";
+} from "./progress.js?v=20260618-5";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -173,6 +173,9 @@ let boardAnimation = {
 let isAnimating = false;
 let dragState = null;
 let remoteLeaderboard = [];
+// "loading" | "ready" | "error" — drives distinct leaderboard placeholder copy
+// so the user can tell apart fetching, an empty board, and a network failure.
+let leaderboardStatus = "loading";
 let progress = loadProgress();
 let authState = {
   configured: false,
@@ -211,12 +214,23 @@ function logRunAction(action) {
 function applyRemoteProgress(remote) {
   if (!remote) return;
   const localRuns = progress.runs;
+  // Take the better of local/remote for each record so a sign-in merge can
+  // never regress an unsynced local best (higher score, fewer moves).
+  const localBest = progress.bestScore ?? 0;
+  const localFewest = progress.fewestMovesWin;
+  const remoteFewest = remote.fewestMovesWin;
+  const mergedFewest =
+    localFewest == null
+      ? remoteFewest ?? null
+      : remoteFewest == null
+        ? localFewest
+        : Math.min(localFewest, remoteFewest);
   progress = {
     ...progress,
-    wins: remote.wins ?? progress.wins,
+    wins: Math.max(progress.wins ?? 0, remote.wins ?? 0),
     runs: Math.max(localRuns, remote.runs ?? 0),
-    bestScore: remote.bestScore ?? progress.bestScore,
-    fewestMovesWin: remote.fewestMovesWin ?? progress.fewestMovesWin,
+    bestScore: Math.max(localBest, remote.bestScore ?? 0),
+    fewestMovesWin: mergedFewest,
     forms: { ...(remote.forms ?? {}), ...(progress.forms ?? {}) },
   };
   saveProgress(progress);
@@ -302,14 +316,21 @@ function setScreen(screen) {
   currentScreen = screen;
   if (changed && !_inPopstate) {
     const hash = screen === "start" ? "" : screen;
-    history.pushState({ screen }, "", location.pathname + (hash ? "#" + hash : ""));
+    // Record this entry's depth as `idx` so popstate can recover the true
+    // depth on BOTH back and forward navigation (a blind decrement would
+    // desync on forward — see popstate handler).
     _historyDepth++;
+    history.pushState({ screen, idx: _historyDepth }, "", location.pathname + (hash ? "#" + hash : ""));
   }
-  // Keep the Blupix ambience through the menu and active run.
-  if (screen === "start" || screen === "game" || screen === "leaderboard" || screen === "profile" || screen === "public-profile") {
-    startMusic();
-  } else {
-    stopMusic();
+  // Keep the Blupix ambience through the menu and active run. Only poke the
+  // audio layer on a real screen change — render() calls setScreen() every
+  // frame, and the first-gesture pointerdown handler already kicks off ambience.
+  if (changed) {
+    if (screen === "start" || screen === "game" || screen === "leaderboard" || screen === "profile" || screen === "public-profile") {
+      startMusic();
+    } else {
+      stopMusic();
+    }
   }
   elements.startScreen.hidden = screen !== "start";
   elements.gameScreen.hidden = screen !== "game";
@@ -422,10 +443,18 @@ function hideVibeIntro() {
   }
 }
 
+// True only while there is a live, unfinished run worth returning to.
+function hasLiveRun() {
+  return Boolean(state && !state.victory && !state.gameOver);
+}
+
 function goToStart() {
   guideTour?.stop();
   resetInteractionState();
   clearRunProof();
+  // Drop the finished/abandoned run so nothing can navigate back into a frozen
+  // board (close-button fallbacks and popstate both gate on a live run).
+  state = null;
   setScreen("start");
   render();
 }
@@ -446,21 +475,24 @@ function closeProfile() {
   if (_historyDepth > 0) {
     history.back();
   } else {
-    setScreen(lastScreenBeforeProfile === "game" && state ? "game" : "start");
+    setScreen(lastScreenBeforeProfile === "game" && hasLiveRun() ? "game" : "start");
     render();
   }
 }
 
 async function openLeaderboard(fromScreen = currentScreen) {
   lastScreenBeforeLeaderboard = fromScreen;
+  leaderboardStatus = "loading";
   setScreen("leaderboard");
   renderLeaderboard();
   try {
     const entries = await fetchGlobalLeaderboard();
     remoteLeaderboard = entries;
+    leaderboardStatus = "ready";
     if (currentScreen === "leaderboard") renderLeaderboard();
   } catch {
-    // Stay on local leaderboard if network unavailable.
+    leaderboardStatus = "error";
+    if (currentScreen === "leaderboard") renderLeaderboard();
   }
 }
 
@@ -468,7 +500,7 @@ function closeLeaderboard() {
   if (_historyDepth > 0) {
     history.back();
   } else {
-    setScreen(lastScreenBeforeLeaderboard === "game" && state ? "game" : "start");
+    setScreen(lastScreenBeforeLeaderboard === "game" && hasLiveRun() ? "game" : "start");
     render();
   }
 }
@@ -613,6 +645,15 @@ function applyState(nextState) {
     setScreen("victory");
     sfx("victory");
     buzz([0, 90, 50, 90, 50, 160]);
+    // Pull fresh leaderboard data so the victory rank reflects reality, then
+    // re-render the victory screen if we're still on it.
+    fetchGlobalLeaderboard()
+      .then((entries) => {
+        remoteLeaderboard = entries;
+        leaderboardStatus = "ready";
+        if (currentScreen === "victory") renderVictoryScreen(state);
+      })
+      .catch(() => {});
   } else if (nextState?.gameOver) {
     setScreen("gameover");
   }
@@ -715,8 +756,11 @@ function escapeHtml(value) {
 function safeImgSrc(raw) {
   if (!raw) return "";
   try {
-    const { protocol } = new URL(raw);
-    return protocol === "https:" ? raw : "";
+    const url = new URL(raw);
+    // Return the normalized href, not the raw string: new URL() accepts
+    // `"`, `<`, `>` in the path and only percent-encodes them in .href.
+    // Returning raw would let those characters break out of an HTML attribute.
+    return url.protocol === "https:" ? url.href : "";
   } catch { return ""; }
 }
 
@@ -839,17 +883,21 @@ function spawnComboPopup(text, level) {
   window.setTimeout(() => el.remove(), 950);
 }
 
-// Floating "+score" tally that drifts up after a resolution settles.
-function spawnScoreFloater(amount) {
+// Floating "+score" tally that drifts up after a resolution settles. Deeper
+// cascades spawn a slightly larger, hotter floater so big chains read bigger.
+function spawnScoreFloater(amount, cascadeDepth = 1) {
   const layer = elements.fxLayer;
   if (!layer) {
     return;
   }
+  const depth = Math.max(1, Math.min(cascadeDepth || 1, 6));
   const el = document.createElement("div");
   el.className = "fx-score";
   el.textContent = `+${amount}`;
   el.style.setProperty("--fx-x", "50%");
   el.style.setProperty("--fx-y", "60%");
+  el.style.setProperty("--fx-scale", String(1 + (depth - 1) * 0.12));
+  if (depth >= 3) el.classList.add("is-big-cascade");
   layer.appendChild(el);
   window.setTimeout(() => el.remove(), 1000);
 }
@@ -975,6 +1023,47 @@ function renderAuthModal() {
   const open = authModalForced || shouldShowAuthModal();
   elements.authModal.hidden = !open;
   elements.authModal.setAttribute("aria-hidden", open ? "false" : "true");
+  syncAuthModalFocus(open);
+}
+
+// Scroll-lock + focus-trap for the auth modal, mirroring syncGameModalFocus.
+// Escape dismisses the modal (same as Skip). Uses its own handler/state so it
+// never collides with the game evolution modals (different screens anyway).
+let _authModalOpen = false;
+let _authModalKeyHandler = null;
+function syncAuthModalFocus(open) {
+  if (open === _authModalOpen) return;
+  _authModalOpen = open;
+  document.body.classList.toggle("modal-open", open);
+  if (_authModalKeyHandler) {
+    document.removeEventListener("keydown", _authModalKeyHandler, true);
+    _authModalKeyHandler = null;
+  }
+  if (!open || !elements.authModal) return;
+  const focusables = () => [...elements.authModal.querySelectorAll("button:not([disabled])")];
+  focusables()[0]?.focus();
+  _authModalKeyHandler = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAuthModal({ dismiss: true });
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const items = focusables();
+    if (!items.length) return;
+    const idx = items.indexOf(document.activeElement);
+    if (event.shiftKey && idx <= 0) {
+      event.preventDefault();
+      items[items.length - 1].focus();
+    } else if (!event.shiftKey && idx === items.length - 1) {
+      event.preventDefault();
+      items[0].focus();
+    } else if (idx === -1) {
+      event.preventDefault();
+      items[0].focus();
+    }
+  };
+  document.addEventListener("keydown", _authModalKeyHandler, true);
 }
 
 function openAuthModal({ force = true } = {}) {
@@ -1691,6 +1780,44 @@ function drainAutoSelections() {
   }
 }
 
+// Focus management + focus trap + scroll lock for the blocking evolution modals.
+// renderModals runs every frame, so act only on open/close transitions to avoid
+// stealing focus repeatedly. These modals require a choice, so there's no Escape
+// cancel — focus is trapped on the option buttons until one is picked.
+let _openGameModal = null;
+let _gameModalKeyHandler = null;
+function syncGameModalFocus(which) {
+  if (which === _openGameModal) return;
+  _openGameModal = which;
+  document.body.classList.toggle("modal-open", Boolean(which));
+  if (_gameModalKeyHandler) {
+    document.removeEventListener("keydown", _gameModalKeyHandler, true);
+    _gameModalKeyHandler = null;
+  }
+  if (!which) return;
+  const modal = which === "partner" ? elements.modalPartner : elements.modalForm;
+  if (!modal) return;
+  const focusables = () => [...modal.querySelectorAll("button:not([disabled])")];
+  focusables()[0]?.focus();
+  _gameModalKeyHandler = (event) => {
+    if (event.key !== "Tab") return;
+    const items = focusables();
+    if (!items.length) return;
+    const idx = items.indexOf(document.activeElement);
+    if (event.shiftKey && idx <= 0) {
+      event.preventDefault();
+      items[items.length - 1].focus();
+    } else if (!event.shiftKey && idx === items.length - 1) {
+      event.preventDefault();
+      items[0].focus();
+    } else if (idx === -1) {
+      event.preventDefault();
+      items[0].focus();
+    }
+  };
+  document.addEventListener("keydown", _gameModalKeyHandler, true);
+}
+
 function renderModals(stateLike) {
   if (
     currentScreen !== "game" ||
@@ -1701,6 +1828,7 @@ function renderModals(stateLike) {
   ) {
     elements.modalPartner.style.display = "none";
     elements.modalForm.style.display = "none";
+    syncGameModalFocus(null);
     return;
   }
 
@@ -1725,6 +1853,7 @@ function renderModals(stateLike) {
         </button>
       `)
       .join("");
+    syncGameModalFocus("partner");
     return;
   }
 
@@ -1750,6 +1879,7 @@ function renderModals(stateLike) {
       </button>
     `)
     .join("");
+  syncGameModalFocus("form");
 }
 
 function renderGameoverScreen(stateLike) {
@@ -1761,8 +1891,25 @@ function renderGameoverScreen(stateLike) {
   elements.gameoverScore.textContent = `${stateLike.score}`;
 }
 
-function getVictoryRank() {
-  return { rank: 1, total: 1 };
+// Best-effort global rank for a finished run, computed from whatever leaderboard
+// data is loaded (the All-Time column dedups to each user's best score). The
+// victory branch kicks off a fetch so this becomes accurate shortly after a win;
+// with no data at all it falls back to a solo 1/1.
+function getVictoryRank(stateLike) {
+  const score = stateLike?.score ?? 0;
+  const best = new Map();
+  for (const entry of remoteLeaderboard) {
+    const id = entry.userId || entry.accountName || JSON.stringify(entry);
+    const prev = best.get(id);
+    if (prev == null || (entry.score ?? 0) > prev) best.set(id, entry.score ?? 0);
+  }
+  const myId = authState.user?.id;
+  const scores = [...best.values()];
+  const higher = scores.filter((s) => s > score).length;
+  // Count this run as a participant if it isn't already represented.
+  const alreadyListed = Boolean(myId && best.has(myId));
+  const total = Math.max(1, scores.length + (alreadyListed ? 0 : 1));
+  return { rank: higher + 1, total };
 }
 
 function renderVictoryScreen(stateLike) {
@@ -1848,11 +1995,16 @@ function renderLeaderboard() {
       `${colorLabel(entry.t4Color)} sprint`,
     ));
 
-  const emptyMsg = "Global leaderboard is disabled until trusted score validation is enabled.";
+  const emptyMsg =
+    leaderboardStatus === "loading"
+      ? "Loading leaderboard…"
+      : leaderboardStatus === "error"
+        ? "Couldn’t load the leaderboard. Check your connection and reopen to retry."
+        : "No scores yet — win a run to claim the first spot.";
 
   const renderRows = (rows) =>
     rows.length === 0
-      ? `<div class="leaderboard-empty">${emptyMsg}</div>`
+      ? `<div class="leaderboard-empty">${escapeHtml(emptyMsg)}</div>`
       : rows
           .map((row) => {
             const tierClass =
@@ -1862,10 +2014,10 @@ function renderLeaderboard() {
                 ? `<span class="leaderboard-medal" aria-hidden="true">${row.rank}</span><span class="sr-only">Rank ${row.rank}</span>`
                 : `#${row.rank}`;
             const avatar = row.avatarUrl
-              ? `<img class="leaderboard-avatar" src="${row.avatarUrl}" alt="" aria-hidden="true" />`
+              ? `<img class="leaderboard-avatar" src="${escapeHtml(row.avatarUrl)}" alt="" aria-hidden="true" />`
               : `<span class="leaderboard-avatar leaderboard-avatar--placeholder" aria-hidden="true"></span>`;
             const userBtn = row.userId
-              ? `<button class="leaderboard-user-btn" type="button" data-user-id="${escapeHtml(row.userId)}" data-account="${row.account}" data-avatar="${row.avatarUrl}" aria-label="View ${row.account}'s profile">${avatar}<div class="leaderboard-user"><span class="leaderboard-title">${row.account}</span><span class="leaderboard-meta">${escapeHtml(row.title)}</span></div></button>`
+              ? `<button class="leaderboard-user-btn" type="button" data-user-id="${escapeHtml(row.userId)}" data-account="${row.account}" data-avatar="${escapeHtml(row.avatarUrl)}" aria-label="View ${row.account}'s profile">${avatar}<div class="leaderboard-user"><span class="leaderboard-title">${row.account}</span><span class="leaderboard-meta">${escapeHtml(row.title)}</span></div></button>`
               : `${avatar}<div class="leaderboard-user"><span class="leaderboard-title">${row.account}</span><span class="leaderboard-meta">${escapeHtml(row.title)}</span></div>`;
             return `
               <div class="leaderboard-row${tierClass}">
@@ -2287,7 +2439,9 @@ bindClick(elements.rerollHud, () => {
   if (!state) return;
   resetInteractionState();
   const nextState = rerollBoard(state, runRng);
-  if (nextState !== state) logRunAction({ type: "reroll" });
+  // Only log when a charge was actually spent — a no-charge click returns a
+  // status-only state that must not pollute the run action log / replay budget.
+  if ((nextState.rerollCharges ?? 0) < (state.rerollCharges ?? 0)) logRunAction({ type: "reroll" });
   applyState(nextState);
 });
 bindClick(elements.profileChip, () => {
@@ -2316,7 +2470,8 @@ bindClick(elements.rerollRun, () => {
 
   resetInteractionState();
   const nextState = rerollBoard(state, runRng);
-  if (nextState !== state) logRunAction({ type: "reroll" });
+  // Only log when a charge was actually spent (see HUD reroll handler above).
+  if ((nextState.rerollCharges ?? 0) < (state.rerollCharges ?? 0)) logRunAction({ type: "reroll" });
   applyState(nextState);
 });
 elements.partnerOptions.addEventListener("click", (event) => {
@@ -2370,9 +2525,16 @@ window.addEventListener("resize", () => {
 // Browser history routing: each screen push pushes a URL fragment so
 // the browser back/forward buttons navigate between screens.
 window.addEventListener("popstate", (e) => {
-  const screen = e.state?.screen || "start";
+  let screen = e.state?.screen || "start";
   _inPopstate = true;
-  _historyDepth = Math.max(0, _historyDepth - 1);
+  // Recover depth from the entry's recorded idx — correct for back AND forward.
+  _historyDepth = Math.max(0, e.state?.idx ?? 0);
+  // Never restore a finished or absent run into the live game screen: the board
+  // would be frozen (victory/gameOver blocks interaction). Send them to start.
+  if (screen === "game" && (!state || state.victory || state.gameOver)) {
+    screen = "start";
+    history.replaceState({ screen: "start", idx: _historyDepth }, "", location.pathname);
+  }
   if (screen === "start") {
     guideTour?.stop();
     resetInteractionState();
@@ -2395,7 +2557,7 @@ if (!_hasOAuthCode && !/access_token|error_description/.test(location.hash)) {
   if (initialScreen === "profile") lastScreenBeforeProfile = "start";
   currentScreen = initialScreen;
   history.replaceState(
-    { screen: initialScreen },
+    { screen: initialScreen, idx: 0 },
     "",
     location.pathname + (initialScreen !== "start" ? "#" + initialScreen : ""),
   );
@@ -2408,12 +2570,17 @@ render();
 
 // If restored to leaderboard on refresh, kick off the remote data fetch.
 if (currentScreen === "leaderboard") {
+  leaderboardStatus = "loading";
   fetchGlobalLeaderboard()
     .then((entries) => {
       remoteLeaderboard = entries;
+      leaderboardStatus = "ready";
       if (currentScreen === "leaderboard") renderLeaderboard();
     })
-    .catch(() => {});
+    .catch(() => {
+      leaderboardStatus = "error";
+      if (currentScreen === "leaderboard") renderLeaderboard();
+    });
 }
 
 // Refresh profile data when the tab becomes visible again.

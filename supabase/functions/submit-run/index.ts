@@ -20,7 +20,9 @@ function avatarForUser(user: any) {
   const raw = meta.avatar_url || meta.picture || "";
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" ? raw : "";
+    // Return the normalized href (not the raw string) so any dangerous
+    // characters in the URL are percent-encoded before being stored/rendered.
+    return url.protocol === "https:" ? url.href : "";
   } catch {
     return "";
   }
@@ -54,21 +56,29 @@ function mergeWin(progress: any, state: any) {
   return next;
 }
 
+// Per-user submission rate limiting — the run replay validates that a single
+// run is legitimate, but not the rate of farming. Cap submissions and require a
+// minimum wall-clock run duration to block scripted open→submit→repeat loops.
+const SUBMIT_WINDOW_MS = 60 * 60 * 1000;
+const MAX_SUBMITS_PER_WINDOW = 20;
+const MIN_RUN_DURATION_MS = 3000;
+
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
   if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
+    return json({ error: "Method not allowed" }, 405, cors);
   }
 
   try {
     const token = bearerToken(req);
-    if (!token) return json({ error: "Missing bearer token" }, 401);
+    if (!token) return json({ error: "Missing bearer token" }, 401, cors);
 
     const body = await req.json().catch(() => ({}));
     const runId = String(body.runId ?? "");
-    if (!runId) return json({ error: "Missing runId" }, 400);
+    if (!runId) return json({ error: "Missing runId" }, 400, cors);
 
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
@@ -78,9 +88,23 @@ Deno.serve(async (req) => {
 
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) {
-      return json({ error: "Unauthorized" }, 401);
+      return json({ error: "Unauthorized" }, 401, cors);
     }
     const user = userData.user;
+
+    // Rate-limit: reject if the user already submitted MAX_SUBMITS_PER_WINDOW
+    // runs in the trailing window. Blocks high-speed seed farming.
+    const windowStart = new Date(Date.now() - SUBMIT_WINDOW_MS).toISOString();
+    const { count: recentSubmits, error: rateError } = await supabase
+      .from("game_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .not("submitted_at", "is", null)
+      .gte("submitted_at", windowStart);
+    if (rateError) throw rateError;
+    if ((recentSubmits ?? 0) >= MAX_SUBMITS_PER_WINDOW) {
+      return json({ error: "rate_limited" }, 429, cors);
+    }
 
     const { data: run, error: runError } = await supabase
       .from("game_runs")
@@ -89,23 +113,31 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .single();
 
-    if (runError || !run) return json({ error: "Run not found" }, 404);
-    if (run.submitted_at) return json({ error: "Run already submitted" }, 409);
+    if (runError || !run) return json({ error: "Run not found" }, 404, cors);
+    if (run.submitted_at) return json({ error: "Run already submitted" }, 409, cors);
+
+    const runAgeMs = Date.now() - new Date(run.created_at).getTime();
 
     // Reject runs older than 30 minutes — prevents storing seeds for later cherry-picking.
     const RUN_TTL_MS = 30 * 60 * 1000;
-    if (Date.now() - new Date(run.created_at).getTime() > RUN_TTL_MS) {
-      return json({ error: "run_expired" }, 422);
+    if (runAgeMs > RUN_TTL_MS) {
+      return json({ error: "run_expired" }, 422, cors);
+    }
+
+    // Reject impossibly fast submissions — a real T4 win cannot complete in
+    // under a few seconds of wall-clock time, so this catches instant scripts.
+    if (runAgeMs < MIN_RUN_DURATION_MS) {
+      return json({ error: "run_too_fast" }, 422, cors);
     }
 
     const { state, actions } = replayRun(run.seed, body.actions);
     if (!state.victory || !state.victoryMeta) {
-      return json({ error: "Run replay did not reach victory" }, 422);
+      return json({ error: "Run replay did not reach victory" }, 422, cors);
     }
 
     // Reject implausible wins: T4 requires 42+ matches; fewer than 5 swaps is impossible.
     if (state.movesUsed < 5) {
-      return json({ error: "implausible_run" }, 422);
+      return json({ error: "implausible_run" }, 422, cors);
     }
 
     const accountName = labelForUser(user);
@@ -160,8 +192,9 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id);
     if (runUpdateError) throw runUpdateError;
 
-    return json({ ok: true, entry, progress });
+    return json({ ok: true, entry, progress }, 200, cors);
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Submit run failed" }, 500);
+    console.error("submit-run failed:", error);
+    return json({ error: "submit_run_failed" }, 500, cors);
   }
 });

@@ -199,7 +199,7 @@ button {
 .game-frame .game-footer { display: none; }
 
 /* Mobile profile chip: icon + "Profile" text, no count. */
-.profile-chip-label { display: inline; font-size: 2rem; }
+.profile-chip-label { display: inline; }
 .profile-chip-count { display: none; }
 .profile-chip { min-width: 0; padding: 0 14px 0 10px; gap: 6px; }
 .profile-chip .profile-chip-icon { width: 2.4rem; height: 2.4rem; }
@@ -390,32 +390,6 @@ button {
   font-size: 14px;
   font-weight: 700;
   line-height: 1.5;
-}
-
-.victory-callout {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 2px;
-}
-
-.victory-callout-label {
-  color: var(--color-text);
-  font-size: clamp(1.1rem, 3.4vw, 1.5rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  text-transform: none;
-  line-height: 1;
-}
-
-.victory-callout strong {
-  color: var(--color-text);
-  font-size: clamp(1.1rem, 3.4vw, 1.5rem);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.04em;
 }
 
 /* Score / Place / Forms — the three numbers shown on the card and the PNG. */
@@ -684,55 +658,6 @@ h2 {
 
 h2 {
   font-size: clamp(1.4rem, 4vw, 2rem);
-}
-
-.start-copy-block {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 10px;
-  width: min(100%, 360px);
-}
-
-.start-copy {
-  margin: 0;
-  color: rgba(15, 39, 66, 0.76);
-  font-size: 1rem;
-  line-height: 1.55;
-}
-
-.start-rules {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.start-rule {
-  display: grid;
-  gap: 4px;
-  padding: 12px 10px;
-  border: 1px solid rgba(15, 39, 66, 0.08);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 10px 22px rgba(40, 92, 150, 0.08);
-}
-
-.start-rule strong {
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.start-rule span {
-  color: rgba(15, 39, 66, 0.7);
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .game-screen .game-frame > *,
@@ -2790,10 +2715,6 @@ h2 {
     font-size: clamp(24px, 7vw, 32px);
   }
 
-  .start-rules {
-    grid-template-columns: 1fr;
-  }
-
   .topbar {
     --hud-h: 64px;
   }
@@ -3059,9 +2980,12 @@ h2 {
   animation: fx-combo-pop 0.92s cubic-bezier(0.18, 0.9, 0.3, 1) forwards;
 }
 .fx-score {
-  font-size: clamp(18px, 5vw, 26px);
+  font-size: calc(clamp(18px, 5vw, 26px) * var(--fx-scale, 1));
   color: #1f7dff;
   animation: fx-score-rise 0.98s ease-out forwards;
+}
+.fx-score.is-big-cascade {
+  color: #ff7a1f;
 }
 @keyframes fx-combo-pop {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-6deg); }
@@ -3509,17 +3433,6 @@ h2 {
   text-shadow: 0 1px 4px rgba(14, 32, 53, 0.45);
   opacity: 0.85;
 }
-.collection-count {
-  position: absolute;
-  right: -4px;
-  bottom: -4px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: var(--color-accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-}
 .collection-name {
   display: none;
   font-size: 11px;
@@ -3558,6 +3471,44 @@ h2 {
   text-decoration: underline;
 }
 
+
+/* ── Audit fixes: scroll-lock, tap delay, tap targets, landscape phone ──────
+   These are DEFAULT (mobile-first) rules — placed before the desktop media
+   query so they apply at all widths unless overridden below.        ──────── */
+
+/* U1: lock background scroll while a blocking modal is open. */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* U5: remove the 300ms tap delay / double-tap zoom on controls (zoom still
+   works on the page, since the viewport meta keeps user-scalable enabled). */
+button,
+.btn,
+.icon-btn,
+.hud-btn,
+.partner-card,
+.form-card,
+.entry-btn,
+.profile-chip {
+  touch-action: manipulation;
+}
+
+/* U6: meet the 44px minimum hit target on small text buttons. */
+.auth-modal-skip,
+.coach-skip,
+.icon-btn {
+  min-height: 44px;
+}
+
+/* U3: landscape phones (short viewport, below the desktop breakpoint). The
+   portrait board calc assumes a tall viewport; in landscape, derive the board
+   from height with a smaller chrome reserve so it doesn't collapse. */
+@media (orientation: landscape) and (max-width: 699px) {
+  .board {
+    width: min(100%, calc(100dvh - 150px));
+  }
+}
 
 /* ── Desktop layout (≥700px) ──────────────────────────────────────────────
    Mobile (< 700px) is completely unaffected — these rules are dead to narrow

@@ -4,16 +4,17 @@ import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
 const MAX_OPEN_RUNS = 3;
 
 Deno.serve(async (req) => {
+  const cors = corsHeaders(req);
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: cors });
   }
   if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
+    return json({ error: "Method not allowed" }, 405, cors);
   }
 
   try {
     const token = bearerToken(req);
-    if (!token) return json({ error: "Missing bearer token" }, 401);
+    if (!token) return json({ error: "Missing bearer token" }, 401, cors);
 
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
@@ -23,7 +24,7 @@ Deno.serve(async (req) => {
 
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) {
-      return json({ error: "Unauthorized" }, 401);
+      return json({ error: "Unauthorized" }, 401, cors);
     }
 
     // Clean up stale open runs (>30 min old) before checking the cap.
@@ -47,7 +48,7 @@ Deno.serve(async (req) => {
 
     if (countError) throw countError;
     if ((count ?? 0) >= MAX_OPEN_RUNS) {
-      return json({ error: "too_many_open_runs" }, 429);
+      return json({ error: "too_many_open_runs" }, 429, cors);
     }
 
     const seedBytes = new Uint32Array(1);
@@ -65,8 +66,9 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    return json({ runId: data.id, seed });
+    return json({ runId: data.id, seed }, 200, cors);
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Start run failed" }, 500);
+    console.error("start-run failed:", error);
+    return json({ error: "start_run_failed" }, 500, cors);
   }
 });

@@ -32,6 +32,24 @@ function emptyProgress() {
   return { forms: {}, runs: 0, wins: 0, bestScore: 0, fewestMovesWin: null };
 }
 
+// Coerce a parsed (possibly corrupted/legacy) record into a clean shape.
+// Numeric fields are forced to finite numbers so a stray string/null/NaN can't
+// poison comparisons or rendering downstream. fewestMovesWin stays nullable.
+function normalizeProgress(parsed) {
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const fewest = parsed.fewestMovesWin;
+  return {
+    ...emptyProgress(),
+    ...parsed,
+    forms: parsed.forms && typeof parsed.forms === "object" ? parsed.forms : {},
+    runs: num(parsed.runs),
+    wins: num(parsed.wins),
+    bestScore: num(parsed.bestScore),
+    fewestMovesWin:
+      fewest == null || !Number.isFinite(Number(fewest)) ? null : Number(fewest),
+  };
+}
+
 const LEGACY_KEY = "blupets-progress-v1";
 
 export function loadProgress() {
@@ -41,7 +59,7 @@ export function loadProgress() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
-        return { ...emptyProgress(), ...parsed, forms: parsed.forms ?? {} };
+        return normalizeProgress(parsed);
       }
     }
   } catch {
@@ -58,7 +76,7 @@ export function loadProgress() {
         if (parsed && typeof parsed === "object") {
           window.localStorage.setItem(key, legacy);
           window.localStorage.removeItem(LEGACY_KEY);
-          return { ...emptyProgress(), ...parsed, forms: parsed.forms ?? {} };
+          return normalizeProgress(parsed);
         }
       }
     } catch {

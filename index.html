@@ -9,7 +9,7 @@
     <title>Blupets Match</title>
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260618-149" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-151" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -164,7 +164,7 @@
 
             <div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
 
-            <div class="modal-wrap" id="modalPartner" style="display: none">
+            <div class="modal-wrap" id="modalPartner" style="display: none" role="dialog" aria-modal="true" aria-labelledby="partnerHeadline">
               <div class="modal-card">
                 <div class="modal-label">Ready to evolve</div>
                 <div class="modal-headline" id="partnerHeadline"></div>
@@ -173,7 +173,7 @@
               </div>
             </div>
 
-            <div class="modal-wrap" id="modalForm" style="display: none">
+            <div class="modal-wrap" id="modalForm" style="display: none" role="dialog" aria-modal="true" aria-labelledby="formHeadline">
               <div class="modal-card">
                 <div class="modal-label">Choose a form</div>
                 <div class="modal-headline" id="formHeadline"></div>
@@ -270,7 +270,7 @@
       <section class="screen leaderboard-screen" id="leaderboardScreen" hidden>
         <div class="leaderboard-card">
           <header class="leaderboard-head">
-            <button id="leaderboardBackBtn" class="icon-btn" type="button" title="Back">
+            <button id="leaderboardBackBtn" class="icon-btn" type="button" title="Back" aria-label="Back">
               ←
             </button>
             <div>
@@ -278,14 +278,14 @@
             </div>
           </header>
 
-          <div id="leaderboard-content" class="leaderboard-content"></div>
+          <div id="leaderboard-content" class="leaderboard-content" aria-live="polite"></div>
         </div>
       </section>
 
       <section class="screen profile-screen" id="profileScreen" hidden>
         <div class="leaderboard-card profile-card">
           <header class="leaderboard-head profile-head">
-            <button id="profileBackBtn" class="icon-btn" type="button" title="Back">
+            <button id="profileBackBtn" class="icon-btn" type="button" title="Back" aria-label="Back">
               ←
             </button>
             <div>
@@ -325,7 +325,7 @@
       <section class="screen profile-screen" id="publicProfileScreen" hidden>
         <div class="leaderboard-card profile-card">
           <header class="leaderboard-head profile-head">
-            <button id="publicProfileBackBtn" class="icon-btn" type="button" title="Back">
+            <button id="publicProfileBackBtn" class="icon-btn" type="button" title="Back" aria-label="Back">
               ←
             </button>
             <div>
@@ -345,6 +345,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260618-146"></script>
+    <script type="module" src="./src/main.js?v=20260618-148"></script>
   </body>
 </html>

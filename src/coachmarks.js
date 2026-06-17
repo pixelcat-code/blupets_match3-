@@ -75,6 +75,7 @@ export function runTour(steps, { onDone } = {}) {
     finished = true;
     window.removeEventListener("resize", position);
     window.removeEventListener("scroll", position, true);
+    document.removeEventListener("keydown", onKeydown, true);
     for (const [el, title] of parkedTitles) {
       el.setAttribute("title", title);
     }
@@ -154,12 +155,14 @@ export function runTour(steps, { onDone } = {}) {
   btnNext.addEventListener("click", next);
   btnSkip.addEventListener("click", finish);
   // Clicking the dimmed backdrop (not the tip) does nothing — keep the tour
-  // deliberate. Escape closes it.
-  layer.addEventListener("keydown", (event) => {
+  // deliberate. Escape closes it. Listen on document (capture) so it works no
+  // matter where focus currently is; removed in finish().
+  function onKeydown(event) {
     if (event.key === "Escape") {
       finish();
     }
-  });
+  }
+  document.addEventListener("keydown", onKeydown, true);
 
   window.addEventListener("resize", position);
   window.addEventListener("scroll", position, true);
