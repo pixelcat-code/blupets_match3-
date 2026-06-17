@@ -483,6 +483,7 @@ function promoteColorTier(state, colorId, tier) {
     },
     score: state.score + (EVOLUTION_SCORE_BONUS[tier] ?? 0),
     movesLeft: state.movesLeft + (state.vibe.evolveMoves ?? 0),
+    evolutionAuraMovesLeft: state.vibe.evolutionAura ? 2 : (state.evolutionAuraMovesLeft ?? 0),
   };
 }
 
@@ -729,6 +730,16 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       const cascadeScore = rawScore * cascades * (state.vibe.scoreMultiplier ?? 1);
       scoreDelta += Math.round(cascadeScore);
 
+      if (state.vibe.tierScoreBonus) {
+        const perTile = rawScore / group.length;
+        for (const pos of group) {
+          const tile = nextBoard[pos.row][pos.col];
+          if (tile && (state.evolutionTiers[tile.color] ?? 1) >= 2) {
+            scoreDelta += Math.round(perTile * cascades * state.vibe.tierScoreBonus);
+          }
+        }
+      }
+
       for (const position of group) {
         cells.set(keyFor(position.row, position.col), position);
       }
@@ -804,6 +815,7 @@ export function resolveBoard(board, state, rng = Math.random) {
 function applyCascadeProgress(state, cascadeSteps) {
   let colorMatchCounts = { ...state.colorMatchCounts };
   const comboEssence = state.vibe.comboEssence ?? 0;
+  const auraBonus = (state.evolutionAuraMovesLeft ?? 0) > 0 ? 1 : 0;
 
   for (const step of cascadeSteps) {
     for (const clearedTile of step.clearedTiles) {
@@ -811,7 +823,7 @@ function applyCascadeProgress(state, cascadeSteps) {
         continue;
       }
 
-      colorMatchCounts[clearedTile.color] += 1;
+      colorMatchCounts[clearedTile.color] += 1 + auraBonus;
     }
 
     // comboEssence vibe: a 5+ tile match grants bonus essence to each base color
@@ -951,6 +963,7 @@ export function createInitialState(options = {}) {
     score: 0,
     movesLeft: STARTMOVES + (vibe.startMoves ?? 0),
     movesUsed: 0,
+    evolutionAuraMovesLeft: 0,
     rerollCharges: REROLL_START_CHARGES,
     hatchProgress: 0,
     _hatched: 0,
@@ -1009,6 +1022,9 @@ export function attemptSwap(state, first, second, rng = Math.random) {
   };
 
   nextState = applyCascadeProgress(nextState, resolution.cascadeSteps);
+  if ((nextState.evolutionAuraMovesLeft ?? 0) > 0) {
+    nextState = { ...nextState, evolutionAuraMovesLeft: nextState.evolutionAuraMovesLeft - 1 };
+  }
   nextState = applyHatchProgress(nextState, resolution);
   nextState = queueTriggeredEvolutions(nextState);
   return markGameOverIfNeeded(nextState);
@@ -1086,9 +1102,11 @@ export function selectEvolutionForm(state, colorId, tier, formKey, rng = Math.ra
 
   if (tier === 4) {
     const partnerColorId = nextState.evolutionFusions[colorId]?.partnerColorId ?? colorId;
+    const remainingMoveBonus = nextState.movesLeft * (nextState.vibe.remainingMoveScore ?? 0);
     nextState = {
       ...nextState,
       victory: true,
+      score: nextState.score + remainingMoveBonus,
       victoryMeta: {
         colorId,
         partnerColorId,
@@ -1128,7 +1146,7 @@ export function rerollBoard(state, rng = Math.random) {
     state.diagonalAssist,
     getStateMatchResolver(state),
   );
-  const recoveryFloor = REROLL_RECOVERY_MOVES + (state.vibe.rerollRecovery ?? 0);
+  const recoveryFloor = REROLL_RECOVERY_MOVES;
   const movesLeft = restoredFromGameOver
     ? Math.max(state.movesLeft, recoveryFloor)
     : state.movesLeft;

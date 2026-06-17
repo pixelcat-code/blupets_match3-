@@ -486,7 +486,7 @@ test("rollback decay cancels another color's queued evolution", () => {
 });
 
 test("progress helpers report summary against the current tier threshold", () => {
-  const state = createInitialState({ rng: makeRng(13) });
+  const state = createInitialState({ rng: makeRng(13), vibe: NEUTRAL_VIBE });
   state.colorMatchCounts.green = 5;
 
   assert.equal(getProgressPercent(state, "green"), 50);
@@ -540,11 +540,13 @@ function vibeBudget(vibe) {
   return (
     (vibe.startMoves ?? 0) +
     (vibe.scoreMultiplier ? Math.round((vibe.scoreMultiplier - 1) * 10) : 0) +
-    (vibe.rerollRecovery ?? 0) / 2 +
     (vibe.startEssence ?? 0) / 3 +
+    (vibe.remainingMoveScore ?? 0) / 30 +
     (vibe.comboEssence ?? 0) * 2 +
-    (vibe.evolveMoves ?? 0) * 2 +
-    (vibe.decayResist ?? 0) / 0.25 * 2
+    (vibe.decayResist ?? 0) / 0.15 * 2 +
+    (vibe.evolveMoves ?? 0) * 3 +
+    (vibe.evolutionAura ?? 0) * 3 +
+    (vibe.tierScoreBonus ?? 0) / 0.07 * 3
   );
 }
 

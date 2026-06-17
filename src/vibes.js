@@ -6,21 +6,23 @@
 // VIBE_BUDGET points. Because every vibe sums to the same budget, all of them are
 // equivalent in raw power by construction — no vibe is a dud, none is overpowered.
 //
-// With these 7 modules and a budget of 4 there are 71 combinations; 7 of them use
-// a single module type (e.g. "+4 moves" only). Dropping those single-flavour ones
-// leaves exactly 64 vibes, each blending at least two different effects.
+// With these 9 modules and a budget of 4 there are 71 combinations; 7 of them use
+// a single module type. Dropping those leaves exactly 64 vibes, each blending at
+// least two different effects.
 
 export const VIBE_BUDGET = 4;
 
 // cost = points spent per pick. A module can be picked multiple times to stack.
 const MODULES = [
-  { key: "startMoves", cost: 1 },
-  { key: "scoreMultiplier", cost: 1 },
-  { key: "rerollRecovery", cost: 1 },
-  { key: "startEssence", cost: 1 },
-  { key: "comboEssence", cost: 2 },
-  { key: "evolveMoves", cost: 2 },
-  { key: "decayResist", cost: 2 },
+  { key: "startMoves",         cost: 1 },
+  { key: "scoreMultiplier",    cost: 1 },
+  { key: "startEssence",       cost: 1 },
+  { key: "remainingMoveScore", cost: 1 },
+  { key: "comboEssence",       cost: 2 },
+  { key: "decayResist",        cost: 2 },
+  { key: "evolveMoves",        cost: 3 },
+  { key: "evolutionAura",      cost: 3 },
+  { key: "tierScoreBonus",     cost: 3 },
 ];
 
 const VIBE_NAMES = [
@@ -57,27 +59,37 @@ function describeModule(key, picks) {
         props: { scoreMultiplier: 1 + picks / 10 },
         text: `+${picks * 10}% cascade score`,
       };
-    case "rerollRecovery":
-      return {
-        props: { rerollRecovery: picks * 2 },
-        text: `+${picks * 2} moves on reroll recovery`,
-      };
     case "startEssence":
       return {
         props: { startEssence: picks * 3 },
         text: `Start with +${picks * 3} essence on a color`,
       };
+    case "remainingMoveScore":
+      return {
+        props: { remainingMoveScore: picks * 30 },
+        text: `+${picks * 30} score per unused move at end`,
+      };
     case "comboEssence":
       return { props: { comboEssence: picks }, text: `5+ matches grant +${picks} essence` };
+    case "decayResist":
+      return {
+        props: { decayResist: 0.15 * picks },
+        text: `Other colors decay ${picks * 15}% less`,
+      };
     case "evolveMoves":
       return {
         props: { evolveMoves: picks },
         text: `+${picks} ${pluralMove(picks)} per evolution`,
       };
-    case "decayResist":
+    case "evolutionAura":
       return {
-        props: { decayResist: 0.25 * picks },
-        text: `Other colors decay ${picks * 25}% less`,
+        props: { evolutionAura: picks },
+        text: `After evolution, next 2 moves grant +1 essence`,
+      };
+    case "tierScoreBonus":
+      return {
+        props: { tierScoreBonus: picks * 0.07 },
+        text: `Tier 2+ tiles score ${picks * 7}% more`,
       };
     default:
       return { props: {}, text: "" };
