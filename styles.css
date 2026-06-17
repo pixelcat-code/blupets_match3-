@@ -3574,7 +3574,7 @@ h2 {
 
 .profile-card {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
   gap: 8px;
 }
 
