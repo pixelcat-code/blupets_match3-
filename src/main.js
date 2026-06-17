@@ -559,6 +559,10 @@ function renderTopBar(stateLike) {
     const atMax = charges >= REROLL_MAX_CHARGES;
     const pct = atMax ? 100 : Math.min(100, Math.round(((stateLike.hatchProgress ?? 0) / HATCH_GOAL) * 100));
     elements.rerollRun.style.setProperty("--pct", String(pct));
+    if (elements.rerollHud) {
+      elements.rerollHud.classList.toggle("has-charge", charges > 0);
+      elements.rerollHud.style.setProperty("--pct", String(pct));
+    }
   }
 }
 
