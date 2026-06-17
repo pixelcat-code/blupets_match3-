@@ -172,10 +172,11 @@ button {
 /* Mobile: mute lives in the topbar, not the footer. */
 .game-frame .game-footer { display: none; }
 
-/* Mobile profile chip: compact — icon + count, no "Profile" text. */
-.profile-chip-label { display: none; }
-.profile-chip-count { display: inline; margin-left: 0; color: var(--color-text); font-size: 13px; }
+/* Mobile profile chip: icon + "Profile" text, no count. */
+.profile-chip-label { display: inline; font-size: 1rem; }
+.profile-chip-count { display: none; }
 .profile-chip { min-width: 0; padding: 0 14px 0 10px; gap: 6px; }
+.profile-chip .profile-chip-icon { width: 1.2rem; height: 1.2rem; }
 
 .victory-screen {
   display: grid;
@@ -926,10 +927,10 @@ h2 {
   place-items: center;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.35);
-  background: linear-gradient(160deg, #e8234a 0%, #b0152b 100%);
+  background: transparent;
+  overflow: hidden;
   cursor: pointer;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 10px 22px rgba(176, 21, 43, 0.35);
   transition:
     transform 320ms var(--ease-slow),
@@ -940,10 +941,10 @@ h2 {
 .reroll-hud-btn:disabled { opacity: 0.4; cursor: default; transform: none; box-shadow: none; }
 
 .reroll-hud-icon {
-  width: 60%;
-  height: 60%;
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
-  object-fit: contain;
+  object-fit: cover;
   display: block;
 }
 
