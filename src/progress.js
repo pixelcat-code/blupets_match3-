@@ -76,6 +76,11 @@ function save(progress) {
   }
 }
 
+// Cache remote progress to localStorage so it's available offline.
+export function saveProgress(progress) {
+  save(progress);
+}
+
 export function recordRunStart(progress) {
   progress.runs = (progress.runs ?? 0) + 1;
   save(progress);

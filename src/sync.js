@@ -25,6 +25,28 @@ export async function submitTrustedRun(runId, actions) {
   return data;
 }
 
+export async function fetchUserProgress() {
+  const { configured } = getSupabaseConfig();
+  if (!configured) return null;
+
+  const client = await getSupabaseClient();
+  const { data, error } = await client
+    .from("user_progress")
+    .select("wins, runs, best_score, fewest_moves_win, forms")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    wins: data.wins ?? 0,
+    runs: data.runs ?? 0,
+    bestScore: data.best_score ?? 0,
+    fewestMovesWin: data.fewest_moves_win ?? null,
+    forms: data.forms ?? {},
+  };
+}
+
 export async function fetchGlobalLeaderboard(limit = 100) {
   const { configured } = getSupabaseConfig();
   if (!configured) return [];

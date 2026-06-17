@@ -23,19 +23,21 @@ import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } fr
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
+  saveProgress,
   setProgressUser,
   recordRunStart,
   recordWin,
   discoveredCount,
   getCollectionEntries,
   TOTAL_APEX_FORMS,
-} from "./progress.js?v=20260617-3";
+} from "./progress.js?v=20260617-4";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
+  fetchUserProgress,
   startTrustedRun,
   submitTrustedRun,
-} from "./sync.js?v=20260617-5";
+} from "./sync.js?v=20260617-6";
 
 const SWAP_ANIMATION_MS = 210;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
@@ -196,6 +198,22 @@ function logRunAction(action) {
     return;
   }
   runProof.actions.push(action);
+}
+
+// Overwrite in-memory progress with authoritative Supabase data.
+// Keeps local `runs` (which counts non-winning runs too; server only counts wins).
+function applyRemoteProgress(remote) {
+  if (!remote) return;
+  const localRuns = progress.runs;
+  progress = {
+    ...progress,
+    wins: remote.wins ?? progress.wins,
+    runs: Math.max(localRuns, remote.runs ?? 0),
+    bestScore: remote.bestScore ?? progress.bestScore,
+    fewestMovesWin: remote.fewestMovesWin ?? progress.fewestMovesWin,
+    forms: remote.forms ?? progress.forms,
+  };
+  saveProgress(progress);
 }
 
 function clearRunProof() {
@@ -462,7 +480,13 @@ function recordVictory(nextState) {
   if (authState.user && runProof) {
     const proof = runProof;
     submitTrustedRun(proof.runId, proof.actions)
-      .then(() => fetchGlobalLeaderboard())
+      .then((data) => {
+        if (data?.progress) {
+          applyRemoteProgress(data.progress);
+          render();
+        }
+        return fetchGlobalLeaderboard();
+      })
       .then((entries) => { remoteLeaderboard = entries; })
       .then(() => showToast("Verified run added to leaderboard."))
       .catch((error) => {
@@ -915,6 +939,12 @@ async function initializeAuth() {
       if (prevUser?.id !== authState.user?.id) {
         setProgressUser(authState.user?.id ?? null);
         progress = loadProgress();
+        if (authState.user) {
+          fetchUserProgress()
+            .then(applyRemoteProgress)
+            .catch(() => {})
+            .then(() => render());
+        }
       }
       renderAuth();
       render();
@@ -929,6 +959,12 @@ async function initializeAuth() {
   progress = loadProgress();
   renderAuth();
   renderAuthModal();
+  if (authState.user) {
+    fetchUserProgress()
+      .then(applyRemoteProgress)
+      .catch(() => {})
+      .then(() => render());
+  }
   // Clean up OAuth fragment/code now that Supabase has consumed the tokens.
   if (/access_token|error_description/.test(location.hash) || new URLSearchParams(location.search).has("code")) {
     history.replaceState({ screen: "start" }, "", location.pathname);
