@@ -29,7 +29,7 @@ import {
   discoveredCount,
   getCollectionEntries,
   TOTAL_APEX_FORMS,
-} from "./progress.js?v=20260617-2";
+} from "./progress.js?v=20260617-3";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
