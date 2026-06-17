@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await supabase
       .from("game_runs")
-      .select("id, seed, submitted_at")
+      .select("id, seed, submitted_at, created_at")
       .eq("id", runId)
       .eq("user_id", user.id)
       .single();
@@ -92,9 +92,20 @@ Deno.serve(async (req) => {
     if (runError || !run) return json({ error: "Run not found" }, 404);
     if (run.submitted_at) return json({ error: "Run already submitted" }, 409);
 
+    // Reject runs older than 30 minutes — prevents storing seeds for later cherry-picking.
+    const RUN_TTL_MS = 30 * 60 * 1000;
+    if (Date.now() - new Date(run.created_at).getTime() > RUN_TTL_MS) {
+      return json({ error: "run_expired" }, 422);
+    }
+
     const { state, actions } = replayRun(run.seed, body.actions);
     if (!state.victory || !state.victoryMeta) {
       return json({ error: "Run replay did not reach victory" }, 422);
+    }
+
+    // Reject implausible wins: T4 requires 42+ matches; fewer than 5 swaps is impossible.
+    if (state.movesUsed < 5) {
+      return json({ error: "implausible_run" }, 422);
     }
 
     const accountName = labelForUser(user);

@@ -646,3 +646,19 @@ test("trusted replay recomputes a submitted run from seed and action log", () =>
   assert.equal(replayed.movesUsed, expected.movesUsed);
   assert.deepEqual(replayed.colorMatchCounts, expected.colorMatchCounts);
 });
+
+test("replayRun: movesUsed is a non-negative integer tracked per matching swap", () => {
+  // Verifies the field the submit-run guard (movesUsed >= 5) depends on.
+  // movesUsed is only incremented when a swap produces a match;
+  // invalid swaps are ignored. 5 arbitrary swaps yield 0..5 movesUsed.
+  const { state } = replayRun(1, [
+    { type: "swap", first: { row: 0, col: 0 }, second: { row: 0, col: 1 } },
+    { type: "swap", first: { row: 1, col: 0 }, second: { row: 1, col: 1 } },
+    { type: "swap", first: { row: 2, col: 0 }, second: { row: 2, col: 1 } },
+    { type: "swap", first: { row: 3, col: 0 }, second: { row: 3, col: 1 } },
+    { type: "swap", first: { row: 4, col: 0 }, second: { row: 4, col: 1 } },
+  ]);
+  assert.ok(typeof state.movesUsed === "number", "movesUsed must be a number");
+  assert.ok(state.movesUsed >= 0, "movesUsed must be non-negative");
+  assert.ok(state.movesUsed <= 5, "movesUsed cannot exceed number of attempted swaps");
+});
