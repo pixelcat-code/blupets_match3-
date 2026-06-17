@@ -913,8 +913,8 @@ async function initializeAuth() {
   authState.loading = false;
   renderAuth();
   renderAuthModal();
-  // Clean up OAuth fragment now that Supabase has consumed the tokens.
-  if (/access_token|error_description/.test(location.hash)) {
+  // Clean up OAuth fragment/code now that Supabase has consumed the tokens.
+  if (/access_token|error_description/.test(location.hash) || new URLSearchParams(location.search).has("code")) {
     history.replaceState({ screen: "start" }, "", location.pathname);
   }
   // If already signed in on page load (session restored from storage), load cloud progress now.
@@ -2227,8 +2227,10 @@ window.addEventListener("popstate", (e) => {
   _inPopstate = false;
 });
 
-// Set initial history entry (don't clobber OAuth fragment if redirect just landed).
-if (!/access_token|error_description/.test(location.hash)) {
+// Set initial history entry (don't clobber OAuth fragment/code if redirect just landed).
+// PKCE flow returns ?code=… in query string; implicit flow returns #access_token in hash.
+const _hasOAuthCode = new URLSearchParams(location.search).has("code");
+if (!_hasOAuthCode && !/access_token|error_description/.test(location.hash)) {
   history.replaceState({ screen: "start" }, "", location.pathname);
 }
 syncMuteButton();
