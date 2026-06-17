@@ -1,6 +1,6 @@
 # Supabase Setup
 
-This app supports optional Google and X/Twitter login through Supabase Auth. Progress and leaderboard writes are intentionally local-only in the browser until a trusted server or Supabase Edge Function validates runs before writing shared data.
+This app supports optional Google and X/Twitter login through Supabase Auth. Shared progress and leaderboard writes go through Supabase Edge Functions that replay a submitted run from a server-issued seed before writing trusted rows.
 
 ## 1. Create Supabase project
 
@@ -25,9 +25,10 @@ The anon key is intended for browser use. Never put service-role keys in this fi
 Open **Dashboard → SQL Editor → New query**, paste the contents of `docs/supabase-schema.sql`, and run it. This creates read-only browser policies for:
 
 - `user_progress` — one row per user, reserved for trusted backend writes
+- `game_runs` — server-issued run seeds and submit status
 - `leaderboard_entries` — one row per validated win, globally readable
 
-Row Level Security is enabled on both tables. Browser clients can read allowed rows but cannot insert/update progress or leaderboard rows directly.
+Row Level Security is enabled. Browser clients can read allowed rows but cannot insert/update progress, run seeds, or leaderboard rows directly.
 
 ## 3. Enable auth providers
 
@@ -56,14 +57,23 @@ The app redirects back to the current page, stripping the `#hash`.
 - X/Twitter sign-in
 - Sign-out
 - **Local progress** — wins/runs/forms stay in browser storage
-- **Cloud writes disabled** — direct browser writes to progress and leaderboard are blocked because they are forgeable
+- **Trusted leaderboard writes** — `start-run` issues a run seed, `submit-run` replays the action log and writes only the server-computed result
 - **Avatar URL security** — provider avatar URLs are validated (`https:` only) before use in CSS or `<img>` src
 
-## 6. Enabling trusted cloud sync later
+## 6. Deploy Edge Functions
 
-To enable a real global leaderboard or cloud progress, add a server-side endpoint or Supabase Edge Function that:
+Deploy both functions after applying the schema:
 
-- verifies the user's JWT server-side
-- validates/replays the run or applies another anti-tamper proof
-- writes `user_progress` and `leaderboard_entries` using service-role credentials
-- keeps the browser anon key limited to read-only RLS policies
+```bash
+supabase functions deploy start-run
+supabase functions deploy submit-run
+```
+
+Required function secrets:
+
+```bash
+supabase secrets set SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+```
+
+Never put the service-role key in browser-delivered files.

@@ -29,7 +29,12 @@ import {
   getCollectionEntries,
   TOTAL_APEX_FORMS,
 } from "./progress.js?v=20260617-1";
-import { fetchGlobalLeaderboard } from "./sync.js?v=20260617-4";
+import { createSeededRng, randomSeed } from "./rng.js";
+import {
+  fetchGlobalLeaderboard,
+  startTrustedRun,
+  submitTrustedRun,
+} from "./sync.js?v=20260617-5";
 
 const SWAP_ANIMATION_MS = 210;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
@@ -176,11 +181,25 @@ let hintMoves = [];
 let hintCursor = 0;
 let hintTimer = null;
 let vibeIntroOpen = false;
+let runRng = Math.random;
+let runProof = null;
 
 function delay(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
+}
+
+function logRunAction(action) {
+  if (!runProof) {
+    return;
+  }
+  runProof.actions.push(action);
+}
+
+function clearRunProof() {
+  runProof = null;
+  runRng = Math.random;
 }
 
 function cellKey(row, col) {
@@ -277,12 +296,24 @@ function setScreen(screen) {
   }
 }
 
-function startRun({ guided = false } = {}) {
+async function startRun({ guided = false } = {}) {
   unlockAudio();
   sfx("ui");
   recordRunStart(progress);
+  runProof = null;
+  let seed = randomSeed();
+  if (authState.user) {
+    try {
+      runProof = await startTrustedRun();
+      seed = runProof.seed;
+    } catch (error) {
+      showToast("Trusted leaderboard unavailable — run stays local.");
+    }
+  }
+  runRng = createSeededRng(seed);
   state = createInitialState({
     diagonalAssist: true,
+    rng: runRng,
   });
   resetInteractionState();
   // Reset reroll bar immediately so the transition doesn't replay the old pct.
@@ -366,6 +397,7 @@ function hideVibeIntro() {
 function goToStart() {
   guideTour?.stop();
   resetInteractionState();
+  clearRunProof();
   setScreen("start");
   render();
 }
@@ -425,6 +457,21 @@ function recordVictory(nextState) {
     movesUsed: nextState.movesUsed,
   });
   updateProfileChip();
+
+  if (authState.user && runProof) {
+    const proof = runProof;
+    submitTrustedRun(proof.runId, proof.actions)
+      .then(() => fetchGlobalLeaderboard())
+      .then((entries) => { remoteLeaderboard = entries; })
+      .then(() => showToast("Verified run added to leaderboard."))
+      .catch((error) => {
+        console.error("[sync] trusted submit failed:", error);
+        showToast("Run saved locally — leaderboard verification failed.");
+      })
+      .finally(() => {
+        if (runProof === proof) clearRunProof();
+      });
+  }
 }
 
 
@@ -1492,6 +1539,7 @@ function drainAutoSelections() {
       queueItem.colorId,
       queueItem.tier,
       selection.options[0]?.key ?? null,
+      runRng,
     );
   }
 }
@@ -1922,7 +1970,7 @@ async function playRejectAnimation(first, second) {
 
 async function performSwap(first, second) {
   const currentState = state;
-  const nextState = attemptSwap(currentState, first, second);
+  const nextState = attemptSwap(currentState, first, second, runRng);
   const resolution = nextState._lastResolution;
   const didMatch = nextState.movesUsed > currentState.movesUsed;
 
@@ -1937,6 +1985,7 @@ async function performSwap(first, second) {
 
   isAnimating = true;
   selectedTile = null;
+  logRunAction({ type: "swap", first, second });
   sfx("swap");
   buzz(12);
   const swappedBoard = previewSwap(currentState.board, first, second);
@@ -2084,7 +2133,9 @@ bindClick(elements.startMuteBtn, handleMuteToggle);
 bindClick(elements.rerollHud, () => {
   if (!state) return;
   resetInteractionState();
-  applyState(rerollBoard(state));
+  const nextState = rerollBoard(state, runRng);
+  if (nextState !== state) logRunAction({ type: "reroll" });
+  applyState(nextState);
 });
 bindClick(elements.profileChip, () => {
   if (authState.user) {
@@ -2112,7 +2163,9 @@ bindClick(elements.gameoverRerollBtn, () => {
 
   resetInteractionState();
   setScreen("game");
-  applyState(rerollBoard(state));
+  const nextState = rerollBoard(state, runRng);
+  if (nextState !== state) logRunAction({ type: "reroll" });
+  applyState(nextState);
 });
 bindClick(elements.rerollRun, () => {
   if (!state) {
@@ -2120,7 +2173,9 @@ bindClick(elements.rerollRun, () => {
   }
 
   resetInteractionState();
-  applyState(rerollBoard(state));
+  const nextState = rerollBoard(state, runRng);
+  if (nextState !== state) logRunAction({ type: "reroll" });
+  applyState(nextState);
 });
 elements.partnerOptions.addEventListener("click", (event) => {
   const button = event.target.closest("[data-color-id][data-partner-id]");
@@ -2129,9 +2184,15 @@ elements.partnerOptions.addEventListener("click", (event) => {
   }
 
   sfx("ui");
-  applyState(
-    selectFusionPartner(state, button.dataset.colorId, button.dataset.partnerId),
-  );
+  const nextState = selectFusionPartner(state, button.dataset.colorId, button.dataset.partnerId);
+  if (nextState !== state) {
+    logRunAction({
+      type: "partner",
+      colorId: button.dataset.colorId,
+      partnerId: button.dataset.partnerId,
+    });
+  }
+  applyState(nextState);
 });
 elements.formOptions.addEventListener("click", (event) => {
   const button = event.target.closest("[data-color-id][data-tier][data-form-key]");
@@ -2141,14 +2202,22 @@ elements.formOptions.addEventListener("click", (event) => {
 
   sfx("evolve");
   buzz([0, 30, 40, 30]);
-  applyState(
-    selectEvolutionForm(
-      state,
-      button.dataset.colorId,
-      Number(button.dataset.tier),
-      button.dataset.formKey,
-    ),
+  const nextState = selectEvolutionForm(
+    state,
+    button.dataset.colorId,
+    Number(button.dataset.tier),
+    button.dataset.formKey,
+    runRng,
   );
+  if (nextState !== state) {
+    logRunAction({
+      type: "form",
+      colorId: button.dataset.colorId,
+      tier: Number(button.dataset.tier),
+      formKey: button.dataset.formKey,
+    });
+  }
+  applyState(nextState);
 });
 window.addEventListener("resize", () => {
   if (currentScreen === "game" || currentScreen === "gameover") {

@@ -30,13 +30,11 @@ import {
   getCanonicalTierForm,
   getFamilyTileAsset,
 } from "../src/blupets-canon.js";
+import { createSeededRng } from "../src/rng.js";
+import { replayRun } from "../src/run-replay.js";
 
 function makeRng(seed = 1) {
-  let value = seed >>> 0;
-  return () => {
-    value = (value * 1664525 + 1013904223) >>> 0;
-    return value / 4294967296;
-  };
+  return createSeededRng(seed);
 }
 
 test("createBoard starts without pre-existing matches and has a valid move", () => {
@@ -631,4 +629,20 @@ test("comboEssence vibe grants bonus essence on 4+ matches", () => {
   // The swap forms a red 4-in-a-row, so the comboEssence vibe must earn red more
   // essence than the neutral run off the identical board and rng.
   assert.ok(boostedResult.colorMatchCounts.red > baseResult.colorMatchCounts.red);
+});
+
+test("trusted replay recomputes a submitted run from seed and action log", () => {
+  const seed = 83;
+  const first = { row: 0, col: 1 };
+  const second = { row: 1, col: 1 };
+  const actions = [{ type: "swap", first, second }];
+  const replayed = replayRun(seed, actions).state;
+
+  const rng = makeRng(seed);
+  const manual = createInitialState({ diagonalAssist: true, rng });
+  const expected = attemptSwap(manual, first, second, rng);
+
+  assert.equal(replayed.score, expected.score);
+  assert.equal(replayed.movesUsed, expected.movesUsed);
+  assert.deepEqual(replayed.colorMatchCounts, expected.colorMatchCounts);
 });
