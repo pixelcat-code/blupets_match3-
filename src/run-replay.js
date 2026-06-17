@@ -5,7 +5,7 @@ import {
   attemptSwap,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260617-gameplay-3";
+} from "./game.js";
 import { createSeededRng } from "./rng.js";
 
 const MAX_ACTIONS = 500;
