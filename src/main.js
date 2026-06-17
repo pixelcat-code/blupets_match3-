@@ -2305,3 +2305,14 @@ if (currentScreen === "leaderboard") {
     })
     .catch(() => {});
 }
+
+// Refresh profile data when the tab becomes visible again.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (currentScreen === "profile" && authState.user) {
+    fetchUserProgress()
+      .then(applyRemoteProgress)
+      .catch(() => {})
+      .then(() => { if (currentScreen === "profile") render(); });
+  }
+});
