@@ -1,7 +1,10 @@
 // Real SFX + background music for Blupets Match-3, using the same audio assets
 // as blupix.app (downloaded into assets/audio/). Sounds are short .wav one-shots
-// played via cloned HTMLAudio nodes so rapid repeats overlap cleanly. The start
-// screen loops site-background.mp3 as ambient music, just like the site.
+// played via cloned HTMLAudio nodes so rapid repeats overlap cleanly.
+//
+// Background music uses Web Audio API (AudioContext + BufferSourceNode) instead
+// of HTMLAudioElement. HTMLAudioElement registers an iOS media session which
+// surfaces a lock-screen / control-center player widget; AudioContext does not.
 
 const AUDIO_BASE = "./assets/audio/";
 const MUTE_KEY = "blupets-muted-v1";
@@ -44,7 +47,30 @@ try {
 let unlocked = false;
 const rotators = {};
 const basePool = {}; // one preloaded Audio per file, cloned on play
-let music = null;
+
+// ── Web Audio API — background music ────────────────────────────────────────
+let audioCtx = null;
+let musicBuffer = null; // decoded PCM, reused across plays
+let musicSource = null; // current BufferSourceNode (single-use)
+let musicGain = null;
+let _musicWasPlaying = false;
+
+function getCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+async function loadMusicBuffer() {
+  if (musicBuffer) return musicBuffer;
+  const ctx = getCtx();
+  const res = await fetch(AUDIO_BASE + MUSIC_FILE);
+  const raw = await res.arrayBuffer();
+  musicBuffer = await ctx.decodeAudioData(raw);
+  return musicBuffer;
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 function audioFor(file) {
   if (!basePool[file]) {
@@ -69,6 +95,11 @@ export function unlockAudio() {
     return;
   }
   unlocked = true;
+  // iOS requires AudioContext to be created/resumed inside a user gesture.
+  const ctx = getCtx();
+  if (ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
   preloadAll();
 }
 
@@ -114,47 +145,48 @@ export function sfx(name) {
   }
 }
 
-// Looping ambient track for the start screen.
-export function startMusic() {
-  if (muted) {
-    return;
+// Looping ambient track — uses AudioContext so iOS won't register a media
+// session and show the lock-screen / control-center player widget.
+export async function startMusic() {
+  if (muted) return;
+  const ctx = getCtx();
+  if (ctx.state === "suspended") {
+    try { await ctx.resume(); } catch { return; }
   }
+  if (musicSource) return; // already playing
   try {
-    if (!music) {
-      music = new Audio(AUDIO_BASE + MUSIC_FILE);
-      music.loop = true;
-      music.volume = MUSIC_VOLUME;
-    }
-    const played = music.play();
-    if (played && typeof played.catch === "function") {
-      played.catch(() => {});
-    }
+    const buffer = await loadMusicBuffer();
+    if (musicSource || muted) return; // re-check after async load
+    musicGain = ctx.createGain();
+    musicGain.gain.value = MUSIC_VOLUME;
+    musicGain.connect(ctx.destination);
+    musicSource = ctx.createBufferSource();
+    musicSource.buffer = buffer;
+    musicSource.loop = true;
+    musicSource.connect(musicGain);
+    musicSource.start();
   } catch {
-    // Autoplay policy — will start on the next user gesture instead.
+    // Asset missing or autoplay blocked — fail silently.
   }
 }
 
 export function stopMusic() {
-  if (music) {
-    music.pause();
-    try {
-      music.currentTime = 0;
-    } catch {
-      // ignore
-    }
+  if (musicSource) {
+    try { musicSource.stop(); } catch {}
+    musicSource = null;
   }
 }
 
-// Pause music when the tab is hidden (lock screen, app switch, other tab) and
-// resume when the user comes back — prevents music bleeding into the background.
-let _musicWasPlaying = false;
+// Suspend the AudioContext when the tab/app is hidden (lock screen, app switch,
+// other tab) — this freezes all Web Audio output without unregistering the
+// context, so resume() picks up exactly where it left off.
 document.addEventListener("visibilitychange", () => {
+  if (!audioCtx) return;
   if (document.hidden) {
-    _musicWasPlaying = music !== null && !music.paused;
-    if (_musicWasPlaying) music.pause();
+    _musicWasPlaying = musicSource !== null;
+    if (_musicWasPlaying) audioCtx.suspend().catch(() => {});
   } else if (_musicWasPlaying && !muted) {
-    const p = music.play();
-    if (p?.catch) p.catch(() => {});
+    audioCtx.resume().catch(() => {});
     _musicWasPlaying = false;
   }
 });
