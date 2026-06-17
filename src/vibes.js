@@ -24,12 +24,22 @@ const MODULES = [
 ];
 
 const VIBE_NAMES = [
-  "Pyronix",    "Goldion",    "Grovian",    "Crystala",   "Cryonix",    "Plasmyst",
-  "Umbryx",     "Cloudelle",  "Embricot",   "Harvesthorn","Coraluna",   "Vynbloom",
-  "Corazon",    "Charion",    "Rosaria",    "Limonix",    "Lumint",     "Thundor",
-  "Stellion",   "Archiglyph", "Buttoro",    "Verdix",     "Turtide",    "Venoxis",
-  "Brainrott",  "Seedly",     "Icelyn",     "Aurorion",   "Petrolix",   "Mirrorion",
-  "Eclipso",    "Cosmyx",     "Frostra",    "Noctyx",     "Pearlux",    "Nullgeist",
+  "Cheerful",  "Grumpy",          "Sarcastic",        "Curious",
+  "Wild",      "Confident",       "Secretive",        "Skeptical",
+  "Elegant",   "Goofy",           "Focused",          "Sleepy",
+  "Playful",   "Stoic",           "Dramatic",         "Gentle",
+  "Based",     "Nervous",         "Mischievous",      "Loyal",
+  "Dreamy",    "Signal-Seeking",  "Rebellious",       "Calm",
+  "Awkward",   "Bold",            "Moody",            "Sincere",
+  "Witty",     "Lurker",          "Chaotic",          "Diamond-Handed",
+  "Jealous",   "Protective",      "Impulsive",        "Clever",
+  "Melancholic","Excitable",      "Rugged",           "Zen",
+  "Romantic",  "Stubborn",        "Polite",           "Serious",
+  "Frenly",    "Hopepilled",      "Softhearted",      "Terminally Online",
+  "Spicy",     "Humble",          "Bossy",            "Lucky",
+  "Degen",     "Tender",          "Prankish",         "Maxi",
+  "Detached",  "Bright",          "Gloomy",           "Feisty",
+  "Odd",       "Dorky",           "Sassy",            "Haunted",
 ];
 
 function pluralMove(count) {

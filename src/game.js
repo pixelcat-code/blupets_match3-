@@ -3,7 +3,7 @@ import {
   getCanonicalTierForm,
   getCanonicalTierTitle,
 } from "./blupets-canon.js";
-import { VIBES, NEUTRAL_VIBE } from "./vibes.js?v=20260617-2";
+import { VIBES, NEUTRAL_VIBE } from "./vibes.js?v=20260617-3";
 
 export { VIBES, NEUTRAL_VIBE };
 
