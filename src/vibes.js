@@ -6,9 +6,9 @@
 // VIBE_BUDGET points. Because every vibe sums to the same budget, all of them are
 // equivalent in raw power by construction — no vibe is a dud, none is overpowered.
 //
-// With these 7 modules and a budget of 4 there are 62 combinations; 6 of them use
+// With these 7 modules and a budget of 4 there are 71 combinations; 7 of them use
 // a single module type (e.g. "+4 moves" only). Dropping those single-flavour ones
-// leaves exactly 56 vibes, each blending at least two different effects.
+// leaves exactly 64 vibes, each blending at least two different effects.
 
 export const VIBE_BUDGET = 4;
 
@@ -18,7 +18,7 @@ const MODULES = [
   { key: "scoreMultiplier", cost: 1 },
   { key: "rerollRecovery", cost: 1 },
   { key: "startEssence", cost: 1 },
-  { key: "comboEssence", cost: 3 },
+  { key: "comboEssence", cost: 2 },
   { key: "evolveMoves", cost: 2 },
   { key: "decayResist", cost: 2 },
 ];
@@ -68,7 +68,7 @@ function describeModule(key, picks) {
         text: `Start with +${picks * 3} essence on a color`,
       };
     case "comboEssence":
-      return { props: { comboEssence: picks }, text: `4+ matches grant +${picks} essence` };
+      return { props: { comboEssence: picks }, text: `5+ matches grant +${picks} essence` };
     case "evolveMoves":
       return {
         props: { evolveMoves: picks },

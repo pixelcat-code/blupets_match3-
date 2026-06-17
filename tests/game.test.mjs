@@ -542,17 +542,17 @@ function vibeBudget(vibe) {
     (vibe.scoreMultiplier ? Math.round((vibe.scoreMultiplier - 1) * 10) : 0) +
     (vibe.rerollRecovery ?? 0) / 2 +
     (vibe.startEssence ?? 0) / 3 +
-    (vibe.comboEssence ?? 0) * 3 +
+    (vibe.comboEssence ?? 0) * 2 +
     (vibe.evolveMoves ?? 0) * 2 +
     (vibe.decayResist ?? 0) / 0.25 * 2
   );
 }
 
-test("the vibe generator yields 56 equally-budgeted, named vibes", () => {
-  assert.equal(VIBES.length, 56);
+test("the vibe generator yields 64 equally-budgeted, named vibes", () => {
+  assert.equal(VIBES.length, 64);
 
   const names = new Set(VIBES.map((vibe) => vibe.label));
-  assert.equal(names.size, 56);
+  assert.equal(names.size, 64);
 
   for (const vibe of VIBES) {
     assert.ok(vibe.blurb.length > 0, `${vibe.id} has a blurb`);
@@ -600,9 +600,9 @@ test("startEssence vibe pre-charges exactly one color", () => {
   assert.equal(total, 10);
 });
 
-test("comboEssence vibe grants bonus essence on 4+ matches", () => {
+test("comboEssence vibe grants bonus essence on 5+ matches", () => {
   const board = [
-    ["red", "red", "green", "red", "yellow", "purple", "white", "cyan"],
+    ["red", "red", "green", "red", "red", "purple", "white", "cyan"],
     ["blue", "yellow", "red", "green", "white", "cyan", "black", "yellow"],
     ["yellow", "green", "purple", "white", "cyan", "yellow", "black", "blue"],
     ["green", "purple", "white", "cyan", "yellow", "black", "blue", "red"],
@@ -626,7 +626,7 @@ test("comboEssence vibe grants bonus essence on 4+ matches", () => {
   boosted.board = boardFromColorIds(board);
   const boostedResult = attemptSwap(boosted, first, second, makeRng(84));
 
-  // The swap forms a red 4-in-a-row, so the comboEssence vibe must earn red more
+  // The swap forms a red 5-in-a-row, so the comboEssence vibe must earn red more
   // essence than the neutral run off the identical board and rng.
   assert.ok(boostedResult.colorMatchCounts.red > baseResult.colorMatchCounts.red);
 });

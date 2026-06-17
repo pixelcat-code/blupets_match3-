@@ -814,11 +814,11 @@ function applyCascadeProgress(state, cascadeSteps) {
       colorMatchCounts[clearedTile.color] += 1;
     }
 
-    // comboEssence vibe: a 4+ tile match grants bonus essence to each base color
+    // comboEssence vibe: a 5+ tile match grants bonus essence to each base color
     // that took part in it (usually one color; cross-form matches can mix).
     if (comboEssence > 0) {
       for (const group of step.groups) {
-        if (group.length < 4) {
+        if (group.length < 5) {
           continue;
         }
 
