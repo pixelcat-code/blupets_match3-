@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
 
+const MAX_OPEN_RUNS = 3;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -22,6 +24,18 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) {
       return json({ error: "Unauthorized" }, 401);
+    }
+
+    // Block seed cherry-picking: reject if user already has too many open (unsubmitted) runs.
+    const { count, error: countError } = await supabase
+      .from("game_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userData.user.id)
+      .is("submitted_at", null);
+
+    if (countError) throw countError;
+    if ((count ?? 0) >= MAX_OPEN_RUNS) {
+      return json({ error: "too_many_open_runs" }, 429);
     }
 
     const seedBytes = new Uint32Array(1);
