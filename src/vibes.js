@@ -23,8 +23,14 @@ const MODULES = [
   { key: "decayResist", cost: 2 },
 ];
 
-const ADJECTIVES = ["Bold", "Bright", "Swift", "Lush", "Keen", "Calm", "Wild", "Pure"];
-const NOUNS = ["Spark", "Bloom", "Tide", "Ember", "Gale", "Dawn", "Pulse", "Echo"];
+const VIBE_NAMES = [
+  "Pyronix",    "Goldion",    "Grovian",    "Crystala",   "Cryonix",    "Plasmyst",
+  "Umbryx",     "Cloudelle",  "Embricot",   "Harvesthorn","Coraluna",   "Vynbloom",
+  "Corazon",    "Charion",    "Rosaria",    "Limonix",    "Lumint",     "Thundor",
+  "Stellion",   "Archiglyph", "Buttoro",    "Verdix",     "Turtide",    "Venoxis",
+  "Brainrott",  "Seedly",     "Icelyn",     "Aurorion",   "Petrolix",   "Mirrorion",
+  "Eclipso",    "Cosmyx",     "Frostra",    "Noctyx",     "Pearlux",    "Nullgeist",
+];
 
 function pluralMove(count) {
   return count === 1 ? "move" : "moves";
@@ -109,7 +115,7 @@ function buildVibe(counts, index) {
 
   return {
     id: `vibe-${index + 1}`,
-    label: `${ADJECTIVES[Math.floor(index / NOUNS.length)]} ${NOUNS[index % NOUNS.length]}`,
+    label: VIBE_NAMES[index % VIBE_NAMES.length],
     blurb: parts.join(" · "),
     ...props,
   };

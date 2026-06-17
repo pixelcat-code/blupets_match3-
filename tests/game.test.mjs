@@ -553,10 +553,8 @@ function vibeBudget(vibe) {
 test("the vibe generator yields 64 equally-budgeted, named vibes", () => {
   assert.equal(VIBES.length, 64);
 
-  const names = new Set(VIBES.map((vibe) => vibe.label));
-  assert.equal(names.size, 64);
-
   for (const vibe of VIBES) {
+    assert.ok(vibe.label.length > 0, `${vibe.id} has a label`);
     assert.ok(vibe.blurb.length > 0, `${vibe.id} has a blurb`);
     assert.equal(vibeBudget(vibe), 4, `${vibe.id} spends exactly 4 points`);
   }

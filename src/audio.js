@@ -145,6 +145,20 @@ export function stopMusic() {
   }
 }
 
+// Pause music when the tab is hidden (lock screen, app switch, other tab) and
+// resume when the user comes back — prevents music bleeding into the background.
+let _musicWasPlaying = false;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    _musicWasPlaying = music !== null && !music.paused;
+    if (_musicWasPlaying) music.pause();
+  } else if (_musicWasPlaying && !muted) {
+    const p = music.play();
+    if (p?.catch) p.catch(() => {});
+    _musicWasPlaying = false;
+  }
+});
+
 // Haptic feedback. Android Chrome honors this; iOS Safari ignores it silently.
 export function buzz(pattern) {
   if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
