@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Blupets Match-3 MVP</title>
+    <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
+    <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260617-124" />
+    <script src="./auth-config.js?v=20260617-2"></script>
+  </head>
+  <body data-theme="light">
+    <div class="app-shell">
+      <section class="screen start-screen" id="startScreen">
+        <button class="profile-chip" id="profileChip" type="button" aria-label="Open your profile">
+          <span class="profile-chip-icon" aria-hidden="true">
+            <img id="profileChipAvatar" src="./assets/blu-logo.png" alt="" />
+          </span>
+          <span class="profile-chip-label">Profile</span>
+          <span class="profile-chip-count" id="profileChipCount">0/36</span>
+        </button>
+        <button id="startMuteBtn" class="hud-btn mute-btn start-mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
+          <svg class="mute-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+        </button>
+        <div class="start-card">
+          <div class="entry-hero">
+            <div class="entry-rays"></div>
+            <div class="entry-aura"></div>
+            <div class="entry-particles" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i>
+              <i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="entry-sparks" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="entry-echoes" aria-hidden="true">
+              <img class="entry-echo entry-echo--left" src="./assets/hero-block.svg" alt="" />
+              <img class="entry-echo entry-echo--right" src="./assets/hero-block.svg" alt="" />
+            </div>
+            <img class="entry-art" src="./assets/hero-block.svg" alt="" />
+          </div>
+          <div class="entry-platform" aria-hidden="true">
+            <img src="./assets/entry-BvT4yPp8.svg" alt="" />
+          </div>
+          <div class="start-actions start-actions--primary">
+            <button id="start-run" class="entry-btn" type="button">
+              Enter Run
+            </button>
+          </div>
+          <div class="start-actions start-actions--secondary">
+            <button id="start-guide" class="btn btn--ghost" type="button">
+              Guide
+            </button>
+            <button id="start-leaderboard" class="btn btn--ghost" type="button">
+              Leaderboard
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="auth-modal" id="authModal" hidden aria-hidden="true">
+        <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+          <div class="auth-modal-head">
+            <div>
+              <div class="auth-modal-kicker">Account</div>
+              <h2 class="auth-modal-title" id="authModalTitle">Sign in to sync your profile</h2>
+            </div>
+            <button class="auth-modal-skip" id="authSkipBtn" type="button">Skip</button>
+          </div>
+          <p class="auth-modal-copy">Use Google or X to keep your collection and future progress tied to one account.</p>
+          <div class="auth-panel" id="authPanel" aria-live="polite">
+            <div class="auth-user" id="authUser" hidden>
+              <span class="auth-avatar" id="authAvatar" aria-hidden="true"></span>
+              <span class="auth-name" id="authName"></span>
+            </div>
+            <div class="auth-actions" id="authActions">
+              <button id="authGoogleBtn" class="auth-btn" type="button">Google</button>
+              <button id="authTwitterBtn" class="auth-btn" type="button">X</button>
+            </div>
+            <button id="authLogoutBtn" class="auth-btn auth-btn--ghost" type="button" hidden>Sign out</button>
+            <span class="auth-status" id="authStatus"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen game-screen" id="gameScreen" hidden>
+        <div class="game-frame">
+          <header class="topbar">
+            <div class="topbar-left">
+              <button id="back-to-start" class="hud-btn" type="button" title="Menu" aria-label="Back to menu">
+                ←
+              </button>
+              <button id="muteBtnGame" class="hud-btn mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
+                <svg class="mute-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="topbar-stats">
+              <div class="stat-pill stat-pill--moves">
+                <span class="stat-kicker">Moves</span>
+                <strong id="movesValue">0</strong>
+              </div>
+              <div class="stat-pill stat-pill--score">
+                <span class="stat-kicker">Score</span>
+                <strong id="scoreValue">0</strong>
+              </div>
+            </div>
+            <div class="topbar-right">
+              <button id="reroll-hud" class="reroll-hud-btn" type="button" title="Reroll the board" aria-label="Reroll board (spends a charge)">
+                <img class="reroll-hud-icon" src="./assets/blocks/reroll.svg" alt="" aria-hidden="true" />
+                <span class="reroll-hud-badge" id="rerollHudBadge" aria-hidden="true">1</span>
+              </button>
+            </div>
+          </header>
+
+          <div class="roster-row">
+            <div class="color-roster" id="colorRoster" role="list" aria-label="All color progress"></div>
+          </div>
+
+          <div class="reroll-dock">
+            <button id="reroll-run" class="reroll-bar" type="button" title="Reroll the board" aria-label="Reroll board (spends a charge)">
+              <div class="reroll-medallion">
+                <img class="reroll-medallion-icon" src="./assets/blocks/reroll.svg" alt="" aria-hidden="true" />
+              </div>
+              <div class="reroll-track">
+                <div class="reroll-track-fill"></div>
+              </div>
+              <span class="reroll-pips" id="rerollPips" aria-label="reroll charges">
+                <span class="reroll-pip"></span>
+                <span class="reroll-pip"></span>
+                <span class="reroll-pip"></span>
+              </span>
+            </button>
+          </div>
+
+          <div class="vibe-status">
+            <div class="vibe-strip" id="vibeStrip" hidden>
+              <span class="vibe-strip-badge" aria-hidden="true"><img src="./assets/blu-logo.png" alt="" /></span>
+              <div class="vibe-strip-text">
+                <span class="vibe-strip-name" id="vibeStripName"></span>
+                <span class="vibe-strip-perks" id="vibeStripPerks"></span>
+              </div>
+            </div>
+            <div class="status-line" id="statusText"></div>
+          </div>
+
+          <div class="board-shell">
+            <div
+              id="board"
+              class="board"
+              role="grid"
+              aria-label="Match 3 board"
+            ></div>
+
+            <div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
+
+            <div class="modal-wrap" id="modalPartner" style="display: none">
+              <div class="modal-card">
+                <div class="modal-label">Ready to evolve</div>
+                <div class="modal-headline" id="partnerHeadline"></div>
+                <div class="modal-sub">Choose a fusion partner</div>
+                <div class="modal-options" id="partnerOptions"></div>
+              </div>
+            </div>
+
+            <div class="modal-wrap" id="modalForm" style="display: none">
+              <div class="modal-card">
+                <div class="modal-label">Choose a form</div>
+                <div class="modal-headline" id="formHeadline"></div>
+                <div class="modal-options" id="formOptions"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="game-footer">
+            <button id="muteBtn" class="hud-btn mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
+              <svg class="mute-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen victory-screen" id="victoryScreen" hidden>
+        <div class="victory-card">
+          <div class="entry-rays" aria-hidden="true"></div>
+          <div class="entry-aura" aria-hidden="true"></div>
+          <div class="victory-copy">
+            <!-- The single share card: everything inside #victoryShareCard is the
+                 social-card preview, mirrored 1:1 by the generated PNG. -->
+            <div class="victory-share-card" id="victoryShareCard">
+              <div class="victory-brand">
+                <img class="victory-brand-mark" src="./assets/blu-logo.png" alt="" aria-hidden="true" />
+                <span class="victory-brand-name">BLUPETS</span>
+              </div>
+              <h2 id="victoryTitle">YOU WON!</h2>
+              <div class="victory-art-wrap">
+                <div class="victory-ray-burst" aria-hidden="true">
+                  <i></i><i></i><i></i><i></i><i></i><i></i>
+                  <i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+                <img id="victoryArt" class="victory-art" src="./assets/blu-logo.png" alt="" />
+              </div>
+              <div class="victory-detail" id="victoryDetail"></div>
+              <div class="victory-stats">
+                <div class="victory-stat">
+                  <span>Score</span>
+                  <strong id="victoryScore">0</strong>
+                </div>
+                <div class="victory-stat">
+                  <span>Place</span>
+                  <strong id="victoryPlace">#1 of 1</strong>
+                </div>
+                <div class="victory-stat">
+                  <span>Forms</span>
+                  <strong id="victoryForms">0/36</strong>
+                </div>
+              </div>
+            </div>
+            <div class="victory-actions">
+              <button id="victoryShareBtn" class="btn btn--primary" type="button">
+                Share card
+              </button>
+              <button id="victoryLeaderboardBtn" class="btn btn--ghost" type="button">
+                Leaderboard
+              </button>
+              <button id="victoryBtn" class="btn btn--ghost" type="button">
+                Play Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen gameover-screen" id="gameoverScreen" hidden>
+        <div class="gameover-card">
+          <div class="entry-rays" aria-hidden="true"></div>
+          <div class="entry-aura" aria-hidden="true"></div>
+          <div class="gameover-copy">
+            <div class="gameover-mark">Run stalled</div>
+            <h2 class="gameover-title">No Moves</h2>
+            <img class="gameover-art" src="./assets/hero-block.svg" alt="" />
+            <div class="gameover-detail" id="gameoverDetail"></div>
+            <div class="gameover-score-wrap">
+              <span class="gameover-score-label">Score</span>
+              <div class="gameover-score" id="gameoverScore"></div>
+            </div>
+            <div class="end-actions">
+              <button class="btn btn--ghost" id="reroll-gameoverBtn" type="button">
+                Reroll
+              </button>
+              <button class="btn btn--primary" id="gameoverBtn" type="button">
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen leaderboard-screen" id="leaderboardScreen" hidden>
+        <div class="leaderboard-card">
+          <header class="leaderboard-head">
+            <button id="leaderboardBackBtn" class="icon-btn" type="button" title="Back">
+              ←
+            </button>
+            <div>
+              <h2>Leaderboard</h2>
+            </div>
+          </header>
+
+          <div id="leaderboard-content" class="leaderboard-content"></div>
+        </div>
+      </section>
+
+      <section class="screen profile-screen" id="profileScreen" hidden>
+        <div class="leaderboard-card profile-card">
+          <header class="leaderboard-head profile-head">
+            <button id="profileBackBtn" class="icon-btn" type="button" title="Back">
+              ←
+            </button>
+            <div>
+              <h2>Profile</h2>
+              <p class="profile-subtitle">Your account and form collection</p>
+            </div>
+          </header>
+
+          <div class="profile-summary" id="profileSummary" aria-live="polite">
+            <span class="profile-avatar" id="profileAvatar" aria-hidden="true"></span>
+            <div class="profile-meta">
+              <div class="profile-name" id="profileName">Guest</div>
+              <div class="profile-status" id="profileStatus">No account connected</div>
+            </div>
+            <div class="profile-actions">
+              <button id="profileSignInBtn" class="btn btn--primary" type="button">Sign in</button>
+              <button id="profileLogoutBtn" class="btn btn--ghost" type="button" hidden>Sign out</button>
+            </div>
+          </div>
+
+          <div class="profile-section-head">Form Gallery</div>
+          <div id="profile-content" class="leaderboard-content profile-content"></div>
+        </div>
+      </section>
+
+      <div class="vibe-intro" id="vibeIntro" hidden>
+        <div class="vibe-intro-card">
+          <div class="vibe-intro-kicker">Your Vibe</div>
+          <h3 class="vibe-intro-name" id="vibeIntroName"></h3>
+          <p class="vibe-intro-blurb" id="vibeIntroBlurb"></p>
+          <button id="vibeIntroBtn" class="btn btn--primary" type="button">
+            Start Run
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <script type="module" src="./src/main.js?v=20260617-117"></script>
+  </body>
+</html>

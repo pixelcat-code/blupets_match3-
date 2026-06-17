@@ -1,0 +1,12 @@
+{
+  "name": "blupets-match3-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "generate:canon": "node ./scripts/generate-blupets-canon.mjs",
+    "serve": "python3 -m http.server 4174 --bind 127.0.0.1",
+    "serve:lan": "python3 -m http.server 4174 --bind 0.0.0.0",
+    "test": "node --test tests/**/*.test.mjs"
+  }
+}

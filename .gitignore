@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.*
+
+# Tool / IDE artefacts — not part of the shipped app
+.gstack/
+.playwright-cli/
+.superpowers/
+output/
+.planning/
+docs/superpowers/
