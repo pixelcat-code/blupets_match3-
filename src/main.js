@@ -37,7 +37,7 @@ import {
   fetchUserProgress,
   startTrustedRun,
   submitTrustedRun,
-} from "./sync.js?v=20260617-6";
+} from "./sync.js?v=20260618-9";
 
 const SWAP_ANIMATION_MS = 210;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
@@ -199,8 +199,9 @@ function logRunAction(action) {
   runProof.actions.push(action);
 }
 
-// Overwrite in-memory progress with authoritative Supabase data.
+// Merge authoritative Supabase data into local progress.
 // Keeps local `runs` (which counts non-winning runs too; server only counts wins).
+// Forms are unioned: local wins for conflicting keys (local has the asset path; server stores null).
 function applyRemoteProgress(remote) {
   if (!remote) return;
   const localRuns = progress.runs;
@@ -210,7 +211,7 @@ function applyRemoteProgress(remote) {
     runs: Math.max(localRuns, remote.runs ?? 0),
     bestScore: remote.bestScore ?? progress.bestScore,
     fewestMovesWin: remote.fewestMovesWin ?? progress.fewestMovesWin,
-    forms: remote.forms ?? progress.forms,
+    forms: { ...(remote.forms ?? {}), ...(progress.forms ?? {}) },
   };
   saveProgress(progress);
 }
@@ -1727,16 +1728,24 @@ function renderLeaderboard() {
     value,
   });
 
-  const sortByScore = [...entries]
+  // Dedup independently per section so a fast run isn't hidden by a higher-score run.
+  const dedup = (arr, better) => [...arr.reduce((m, e) => {
+    if (!m.has(e.userId) || better(e, m.get(e.userId))) m.set(e.userId, e);
+    return m;
+  }, new Map()).values()];
+
+  const sortByScore = dedup(entries, (a, b) => a.score > b.score || (a.score === b.score && a.movesUsed < b.movesUsed))
     .sort((left, right) => right.score - left.score || left.movesUsed - right.movesUsed)
+    .slice(0, 100)
     .map((entry, index) => toRow(
       entry, index,
       `${entry.score}`,
       `${colorLabel(entry.t4Color)} + ${colorLabel(entry.t4Partner)}`,
     ));
 
-  const sortBySpeed = [...entries]
+  const sortBySpeed = dedup(entries, (a, b) => a.movesUsed < b.movesUsed || (a.movesUsed === b.movesUsed && a.score > b.score))
     .sort((left, right) => left.movesUsed - right.movesUsed || right.score - left.score)
+    .slice(0, 100)
     .map((entry, index) => toRow(
       entry, index,
       `${entry.movesUsed} moves`,

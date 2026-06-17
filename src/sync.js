@@ -61,26 +61,38 @@ export async function fetchGlobalLeaderboard(limit = 100) {
 
   if (error) throw error;
 
-  const best = new Map();
+  // Track best-score AND best-speed entry per user independently.
+  // A single dedup by score would discard fast runs with lower scores.
+  const byScore = new Map();
+  const bySpeed = new Map();
   for (const row of data ?? []) {
     const uid = row.user_id;
-    if (!best.has(uid) || row.score > best.get(uid).score) {
-      best.set(uid, row);
+    if (!byScore.has(uid) || row.score > byScore.get(uid).score) {
+      byScore.set(uid, row);
+    }
+    if (!bySpeed.has(uid) || row.moves_used < bySpeed.get(uid).moves_used) {
+      bySpeed.set(uid, row);
     }
   }
 
-  return [...best.values()]
-    .sort((a, b) => b.score - a.score || a.moves_used - b.moves_used)
-    .slice(0, limit)
-    .map((row) => ({
-      accountName: row.account_name ?? "Player",
-      avatarUrl: row.avatar_url ?? "",
-      score: row.score,
-      movesUsed: row.moves_used,
-      t4Color: row.t4_color,
-      t4Partner: row.t4_partner,
-      t4FormKey: row.t4_form_key,
-      vibe: row.vibe,
-      timestamp: row.created_at ? new Date(row.created_at).getTime() : 0,
-    }));
+  // Union of both sets; a user may contribute 1 or 2 distinct rows.
+  const seen = new Set();
+  const unique = [];
+  for (const row of [...byScore.values(), ...bySpeed.values()]) {
+    const key = `${row.user_id}:${row.score}:${row.moves_used}`;
+    if (!seen.has(key)) { seen.add(key); unique.push(row); }
+  }
+
+  return unique.map((row) => ({
+    userId: row.user_id,
+    accountName: row.account_name ?? "Player",
+    avatarUrl: row.avatar_url ?? "",
+    score: row.score,
+    movesUsed: row.moves_used,
+    t4Color: row.t4_color,
+    t4Partner: row.t4_partner,
+    t4FormKey: row.t4_form_key,
+    vibe: row.vibe,
+    timestamp: row.created_at ? new Date(row.created_at).getTime() : 0,
+  }));
 }
