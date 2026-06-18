@@ -49,7 +49,7 @@ Unchanged from before: 2-column grid, reroll dock in left column, footer with mu
 
 ## Current versions (bump on change)
 
-- `styles.css` query string: `?v=20260618-153`
+- `styles.css` query string: `?v=20260618-154`
 - `main.js` query string: `?v=20260618-150`
 - `auth-config.js` query string: `?v=20260617-2`
 - `sync.js` import in `main.js`: `?v=20260618-10` — bump this whenever `sync.js` changes

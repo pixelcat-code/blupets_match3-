@@ -3520,35 +3520,74 @@ button,
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
-    background: var(--bg, #0d1b2a);
-    color: #fff;
+    padding: 20px;
+    overflow: hidden;
+    font-family: var(--ui-font);
+    color: var(--color-text, #0f2742);
     text-align: center;
+    /* BluKit sky — same backdrop as the start screen. */
+    background: var(--blupets-sky-background);
   }
 
-  .rotate-lock-inner {
+  /* Soft cyan/cream/pink aura drifting behind the card, echoing the entry hero. */
+  .rotate-lock-glow {
+    position: absolute;
+    width: 120vmax;
+    height: 120vmax;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 42%, rgba(92, 232, 255, 0.55), transparent 46%),
+      radial-gradient(circle at 68% 58%, rgba(255, 155, 232, 0.45), transparent 46%),
+      radial-gradient(circle at 50% 50%, rgba(255, 240, 168, 0.4), transparent 52%);
+    filter: blur(28px);
+    opacity: 0.85;
+    animation: rotate-lock-aura 7s ease-in-out infinite;
+  }
+
+  .rotate-lock-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 14px;
-    max-width: 360px;
+    gap: 12px;
+    max-width: 380px;
+    padding: 24px 30px 26px;
+    border-radius: var(--radius-lg, 30px);
+    background: var(--color-surface-strong, rgba(255, 255, 255, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow:
+      0 24px 60px rgba(24, 76, 126, 0.22),
+      inset 0 0 0 1px rgba(92, 232, 255, 0.25);
   }
 
-  .rotate-lock-icon {
-    opacity: 0.9;
-    animation: rotate-lock-nudge 2.2s ease-in-out infinite;
+  /* Rounded "ready" medallion holding the phone glyph — matches the reroll/enter look. */
+  .rotate-lock-phone {
+    display: grid;
+    place-items: center;
+    width: 116px;
+    height: 116px;
+    border-radius: 50%;
+    color: #0a8faf;
+    background: var(--reroll-ready-fill);
+    box-shadow:
+      0 12px 28px rgba(24, 76, 126, 0.18),
+      inset 0 0 0 2px rgba(92, 232, 255, 0.5);
+    animation: rotate-lock-nudge 2.4s var(--ease-slow, ease-in-out) infinite;
   }
 
   .rotate-lock-text {
     margin: 0;
-    font-size: 1.15rem;
-    font-weight: 700;
+    font-size: 1.32rem;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: var(--color-text, #0f2742);
   }
 
   .rotate-lock-sub {
     margin: 0;
-    font-size: 0.9rem;
-    opacity: 0.7;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--color-text-soft, #607e9f);
   }
 
   /* Stop the underlying game from animating/playing behind the overlay. */
@@ -3558,12 +3597,18 @@ button,
 }
 
 @keyframes rotate-lock-nudge {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-90deg); }
+  0%, 55%, 100% { transform: rotate(0deg); }
+  25%, 35% { transform: rotate(-90deg); }
+}
+
+@keyframes rotate-lock-aura {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.08) rotate(8deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rotate-lock-icon {
+  .rotate-lock-phone,
+  .rotate-lock-glow {
     animation: none;
   }
 }
