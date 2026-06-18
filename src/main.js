@@ -17,7 +17,7 @@ import {
   selectFusionPartner,
 } from "./game.js?v=20260618-gameplay-5";
 import { runTour } from "./coachmarks.js?v=20260618-1";
-import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } from "./audio.js?v=20260618-7";
+import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260618-8";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
@@ -174,6 +174,10 @@ let remoteLeaderboard = [];
 // "loading" | "ready" | "error" — drives distinct leaderboard placeholder copy
 // so the user can tell apart fetching, an empty board, and a network failure.
 let leaderboardStatus = "loading";
+// Which leaderboard category is shown on mobile (where the two columns collapse
+// into a tab switcher). "score" = All Time, "speed" = Speed Run. Persists across
+// re-renders so a data refresh doesn't snap the user back to the first tab.
+let leaderboardTab = "score";
 let progress = loadProgress();
 let authState = {
   configured: false,
@@ -697,7 +701,12 @@ function pulseHatch() {
 
 function renderTopBar(stateLike) {
   elements.movesValue.textContent = String(stateLike.movesLeft);
-  elements.scoreValue.textContent = String(stateLike.score);
+  const scoreText = String(stateLike.score);
+  elements.scoreValue.textContent = scoreText;
+  // Long scores (6+ digits) overflow the fixed-width score pill and clip under
+  // its `overflow: hidden`. Expose the digit count so CSS can scale the number
+  // down to fit instead of cropping it.
+  elements.scoreValue.dataset.len = String(scoreText.length);
   elements.backToStart.disabled = false;
 
   // Low-moves warning: tint the Moves number amber when it's getting tight and
@@ -2023,9 +2032,18 @@ function renderLeaderboard() {
           })
           .join("");
 
+  // Tabs are visible only on mobile (CSS), where the two columns collapse into a
+  // switcher; on desktop both columns show side-by-side and the tabs are hidden.
+  const tab = (id, label) =>
+    `<button class="leaderboard-tab${leaderboardTab === id ? " is-active" : ""}" type="button" role="tab" data-tab="${id}" aria-selected="${leaderboardTab === id ? "true" : "false"}">${label}</button>`;
+
   elements.leaderboardContent.innerHTML = `
-    <div class="leaderboard-columns">
-      <section class="leaderboard-column">
+    <div class="leaderboard-columns" data-active="${leaderboardTab}">
+      <div class="leaderboard-tabs" role="tablist" aria-label="Leaderboard category">
+        ${tab("score", "All Time")}
+        ${tab("speed", "Speed Run")}
+      </div>
+      <section class="leaderboard-column" data-col="score">
         <div class="leaderboard-column-head">
           <h3>All Time</h3>
         </div>
@@ -2033,7 +2051,7 @@ function renderLeaderboard() {
           ${renderRows(sortByScore)}
         </div>
       </section>
-      <section class="leaderboard-column">
+      <section class="leaderboard-column" data-col="speed">
         <div class="leaderboard-column-head">
           <h3>Speed Run</h3>
         </div>
@@ -2414,6 +2432,19 @@ bindClick(elements.leaderboardBackBtn, closeLeaderboard);
 bindClick(elements.profileBackBtn, closeProfile);
 bindClick(elements.publicProfileBackBtn, closePublicProfile);
 elements.leaderboardContent?.addEventListener("click", (e) => {
+  const tabBtn = e.target.closest(".leaderboard-tab");
+  if (tabBtn?.dataset.tab) {
+    leaderboardTab = tabBtn.dataset.tab;
+    const cols = elements.leaderboardContent.querySelector(".leaderboard-columns");
+    if (cols) cols.dataset.active = leaderboardTab;
+    elements.leaderboardContent.querySelectorAll(".leaderboard-tab").forEach((t) => {
+      const on = t.dataset.tab === leaderboardTab;
+      t.classList.toggle("is-active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    sfx("ui");
+    return;
+  }
   const btn = e.target.closest(".leaderboard-user-btn");
   if (btn?.dataset.userId) {
     openPublicProfile(btn.dataset.userId, btn.dataset.account, btn.dataset.avatar);
@@ -2446,17 +2477,22 @@ bindClick(elements.profileChip, () => {
   }
 });
 // Audio playback is blocked until a user gesture — unlock on first touch, and
-// kick off the start-screen ambience if we're still sitting on the menu.
-window.addEventListener(
-  "pointerdown",
-  () => {
-    unlockAudio();
-    if ((currentScreen === "start" || currentScreen === "game") && !isMuted()) {
-      startMusic();
-    }
-  },
-  { once: true },
-);
+// kick off the start-screen ambience if we're still sitting on the menu. We keep
+// listening (not { once: true }) until music actually starts: the very first tap
+// can be on an OAuth login button, which navigates away and aborts the music
+// fetch, so a single-shot listener would leave the start screen permanently
+// silent after the redirect returns. Self-removes once ambience is confirmed
+// playing (or the player has muted).
+function primeAudioOnGesture() {
+  unlockAudio();
+  if ((currentScreen === "start" || currentScreen === "game") && !isMuted()) {
+    startMusic();
+  }
+  if (isMusicPlaying() || isMuted()) {
+    window.removeEventListener("pointerdown", primeAudioOnGesture);
+  }
+}
+window.addEventListener("pointerdown", primeAudioOnGesture);
 bindClick(elements.rerollRun, () => {
   if (!state) {
     return;

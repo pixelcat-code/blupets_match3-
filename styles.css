@@ -1174,6 +1174,25 @@ h2 {
   letter-spacing: -0.04em;
   position: relative;
   z-index: 1;
+  white-space: nowrap;
+}
+
+/* Scale the score number down as it grows so big totals stay inside the pill
+   instead of clipping. ID specificity intentionally beats the small-screen
+   `.stat-pill strong` size override below. `data-len` is the digit count. */
+#scoreValue[data-len="6"] {
+  font-size: 18px;
+  letter-spacing: -0.05em;
+}
+#scoreValue[data-len="7"] {
+  font-size: 15px;
+  letter-spacing: -0.05em;
+}
+#scoreValue[data-len="8"],
+#scoreValue[data-len="9"],
+#scoreValue[data-len="10"] {
+  font-size: 13px;
+  letter-spacing: -0.06em;
 }
 
 /* ── All-color progress roster ──────────────────────────────────────────
@@ -1971,6 +1990,35 @@ h2 {
   gap: 10px;
 }
 
+/* Category switcher — only shown on mobile, where the two columns collapse into
+   a single tabbed view (see the max-width: 520px block). On wider screens both
+   columns sit side-by-side and these tabs stay hidden. */
+.leaderboard-tabs {
+  display: none;
+}
+
+.leaderboard-tab {
+  appearance: none;
+  border: 1.5px solid var(--color-border);
+  background: var(--color-surface-strong);
+  color: var(--color-text-soft);
+  font: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  padding: 11px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.leaderboard-tab.is-active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(40, 92, 150, 0.18);
+}
+
 .leaderboard-column-head {
   display: flex;
   align-items: center;
@@ -2766,6 +2814,30 @@ h2 {
 
   .leaderboard-columns {
     grid-template-columns: 1fr;
+  }
+
+  /* Mobile: replace the stacked columns with a tab switcher. */
+  .leaderboard-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    grid-column: 1 / -1;
+    margin-bottom: 4px;
+  }
+
+  /* The tab labels stand in for the per-column headings on mobile. */
+  .leaderboard-columns .leaderboard-column-head {
+    display: none;
+  }
+
+  /* Show only the active category; the other stays mounted but hidden so the
+     scroll position and DOM are preserved across taps. */
+  .leaderboard-columns .leaderboard-column {
+    display: none;
+  }
+  .leaderboard-columns[data-active="score"] .leaderboard-column[data-col="score"],
+  .leaderboard-columns[data-active="speed"] .leaderboard-column[data-col="speed"] {
+    display: grid;
   }
 }
 

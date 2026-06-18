@@ -51,6 +51,7 @@ const basePool = {}; // one preloaded Audio per file, cloned on play
 // ── Web Audio API — background music ────────────────────────────────────────
 let audioCtx = null;
 let musicBuffer = null; // decoded PCM, reused across plays
+let musicPending = null; // in-flight fetch+decode Promise (dedupes concurrent loads)
 let musicSource = null; // current BufferSourceNode (single-use)
 let musicGain = null;
 let _musicWasPlaying = false;
@@ -64,11 +65,22 @@ function getCtx() {
 
 async function loadMusicBuffer() {
   if (musicBuffer) return musicBuffer;
+  // Dedupe concurrent callers: unlockAudio and startMusic both call this within
+  // the same gesture, and the music file is ~5.5MB — without an in-flight guard
+  // each call kicks off its own download, saturating the connection.
+  if (musicPending) return musicPending;
   const ctx = getCtx();
-  const res = await fetch(AUDIO_BASE + MUSIC_FILE);
-  const raw = await res.arrayBuffer();
-  musicBuffer = await ctx.decodeAudioData(raw);
-  return musicBuffer;
+  musicPending = (async () => {
+    try {
+      const res = await fetch(AUDIO_BASE + MUSIC_FILE);
+      const raw = await res.arrayBuffer();
+      musicBuffer = await ctx.decodeAudioData(raw);
+      return musicBuffer;
+    } finally {
+      musicPending = null;
+    }
+  })();
+  return musicPending;
 }
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -100,6 +112,23 @@ export function unlockAudio() {
   if (ctx.state === "suspended") {
     ctx.resume().catch(() => {});
   }
+  // iOS Safari quirk: resume() alone doesn't reliably arm the audio session, so
+  // the background music — whose source starts later, after its buffer finishes
+  // loading and thus OUTSIDE this gesture — never becomes audible on the start
+  // screen. Playing one silent 1-sample buffer synchronously inside the gesture
+  // fully unlocks Web Audio output, so any source started afterward is audible.
+  try {
+    const silent = ctx.createBufferSource();
+    silent.buffer = ctx.createBuffer(1, 1, 22050);
+    silent.connect(ctx.destination);
+    silent.start(0);
+  } catch {
+    // Older WebAudio implementations — resume() above is the fallback.
+  }
+  // Warm the music buffer too (preloadAll only covers SFX) so start-screen
+  // ambience starts as soon as possible after the first tap instead of waiting
+  // on a multi-megabyte fetch.
+  loadMusicBuffer().catch(() => {});
   preloadAll();
 }
 
@@ -168,6 +197,10 @@ export async function startMusic() {
   } catch {
     // Asset missing or autoplay blocked — fail silently.
   }
+}
+
+export function isMusicPlaying() {
+  return musicSource !== null;
 }
 
 export function stopMusic() {
