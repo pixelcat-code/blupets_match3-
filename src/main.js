@@ -358,9 +358,16 @@ async function startRun({ guided = false } = {}) {
     try {
       runProof = await startTrustedRun();
       seed = runProof.seed;
-    } catch {
-      // Trusted run unavailable — fall back to local seed silently.
+    } catch (err) {
+      // Trusted run unavailable — fall back to a local seed. Without runProof
+      // the eventual win can't be verified, so this is the silent point where
+      // a win later fails to reach the leaderboard. Surface it instead of
+      // swallowing it so the cause is diagnosable.
+      console.error("[sync] startTrustedRun failed — this run will NOT be verifiable:", err);
+      showToast("Couldn’t start a verified run — this win won’t reach the leaderboard.");
     }
+  } else {
+    console.warn("[sync] run started while signed out — win will be local-only.");
   }
   runRng = createSeededRng(seed);
   state = createInitialState({
@@ -612,8 +619,10 @@ function recordVictory(nextState) {
 
   if (authState.user && runProof) {
     const proof = runProof;
+    console.info("[sync] submitting trusted run:", proof.runId, "actions:", proof.actions.length);
     submitTrustedRun(proof.runId, proof.actions)
       .then((data) => {
+        console.info("[sync] submit-run accepted:", data);
         if (data?.progress) {
           applyRemoteProgress(data.progress);
           render();
@@ -629,6 +638,15 @@ function recordVictory(nextState) {
       .finally(() => {
         if (runProof === proof) clearRunProof();
       });
+  } else if (authState.user && !runProof) {
+    // Signed in but no trusted run was ever established (startTrustedRun failed
+    // or the run began before auth resolved). The win is recorded locally but
+    // never submitted — make that visible instead of silently dropping it.
+    console.error(
+      "[sync] victory NOT submitted: signed in but no runProof. " +
+        "startTrustedRun likely failed at run start, or the run began before sign-in.",
+    );
+    showToast("Win saved locally only — it wasn’t a verified run, so it can’t reach the leaderboard.");
   }
 }
 
