@@ -3683,9 +3683,11 @@ h2 {
 
 .profile-card {
   display: grid;
-  /* Four children (head, summary, section-head, content): content must land in
-     the final minmax(0,1fr) track so the 36-card gallery scrolls, not clips. */
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  /* Five children: head, summary, empty section-head anchor, the JS-injected
+     .profile-stats (pills + collection-progress, inserted via stats.after()),
+     then #profile-content. The gallery must land in the final minmax(0,1fr)
+     track so the 36-card grid scrolls, not clips. */
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -4230,7 +4232,8 @@ button,
   }
 
   .profile-card {
-    grid-template-rows: auto auto auto minmax(0, 1fr);
+    /* 5 children incl. JS-injected .profile-stats — see default block above. */
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
     gap: 10px;
   }
 
