@@ -351,6 +351,7 @@ async function startRun({ guided = false } = {}) {
   unlockAudio();
   sfx("ui");
   recordRunStart(progress);
+  _prevScore = 0; // reset score-pop baseline for the new run
   runProof = null;
   let seed = randomSeed();
   if (authState.user) {
@@ -569,8 +570,7 @@ function renderPublicProfile(entries) {
       ${stat("Wins", wins)}
       ${stat("Best", bestScore)}
       ${fastestMoves < Infinity ? stat("Fastest", `${fastestMoves} mv`) : ""}
-      ${stat("Forms", `${formsCount}/${TOTAL_APEX_FORMS}`)}
-    </div>`;
+    </div>${renderCollectionProgress(formsCount, TOTAL_APEX_FORMS)}`;
   }
 
   if (elements.publicProfileContent) {
@@ -679,6 +679,8 @@ function getLeaderColorId(stateLike) {
 }
 
 let hatchPulseTimer = null;
+let _scoreBumpTimer = null;
+let _prevScore = 0;
 // One-shot pop on the egg meter when a match hatches a fresh reroll charge.
 function pulseHatch() {
   const meter = elements.rerollRun;
@@ -702,6 +704,18 @@ function pulseHatch() {
 function renderTopBar(stateLike) {
   elements.movesValue.textContent = String(stateLike.movesLeft);
   const scoreText = String(stateLike.score);
+  // Pop the score pill for a beat whenever the total climbs.
+  if (typeof stateLike.score === "number" && stateLike.score > _prevScore) {
+    const scorePill = elements.scoreValue.closest(".stat-pill--score");
+    if (scorePill) {
+      scorePill.classList.remove("is-bump");
+      void scorePill.offsetWidth; // restart the animation
+      scorePill.classList.add("is-bump");
+      clearTimeout(_scoreBumpTimer);
+      _scoreBumpTimer = setTimeout(() => scorePill.classList.remove("is-bump"), 440);
+    }
+  }
+  _prevScore = typeof stateLike.score === "number" ? stateLike.score : _prevScore;
   elements.scoreValue.textContent = scoreText;
   // Long scores (6+ digits) overflow the fixed-width score pill and clip under
   // its `overflow: hidden`. Expose the digit count so CSS can scale the number
@@ -1006,7 +1020,7 @@ function renderAuth() {
           ? authState.error
           : signedIn
             ? "Signed in"
-            : "Sign in";
+            : "";
   }
 
   renderAuthModal();
@@ -2063,6 +2077,24 @@ function renderLeaderboard() {
   `;
 }
 
+// Holographic collection-completion hero. Shared by own + public profile so the
+// "journey to 36" reads the same everywhere. `discovered`/`total` are plain ints.
+function renderCollectionProgress(discovered, total) {
+  const pct = total > 0 ? Math.max(0, Math.min(100, Math.round((discovered / total) * 100))) : 0;
+  const complete = total > 0 && discovered >= total;
+  return `
+    <div class="collection-progress${complete ? " is-complete" : ""}">
+      <div class="cp-head">
+        <span class="cp-label">Form Collection</span>
+        <span class="cp-count"><strong>${discovered}</strong><span class="cp-total">/ ${total}</span></span>
+      </div>
+      <div class="cp-track" role="progressbar" aria-valuenow="${discovered}" aria-valuemin="0" aria-valuemax="${total}" aria-label="Forms discovered">
+        <div class="cp-fill" style="width:${pct}%"></div>
+      </div>
+    </div>
+  `;
+}
+
 // Lifetime meta-progression banner shown on profile and leaderboard surfaces.
 function renderStatsHeader() {
   const fewest = progress.fewestMovesWin;
@@ -2073,9 +2105,9 @@ function renderStatsHeader() {
       ${stat("Best", String(progress.bestScore ?? 0))}
       ${stat("Wins", String(progress.wins ?? 0))}
       ${stat("Runs", String(progress.runs ?? 0))}
-      ${stat("Forms", `${discoveredCount(progress)}/${TOTAL_APEX_FORMS}`)}
       ${fewest != null ? stat("Fastest", `${fewest} mv`) : ""}
     </div>
+    ${renderCollectionProgress(discoveredCount(progress), TOTAL_APEX_FORMS)}
   `;
 }
 
@@ -2593,6 +2625,16 @@ window.addEventListener("popstate", (e) => {
   _inPopstate = false;
 });
 
+// Capture any demo-screen request BEFORE the history.replaceState below strips
+// the query string from the URL (otherwise `?demo=…` is gone by the time
+// maybeRunDemoScreen() reads it, and we'd fall back to the start/auth screen).
+const _demoScreen = (() => {
+  const q = new URLSearchParams(location.search).get("demo");
+  if (q) return q;
+  if (location.hash.startsWith("#demo-")) return location.hash.slice("#demo-".length);
+  return null;
+})();
+
 // Set initial history entry (don't clobber OAuth fragment/code if redirect just landed).
 // PKCE flow returns ?code=… in query string; implicit flow returns #access_token in hash.
 const _hasOAuthCode = new URLSearchParams(location.search).has("code");
@@ -2604,17 +2646,54 @@ if (!_hasOAuthCode && !/access_token|error_description/.test(location.hash)) {
   if (initialScreen === "leaderboard") lastScreenBeforeLeaderboard = "start";
   if (initialScreen === "profile") lastScreenBeforeProfile = "start";
   currentScreen = initialScreen;
-  history.replaceState(
-    { screen: initialScreen, idx: 0 },
-    "",
-    location.pathname + (initialScreen !== "start" ? "#" + initialScreen : ""),
-  );
+  // Keep `?demo=…` in the URL so a refresh re-enters the demo; otherwise use the hash.
+  const _suffix = _demoScreen
+    ? "?demo=" + encodeURIComponent(_demoScreen)
+    : (initialScreen !== "start" ? "#" + initialScreen : "");
+  history.replaceState({ screen: initialScreen, idx: 0 }, "", location.pathname + _suffix);
 }
 syncMuteButton();
 updateProfileChip();
 initializeAuth();
 
 render();
+
+// ── Demo shortcut ─────────────────────────────────────────────────────────
+// Jump straight to an end screen with sample data so the design can be reviewed
+// without playing a full run. Use `?demo=victory` or `?demo=gameover` in the URL
+// (also accepts `#demo-victory` / `#demo-gameover`). No effect when absent.
+function maybeRunDemoScreen() {
+  const which = _demoScreen;
+  if (which !== "victory" && which !== "gameover") return;
+
+  const demo = createInitialState({ diagonalAssist: true, rng: createSeededRng(12345) });
+  // Give the leader-color summary something concrete to report.
+  const leadId = COLORS[0].id;
+  demo.evolutionTiers[leadId] = 3;
+  demo.colorMatchCounts[leadId] = 24;
+
+  if (which === "victory") {
+    demo.score = 12840;
+    demo.victory = true;
+    demo.victoryMeta = {
+      colorId: COLORS[0].id,
+      partnerColorId: COLORS[1].id,
+      formName: "Aurora Prime",
+      formKey: "demo-apex",
+    };
+    state = demo;
+    setScreen("victory");
+  } else {
+    demo.score = 7320;
+    demo.gameOver = true;
+    state = demo;
+    setScreen("gameover");
+  }
+  render();
+  // eslint-disable-next-line no-console
+  console.info(`[demo] showing ${which} screen — clear ?demo= from the URL to exit.`);
+}
+maybeRunDemoScreen();
 
 // If restored to leaderboard on refresh, kick off the remote data fetch.
 if (currentScreen === "leaderboard") {

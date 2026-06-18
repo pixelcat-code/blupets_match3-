@@ -25,7 +25,7 @@ This repo is a vanilla JS match-3 game with a responsive mobile-first layout and
 ## Mobile game screen layout (≤699px)
 
 The game frame is a 5-row CSS grid (top to bottom):
-1. **Topbar** — 3-column grid: `[← back | mute]` / `[MOVES | SCORE pills]` / `[circular red reroll button]`
+1. **Topbar** — 3-column grid: `[← back | mute]` / `[MOVES | SCORE pills]` / `[circular reroll button — neutral surface, lights up with a pastel-rainbow border + breathing glow when a charge is ready]`
 2. **Roster row** — 8 color rings in one horizontal flex row
 3. **Board** — fills remaining height
 4. **Vibe status** — strip + status text
