@@ -17,7 +17,7 @@ import {
   selectFusionPartner,
 } from "./game.js?v=20260618-gameplay-5";
 import { runTour } from "./coachmarks.js?v=20260618-1";
-import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } from "./audio.js?v=20260617-3";
+import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } from "./audio.js?v=20260618-7";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
