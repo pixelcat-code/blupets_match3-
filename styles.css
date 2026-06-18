@@ -4113,8 +4113,8 @@ h2 {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  flex-wrap: wrap;
-  gap: clamp(6px, 2.4vw, 16px);
+  flex-wrap: nowrap;
+  gap: 6px;
   width: 100%;
 }
 .evo-link {
@@ -4128,7 +4128,11 @@ h2 {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  width: clamp(48px, 15vw, 72px);
+  /* Size every node so the 5-wide T2 tier fits one row even on the narrowest
+     phone: (row width − 4 gaps) / 5, capped so wider screens don't balloon.
+     T3/T1 tiers reuse the same width and just center, keeping nodes uniform. */
+  width: min(72px, calc((100% - 24px) / 5));
+  min-width: 0;
 }
 .evo-tier--apex .evo-node {
   width: clamp(66px, 22vw, 96px);
