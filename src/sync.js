@@ -13,13 +13,16 @@ export async function startTrustedRun() {
   return { runId: data.runId, seed: data.seed >>> 0, actions: [] };
 }
 
-export async function submitTrustedRun(runId, actions) {
+// `result` is the client-reported win: { score, movesUsed, formKey, formName,
+// colorId, partnerColorId, vibe }. The server validates plausibility and writes
+// the leaderboard entry — browsers stay RLS-blocked from writing tables directly.
+export async function submitTrustedRun(runId, result) {
   const { configured } = getSupabaseConfig();
   if (!configured) throw new Error("Supabase is not configured.");
 
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("submit-run", {
-    body: { runId, actions },
+    body: { runId, result },
   });
   if (error) throw error;
   return data;

@@ -36,7 +36,7 @@ import {
   fetchUserProgress,
   startTrustedRun,
   submitTrustedRun,
-} from "./sync.js?v=20260618-10";
+} from "./sync.js?v=20260618-11";
 
 const SWAP_ANIMATION_MS = 210;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
@@ -627,8 +627,17 @@ function recordVictory(nextState) {
 
   if (authState.user && runProof) {
     const proof = runProof;
-    console.info("[sync] submitting trusted run:", proof.runId, "actions:", proof.actions.length);
-    submitTrustedRun(proof.runId, proof.actions)
+    const result = {
+      score: nextState.score,
+      movesUsed: nextState.movesUsed,
+      formKey: resolvedFormKey,
+      formName: formName ?? resolvedFormKey,
+      colorId,
+      partnerColorId,
+      vibe: nextState.vibe?.id ?? null,
+    };
+    console.info("[sync] submitting run result:", proof.runId, result);
+    submitTrustedRun(proof.runId, result)
       .then((data) => {
         console.info("[sync] submit-run accepted:", data);
         if (data?.progress) {

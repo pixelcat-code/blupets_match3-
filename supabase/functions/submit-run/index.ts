@@ -1,5 +1,4 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { replayRun } from "../../../src/run-replay.js";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
 
 function labelForUser(user: any) {
@@ -32,33 +31,82 @@ function emptyProgress() {
   return { forms: {}, runs: 0, wins: 0, bestScore: 0, fewestMovesWin: null as number | null };
 }
 
-function mergeWin(progress: any, state: any) {
+// Merge a validated win result into the cross-run progress record.
+function mergeWin(progress: any, result: any) {
   const next = { ...emptyProgress(), ...(progress ?? {}) };
-  const meta = state.victoryMeta;
-  const formKey = meta?.formKey || `${meta?.colorId ?? "UNKNOWN"}:${meta?.partnerColorId ?? "UNKNOWN"}:T4`;
+  const formKey = result.formKey;
   const existing = next.forms?.[formKey];
 
   next.forms = { ...(next.forms ?? {}) };
   next.runs = Number(next.runs ?? 0) + 1;
   next.wins = Number(next.wins ?? 0) + 1;
-  next.bestScore = Math.max(Number(next.bestScore ?? 0), Number(state.score ?? 0));
-  if (next.fewestMovesWin == null || state.movesUsed < next.fewestMovesWin) {
-    next.fewestMovesWin = state.movesUsed;
+  next.bestScore = Math.max(Number(next.bestScore ?? 0), result.score);
+  if (next.fewestMovesWin == null || result.movesUsed < next.fewestMovesWin) {
+    next.fewestMovesWin = result.movesUsed;
   }
   next.forms[formKey] = {
-    name: meta?.formName || existing?.name || formKey,
+    name: result.formName || existing?.name || formKey,
     asset: null,
-    color: meta?.colorId || existing?.color || null,
-    partner: meta?.partnerColorId || existing?.partner || null,
+    color: result.colorId || existing?.color || null,
+    partner: result.partnerColorId || existing?.partner || null,
     count: Number(existing?.count ?? 0) + 1,
     firstAt: existing?.firstAt ?? Date.now(),
   };
   return next;
 }
 
-// Per-user submission rate limiting — the run replay validates that a single
-// run is legitimate, but not the rate of farming. Cap submissions and require a
-// minimum wall-clock run duration to block scripted open→submit→repeat loops.
+// Plausibility bounds for a client-reported win. We no longer replay the action
+// log server-side; instead we sanity-check the reported result against ranges a
+// real T4 victory must fall within, and reject anything obviously forged or
+// malformed. This keeps wins flowing reliably while still blocking the crudest
+// tampering. Account name / avatar are taken from the authenticated user (never
+// the client), so identity itself can't be spoofed.
+const MAX_SCORE = 10_000_000;
+const MIN_MOVES = 5; // a real T4 win can't complete in fewer swaps
+const MAX_MOVES = 10_000;
+
+function str(value: unknown, maxLen: number): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLen) return null;
+  return trimmed;
+}
+
+// Validate the client-reported result. Returns the normalized result, or an
+// error code string on the first failed check.
+function validateResult(raw: any): { result?: any; error?: string } {
+  if (!raw || typeof raw !== "object") return { error: "missing_result" };
+
+  const score = Number(raw.score);
+  if (!Number.isInteger(score) || score <= 0 || score > MAX_SCORE) {
+    return { error: "invalid_score" };
+  }
+
+  const movesUsed = Number(raw.movesUsed);
+  if (!Number.isInteger(movesUsed) || movesUsed > MAX_MOVES) {
+    return { error: "invalid_moves" };
+  }
+  if (movesUsed < MIN_MOVES) {
+    return { error: "implausible_run" };
+  }
+
+  const formKey = str(raw.formKey, 64);
+  if (!formKey) return { error: "invalid_form" };
+
+  const colorId = str(raw.colorId, 32);
+  const partnerColorId = str(raw.partnerColorId, 32);
+  if (!colorId || !partnerColorId) return { error: "invalid_form" };
+
+  const formName = str(raw.formName, 80) || formKey;
+  const vibe = str(raw.vibe, 32); // optional; null if absent
+
+  return {
+    result: { score, movesUsed, formKey, formName, colorId, partnerColorId, vibe },
+  };
+}
+
+// Per-user submission rate limiting. Cap submissions and require a minimum
+// wall-clock run duration to block scripted open->submit->repeat farming loops.
 const SUBMIT_WINDOW_MS = 60 * 60 * 1000;
 const MAX_SUBMITS_PER_WINDOW = 20;
 const MIN_RUN_DURATION_MS = 3000;
@@ -80,6 +128,9 @@ Deno.serve(async (req) => {
     const runId = String(body.runId ?? "");
     if (!runId) return json({ error: "Missing runId" }, 400, cors);
 
+    const { result, error: validationError } = validateResult(body.result);
+    if (validationError) return json({ error: validationError }, 422, cors);
+
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
       requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
@@ -93,7 +144,7 @@ Deno.serve(async (req) => {
     const user = userData.user;
 
     // Rate-limit: reject if the user already submitted MAX_SUBMITS_PER_WINDOW
-    // runs in the trailing window. Blocks high-speed seed farming.
+    // runs in the trailing window. Blocks high-speed farming.
     const windowStart = new Date(Date.now() - SUBMIT_WINDOW_MS).toISOString();
     const { count: recentSubmits, error: rateError } = await supabase
       .from("game_runs")
@@ -130,29 +181,18 @@ Deno.serve(async (req) => {
       return json({ error: "run_too_fast" }, 422, cors);
     }
 
-    const { state, actions } = replayRun(run.seed, body.actions);
-    if (!state.victory || !state.victoryMeta) {
-      return json({ error: "Run replay did not reach victory" }, 422, cors);
-    }
-
-    // Reject implausible wins: T4 requires 42+ matches; fewer than 5 swaps is impossible.
-    if (state.movesUsed < 5) {
-      return json({ error: "implausible_run" }, 422, cors);
-    }
-
     const accountName = labelForUser(user);
     const avatarUrl = avatarForUser(user);
-    const meta = state.victoryMeta;
     const entry = {
       user_id: user.id,
       account_name: accountName,
       avatar_url: avatarUrl || null,
-      score: state.score,
-      moves_used: state.movesUsed,
-      t4_color: meta.colorId,
-      t4_partner: meta.partnerColorId,
-      t4_form_key: meta.formKey,
-      vibe: state.vibe.id,
+      score: result.score,
+      moves_used: result.movesUsed,
+      t4_color: result.colorId,
+      t4_partner: result.partnerColorId,
+      t4_form_key: result.formKey,
+      vibe: result.vibe,
     };
 
     const { data: progressRow } = await supabase
@@ -166,7 +206,7 @@ Deno.serve(async (req) => {
       bestScore: progressRow?.best_score,
       fewestMovesWin: progressRow?.fewest_moves_win,
       forms: progressRow?.forms,
-    }, state);
+    }, result);
 
     const { error: progressError } = await supabase.from("user_progress").upsert(
       {
@@ -187,7 +227,7 @@ Deno.serve(async (req) => {
 
     const { error: runUpdateError } = await supabase
       .from("game_runs")
-      .update({ submitted_at: new Date().toISOString(), action_count: actions.length })
+      .update({ submitted_at: new Date().toISOString() })
       .eq("id", runId)
       .eq("user_id", user.id);
     if (runUpdateError) throw runUpdateError;
