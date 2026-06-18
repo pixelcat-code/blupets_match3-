@@ -1139,9 +1139,10 @@ function renderProfile() {
     elements.profileName.textContent = signedIn ? shortAuthLabel(authState.label) : "Guest";
   }
   if (elements.profileStatus) {
-    elements.profileStatus.textContent = signedIn
-      ? "Signed in. Progress stays local until trusted cloud sync is enabled."
-      : "Sign in is available, but progress and leaderboard data stay local.";
+    // Status line under the nickname removed — the old copy was misleading now
+    // that cloud sync works, and the nickname alone reads cleaner.
+    elements.profileStatus.hidden = true;
+    elements.profileStatus.textContent = "";
   }
   if (elements.profileLogoutBtn) {
     elements.profileLogoutBtn.hidden = !signedIn;
