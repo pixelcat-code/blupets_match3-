@@ -1,12 +1,29 @@
 import { getSupabaseClient, getSupabaseConfig } from "./supabase-client.js?v=20260617-1";
 
+// supabase-js wraps a non-2xx edge-function response in a FunctionsHttpError
+// whose `.context` is the raw Response. Pull the server's `{ error: "code" }`
+// out of it so the real reason (e.g. "too_many_open_runs", "rate_limited")
+// reaches the UI instead of a generic "Edge Function returned a non-2xx" string.
+async function fnErrorCode(error) {
+  try {
+    const ctx = error?.context;
+    if (ctx && typeof ctx.json === "function") {
+      const body = await ctx.clone().json();
+      if (body?.error) return String(body.error);
+    }
+  } catch {
+    // body already consumed or not JSON — fall through to the generic message
+  }
+  return error?.message || "unknown_error";
+}
+
 export async function startTrustedRun() {
   const { configured } = getSupabaseConfig();
   if (!configured) throw new Error("Supabase is not configured.");
 
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("start-run", { body: {} });
-  if (error) throw error;
+  if (error) throw new Error(await fnErrorCode(error));
   if (!data?.runId || !Number.isInteger(data.seed)) {
     throw new Error("Trusted run service returned an invalid run.");
   }
@@ -24,7 +41,7 @@ export async function submitTrustedRun(runId, result) {
   const { data, error } = await client.functions.invoke("submit-run", {
     body: { runId, result },
   });
-  if (error) throw error;
+  if (error) throw new Error(await fnErrorCode(error));
   return data;
 }
 

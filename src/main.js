@@ -36,7 +36,7 @@ import {
   fetchUserProgress,
   startTrustedRun,
   submitTrustedRun,
-} from "./sync.js?v=20260618-11";
+} from "./sync.js?v=20260618-12";
 
 const SWAP_ANIMATION_MS = 210;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
@@ -372,7 +372,7 @@ async function startRun({ guided = false } = {}) {
       // a win later fails to reach the leaderboard. Surface it instead of
       // swallowing it so the cause is diagnosable.
       console.error("[sync] startTrustedRun failed — this run will NOT be verifiable:", err);
-      showToast("Couldn’t start a verified run — this win won’t reach the leaderboard.");
+      showToast(`Couldn’t start a verified run (${err?.message ?? "error"}) — this win won’t reach the leaderboard.`);
     }
   } else {
     console.warn("[sync] run started while signed out — win will be local-only.");
@@ -650,7 +650,7 @@ function recordVictory(nextState) {
       .then(() => showToast("Verified run added to leaderboard."))
       .catch((error) => {
         console.error("[sync] trusted submit failed:", error);
-        showToast("Run saved locally — leaderboard verification failed.");
+        showToast(`Run saved locally — leaderboard error: ${error?.message ?? "unknown"}.`);
       })
       .finally(() => {
         if (runProof === proof) clearRunProof();
