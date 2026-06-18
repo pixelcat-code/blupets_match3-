@@ -9,7 +9,7 @@
     <title>Blupets Match</title>
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260618-152" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-153" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -344,7 +344,20 @@
       </section>
     </div>
 
+    <div class="rotate-lock" id="rotateLock" aria-hidden="true">
+      <div class="rotate-lock-inner">
+        <svg class="rotate-lock-icon" viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="7" y="2" width="10" height="20" rx="2"></rect>
+          <path d="M12 18h.01"></path>
+          <path d="M3.5 9.5 A9 9 0 0 1 6 6"></path>
+          <polyline points="3 6 3.5 9.5 7 9"></polyline>
+        </svg>
+        <p class="rotate-lock-text">Поверни телефон вертикально</p>
+        <p class="rotate-lock-sub">Игра работает только в портретной ориентации</p>
+      </div>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260618-149"></script>
+    <script type="module" src="./src/main.js?v=20260618-150"></script>
   </body>
 </html>

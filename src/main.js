@@ -2516,6 +2516,24 @@ window.addEventListener("resize", () => {
   }
 });
 
+// Portrait-only on mobile. Best-effort native lock (Android Chrome / installed
+// PWAs); iOS Safari ignores it, so the CSS `.rotate-lock` overlay is the real
+// guarantee. Wrapped in try/catch because lock() rejects on unsupported
+// browsers and throws synchronously in some engines.
+(function lockPortrait() {
+  try {
+    const orientation = window.screen && window.screen.orientation;
+    if (orientation && typeof orientation.lock === "function") {
+      const result = orientation.lock("portrait");
+      if (result && typeof result.catch === "function") {
+        result.catch(() => {});
+      }
+    }
+  } catch (_) {
+    /* unsupported — CSS overlay handles it */
+  }
+})();
+
 // Browser history routing: each screen push pushes a URL fragment so
 // the browser back/forward buttons navigate between screens.
 window.addEventListener("popstate", (e) => {
