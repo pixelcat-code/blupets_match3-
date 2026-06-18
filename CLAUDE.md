@@ -49,10 +49,10 @@ Unchanged from before: 2-column grid, reroll dock in left column, footer with mu
 
 ## Current versions (bump on change)
 
-- `styles.css` query string: `?v=20260618-154`
-- `main.js` query string: `?v=20260618-150`
+- `styles.css` query string: `?v=20260618-189`
+- `main.js` query string: `?v=20260618-172`
 - `auth-config.js` query string: `?v=20260617-2`
-- `sync.js` import in `main.js`: `?v=20260618-10` — bump this whenever `sync.js` changes
+- `sync.js` import in `main.js`: `?v=20260618-12` — bump this whenever `sync.js` changes
 
 Always bump `?v=` on `styles.css` in `index.html` after any CSS edit, or the browser serves stale CSS.
 Always bump the `sync.js?v=` import string inside `main.js` when `sync.js` changes, then bump `main.js?v=` in `index.html` too.
@@ -107,8 +107,9 @@ npm test
 ## Cloud sync status
 
 - `src/sync.js` calls Edge Functions; it does not write Supabase tables directly.
-- `supabase/functions/start-run` creates server-issued run seeds.
-- `supabase/functions/submit-run` replays action logs and writes server-computed results.
+- `supabase/functions/start-run` creates server-issued run seeds. It deletes the user's prior *unsubmitted* `game_runs` before issuing a new seed, so a player has at most one open run (no lockout from a stale-run cap; no seed hoarding).
+- `supabase/functions/submit-run` no longer replays the action log. The client sends the win **result** (`score, movesUsed, formKey, formName, colorId, partnerColorId, vibe`); the function validates auth + plausibility (score/moves/form within sane bounds) + run TTL + min wall-clock duration + rate-limit, then writes `leaderboard_entries` and upserts `user_progress`. Account name and avatar come from the authenticated user (never the client). The deterministic replay was removed because replay/RNG drift kept rejecting legit wins with 422 "replay did not reach victory". `src/run-replay.js` still exists (used by tests) but is not imported by any edge function.
+- Both functions deploy via `npx supabase functions deploy <name> --project-ref yccfnorilbisrxbwtlwv` (CLI is authed + project linked; no Supabase MCP is connected). A `git push` deploys only the Vercel frontend — edge functions must be deployed separately.
 - `fetchPublicUserEntries(userId)` reads `leaderboard_entries` directly (public read, no edge function).
 - Schema: `docs/supabase-schema.sql` keeps browser clients read-only for writes.
 - Avatar URLs from OAuth are validated (`https:` only) before use in CSS or `<img>` src.
