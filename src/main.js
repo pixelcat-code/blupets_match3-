@@ -356,7 +356,15 @@ async function startRun({ guided = false } = {}) {
   let seed = randomSeed();
   if (authState.user) {
     try {
-      runProof = await startTrustedRun();
+      // Bound the trusted-run handshake so a slow/blocked start-run (e.g. a
+      // CORS-disallowed origin, or flaky network) can never hang the tap on
+      // "Start Run" — it falls back to a local, unverified seed instead.
+      runProof = await Promise.race([
+        startTrustedRun(),
+        new Promise((_, reject) =>
+          window.setTimeout(() => reject(new Error("start-run timed out")), 8000),
+        ),
+      ]);
       seed = runProof.seed;
     } catch (err) {
       // Trusted run unavailable — fall back to a local seed. Without runProof

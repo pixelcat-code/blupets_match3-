@@ -11,6 +11,10 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://127.0.0.1:4174",
   "http://localhost:4174",
   "http://10.1.1.168:4174",
+  // Production deploy. Allowed so signed-in wins from the live site reach the
+  // leaderboard. The old "Enter Run freeze" this caused is mitigated by the
+  // timeout-guarded startTrustedRun() in main.js (the await can no longer hang).
+  "https://blupetsmatch.vercel.app",
 ];
 
 function allowedOrigins(): string[] {
