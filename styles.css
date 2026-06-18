@@ -3683,11 +3683,12 @@ h2 {
 
 .profile-card {
   display: grid;
-  /* Five children: head, summary, empty section-head anchor, the JS-injected
-     .profile-stats (pills + collection-progress, inserted via stats.after()),
+  /* Four children: summary (now carries the inline back button), empty
+     section-head anchor, the JS-injected .profile-stats (pills +
+     collection-progress, inserted via stats.after()/sectionHead.before()),
      then #profile-content. The gallery must land in the final minmax(0,1fr)
      track so the 36-card grid scrolls, not clips. */
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -3705,7 +3706,9 @@ h2 {
 
 .profile-summary {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
+  /* back button | avatar | name+status | actions. Back button lives inline at
+     the card's left edge — there's no separate page header anymore. */
+  grid-template-columns: auto 44px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -4232,8 +4235,8 @@ button,
   }
 
   .profile-card {
-    /* 5 children incl. JS-injected .profile-stats — see default block above. */
-    grid-template-rows: auto auto auto auto minmax(0, 1fr);
+    /* 4 children incl. JS-injected .profile-stats — see default block above. */
+    grid-template-rows: auto auto auto minmax(0, 1fr);
     gap: 10px;
   }
 
