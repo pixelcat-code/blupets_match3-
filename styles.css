@@ -4014,6 +4014,196 @@ h2 {
 .collection-card.is-locked .collection-name {
   color: var(--color-text-soft);
 }
+.collection-card[data-form-key] {
+  cursor: pointer;
+}
+.collection-card[data-form-key]:focus-visible {
+  outline: 2px solid rgba(92, 232, 255, 0.7);
+  outline-offset: 2px;
+}
+/* Even locked cards are tappable (they open the tree with a spoiler-safe apex),
+   so give them the same lift-on-hover affordance as owned cards. */
+.collection-card.is-locked:hover {
+  transform: translateY(-2px) scale(1.04);
+  opacity: 0.85;
+}
+
+/* ── Evolution-tree popup ─────────────────────────────────────────────────
+   Opened by tapping a form card in either profile gallery. Mirrors the auth
+   modal's sky scrim + holographic card. The tree is a vertical stack of tier
+   rows (apex on top → base color pair at the bottom) joined by thin links. */
+.evo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+.evo-modal[hidden] {
+  display: none;
+}
+.evo-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(29, 111, 232, 0.28), transparent 60%),
+    rgba(7, 24, 48, 0.52);
+  backdrop-filter: blur(8px);
+  animation: modal-backdrop-in 260ms var(--ease-out) both;
+}
+.evo-modal-card {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: min(88vh, 760px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 22px 18px 24px;
+  border-radius: var(--r-card);
+  border: 1.5px solid transparent;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.78) 46%, rgba(235, 249, 255, 0.7) 100%) padding-box,
+    var(--holo-border) border-box;
+  box-shadow:
+    var(--glow-lg),
+    0 0 38px rgba(104, 216, 255, 0.22),
+    var(--ring-inset);
+  animation: modal-panel-in 360ms var(--ease-out) both;
+}
+.evo-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(14, 32, 53, 0.06);
+  color: var(--color-text);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out);
+}
+.evo-modal-close:hover {
+  background: rgba(14, 32, 53, 0.12);
+}
+.evo-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.evo-kicker {
+  color: var(--color-text-soft);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.evo-title {
+  margin: 2px 0 8px;
+  font-size: 22px;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--color-text);
+}
+.evo-tier {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: clamp(6px, 2.4vw, 16px);
+  width: 100%;
+}
+.evo-link {
+  width: 2px;
+  height: 18px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(120, 170, 220, 0.55), rgba(120, 170, 220, 0.22));
+}
+.evo-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: clamp(48px, 15vw, 72px);
+}
+.evo-tier--apex .evo-node {
+  width: clamp(66px, 22vw, 96px);
+}
+.evo-tier-tag {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--color-text-soft);
+}
+.evo-node-art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--hairline);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12)),
+    var(--color-surface-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.evo-node-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.evo-node--base .evo-node-art {
+  border-color: color-mix(in srgb, var(--evo-base) 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 0 12px color-mix(in srgb, var(--evo-base) 24%, transparent);
+}
+.evo-tier--apex .evo-node-art {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.22)) padding-box,
+    var(--holo-border) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 0 14px rgba(92, 232, 255, 0.24);
+}
+.evo-node.is-locked {
+  opacity: 0.82;
+  filter: saturate(0.7);
+}
+.evo-node-name {
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.1;
+  color: var(--color-text);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Desktop: widen the card and force each tier onto a single row, so the 5-wide
+   T2 tier reads as one clean row (mobile keeps the wrapping fallback). */
+@media (min-width: 700px) {
+  .evo-modal-card {
+    width: min(560px, 100%);
+  }
+  .evo-tier {
+    flex-wrap: nowrap;
+  }
+  .evo-node {
+    width: 80px;
+  }
+  .evo-tier--apex .evo-node {
+    width: 104px;
+  }
+}
 
 .profile-content {
   overflow-y: auto;

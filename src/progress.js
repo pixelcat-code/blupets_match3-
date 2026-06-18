@@ -133,6 +133,19 @@ export function discoveredCount(progress) {
   return Object.keys(progress?.forms ?? {}).length;
 }
 
+// Find the canon family whose apex (T4) form matches the given key. Used by the
+// gallery to render the full evolution tree (T1 base pair → T2 → T3 → T4 apex)
+// behind a collection card, in both own and public profiles.
+export function getFamilyByApexKey(apexKey) {
+  if (!apexKey) return null;
+  for (const family of BLUPETS_FAMILIES) {
+    for (const form of family.forms?.[4] ?? []) {
+      if ((form.key ?? form.name) === apexKey) return family;
+    }
+  }
+  return null;
+}
+
 // Every apex form in canon, flagged with whether it's been discovered, so the
 // gallery can render locked silhouettes alongside unlocked art.
 export function getCollectionEntries(progress) {

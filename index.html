@@ -9,7 +9,7 @@
     <title>Blupets Match</title>
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260618-189" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-191" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -343,6 +343,14 @@
           <div id="public-profile-content" class="leaderboard-content profile-content"></div>
         </div>
       </section>
+
+      <section class="evo-modal" id="evoTreeModal" hidden aria-hidden="true">
+        <div class="evo-modal-backdrop" id="evoTreeBackdrop" aria-hidden="true"></div>
+        <div class="evo-modal-card" role="dialog" aria-modal="true" aria-labelledby="evoTreeTitle">
+          <button class="evo-modal-close" id="evoTreeClose" type="button" aria-label="Close">×</button>
+          <div class="evo-tree" id="evoTreeContent"></div>
+        </div>
+      </section>
     </div>
 
     <div class="rotate-lock" id="rotateLock" aria-hidden="true">
@@ -362,6 +370,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260618-174"></script>
+    <script type="module" src="./src/main.js?v=20260618-175"></script>
   </body>
 </html>

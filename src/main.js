@@ -27,8 +27,9 @@ import {
   recordWin,
   discoveredCount,
   getCollectionEntries,
+  getFamilyByApexKey,
   TOTAL_APEX_FORMS,
-} from "./progress.js?v=20260618-5";
+} from "./progress.js?v=20260618-6";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -100,6 +101,10 @@ const elements = {
   publicProfileAvatarEl: document.querySelector("#publicProfileAvatarEl"),
   publicProfileNameEl: document.querySelector("#publicProfileNameEl"),
   publicProfileContent: document.querySelector("#public-profile-content"),
+  evoTreeModal: document.querySelector("#evoTreeModal"),
+  evoTreeContent: document.querySelector("#evoTreeContent"),
+  evoTreeClose: document.querySelector("#evoTreeClose"),
+  evoTreeBackdrop: document.querySelector("#evoTreeBackdrop"),
   profileAvatar: document.querySelector("#profileAvatar"),
   profileBackBtn: document.querySelector("#profileBackBtn"),
   profileChip: document.querySelector("#profileChip"),
@@ -590,7 +595,7 @@ function renderPublicProfile(entries) {
   if (elements.publicProfileContent) {
     const collectionEntries = getCollectionEntries({ forms });
     const cards = collectionEntries.map((entry) => `
-      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
+      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
         <div class="collection-art">
           ${
             entry.discovered
@@ -2148,7 +2153,7 @@ function renderCollectionGrid() {
   const cards = entries
     .map(
       (entry) => `
-        <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
+        <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
           <div class="collection-art">
             ${
               entry.discovered
@@ -2164,6 +2169,102 @@ function renderCollectionGrid() {
   return `
     <div class="collection-grid">${cards}</div>
   `;
+}
+
+// ── Evolution-tree popup ──────────────────────────────────────────────────
+// Tapping a form card (own or public profile) opens its full canon evolution
+// line: T1 base color pair → T2 (5) → T3 (3) → T4 apex. A locked apex is shown
+// as a blurred silhouette so the gallery's reveal isn't spoiled, while the
+// intermediate tiers stay visible as a hint of where the form grows from.
+const EVO_COLOR_BY_ID = Object.fromEntries(COLORS.map((c) => [c.id, c]));
+
+function evoNode({ tier, asset, name, locked = false, blockColor = null }) {
+  const art = locked
+    ? `<img class="collection-art-blurred" src="${asset}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
+    : `<img src="${asset}" alt="${escapeHtml(name)}" />`;
+  return `
+    <div class="evo-node${locked ? " is-locked" : ""}${blockColor ? " evo-node--base" : ""}">
+      <span class="evo-tier-tag">${tier}</span>
+      <div class="evo-node-art"${blockColor ? ` style="--evo-base:${escapeHtml(blockColor)}"` : ""}>${art}</div>
+      <span class="evo-node-name">${locked ? "???" : escapeHtml(name)}</span>
+    </div>`;
+}
+
+function buildEvoTree(family, apexDiscovered) {
+  const apex = (family.forms?.[4] ?? [])[0];
+  const t3 = family.forms?.[3] ?? [];
+  const t2 = family.forms?.[2] ?? [];
+  const pair = family.pair ?? [];
+
+  const apexHtml = apex
+    ? evoNode({ tier: "T4", asset: apex.asset, name: apex.name, locked: !apexDiscovered })
+    : "";
+  const t3Html = t3.map((f) => evoNode({ tier: "T3", asset: f.asset, name: f.name })).join("");
+  const t2Html = t2.map((f) => evoNode({ tier: "T2", asset: f.asset, name: f.name })).join("");
+  const t1Html = pair
+    .map((colorId) => {
+      const c = EVO_COLOR_BY_ID[colorId];
+      return evoNode({
+        tier: "T1",
+        asset: BASE_BLOCK_ASSETS[colorId] ?? BASE_BLOCK_ASSETS.origin,
+        name: c?.label ?? colorId,
+        blockColor: c?.hex ?? null,
+      });
+    })
+    .join("");
+
+  const headline = apexDiscovered && apex ? escapeHtml(apex.name) : escapeHtml(family.name);
+  return `
+    <div class="evo-kicker">Evolution line</div>
+    <h2 class="evo-title" id="evoTreeTitle">${headline}</h2>
+    <div class="evo-tier evo-tier--apex">${apexHtml}</div>
+    <div class="evo-link" aria-hidden="true"></div>
+    <div class="evo-tier">${t3Html}</div>
+    <div class="evo-link" aria-hidden="true"></div>
+    <div class="evo-tier">${t2Html}</div>
+    <div class="evo-link" aria-hidden="true"></div>
+    <div class="evo-tier evo-tier--base">${t1Html}</div>
+  `;
+}
+
+let _evoKeyHandler = null;
+function openEvoTree(apexKey, discovered) {
+  const family = getFamilyByApexKey(apexKey);
+  if (!family || !elements.evoTreeModal || !elements.evoTreeContent) return;
+  elements.evoTreeContent.innerHTML = buildEvoTree(family, discovered);
+  elements.evoTreeModal.hidden = false;
+  elements.evoTreeModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  sfx("ui");
+  elements.evoTreeClose?.focus();
+  _evoKeyHandler = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeEvoTree();
+    }
+  };
+  document.addEventListener("keydown", _evoKeyHandler, true);
+}
+
+function closeEvoTree() {
+  if (!elements.evoTreeModal || elements.evoTreeModal.hidden) return;
+  elements.evoTreeModal.hidden = true;
+  elements.evoTreeModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+  if (_evoKeyHandler) {
+    document.removeEventListener("keydown", _evoKeyHandler, true);
+    _evoKeyHandler = null;
+  }
+}
+
+function handleCollectionActivate(event) {
+  const card = event.target.closest?.(".collection-card[data-form-key]");
+  if (!card) return;
+  if (event.type === "keydown") {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+  }
+  openEvoTree(card.dataset.formKey, card.dataset.discovered === "1");
 }
 
 function render() {
@@ -2514,6 +2615,12 @@ elements.leaderboardContent?.addEventListener("click", (e) => {
     openPublicProfile(btn.dataset.userId, btn.dataset.account, btn.dataset.avatar);
   }
 });
+elements.profileContent?.addEventListener("click", handleCollectionActivate);
+elements.profileContent?.addEventListener("keydown", handleCollectionActivate);
+elements.publicProfileContent?.addEventListener("click", handleCollectionActivate);
+elements.publicProfileContent?.addEventListener("keydown", handleCollectionActivate);
+bindClick(elements.evoTreeClose, closeEvoTree);
+bindClick(elements.evoTreeBackdrop, closeEvoTree);
 bindClick(elements.profileSignInBtn, () => openAuthModal({ force: true }));
 bindClick(elements.profileLogoutBtn, handleAuthLogout);
 bindClick(elements.victoryLeaderboardBtn, () => openLeaderboard("victory"));
