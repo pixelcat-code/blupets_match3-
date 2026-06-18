@@ -514,7 +514,7 @@ button {
 /* Score / Place / Forms — the three numbers shown on the card and the PNG. */
 .victory-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   width: 100%;
   padding-top: 12px;
@@ -2254,6 +2254,19 @@ h2 {
 /* Category switcher — only shown on mobile, where the two columns collapse into
    a single tabbed view (see the max-width: 520px block). On wider screens both
    columns sit side-by-side and these tabs stay hidden. */
+/* The leaderboard card now has three children: header + tabs host + scrolling
+   content. Give it a third track so the content stays the final minmax(0,1fr)
+   scroll row (profile cards keep their own grid via .profile-card). */
+#leaderboardScreen .leaderboard-card {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+/* A real third grid child. On desktop its only child (.leaderboard-tabs) is
+   display:none, so this track collapses to 0; on mobile it holds the switcher. */
+.leaderboard-tabs-host:empty {
+  display: none;
+}
+
 .leaderboard-tabs {
   display: none;
 }
@@ -2294,6 +2307,12 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  /* Desktop: pin the column heading to the top of the scroll area so it stays
+     put while the rows scroll under it (on mobile the head is display:none and
+     the pinned tabs host stands in instead). */
+  position: sticky;
+  top: 0;
+  z-index: 2;
   padding: 11px 16px;
   border-radius: var(--r-pill);
   border: 1px solid rgba(255, 255, 255, 0.9);
@@ -3098,13 +3117,15 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  /* Mobile: replace the stacked columns with a tab switcher. */
+  /* Mobile: replace the stacked columns with a tab switcher pinned above the
+     scrolling list (the host sits outside #leaderboard-content). */
+  .leaderboard-tabs-host {
+    margin-top: 14px;
+  }
   .leaderboard-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
-    grid-column: 1 / -1;
-    margin-bottom: 4px;
   }
 
   /* The tab labels stand in for the per-column headings on mobile. */

@@ -95,6 +95,7 @@ const elements = {
   gameoverScreen: document.querySelector("#gameoverScreen"),
   leaderboardBackBtn: document.querySelector("#leaderboardBackBtn"),
   leaderboardContent: document.querySelector("#leaderboard-content"),
+  leaderboardTabsHost: document.querySelector("#leaderboard-tabs-host"),
   leaderboardScreen: document.querySelector("#leaderboardScreen"),
   publicProfileScreen: document.querySelector("#publicProfileScreen"),
   publicProfileBackBtn: document.querySelector("#publicProfileBackBtn"),
@@ -151,7 +152,6 @@ const elements = {
   victoryBtn: document.querySelector("#victoryBtn"),
   victoryDetail: document.querySelector("#victoryDetail"),
   victoryLeaderboardBtn: document.querySelector("#victoryLeaderboardBtn"),
-  victoryPlace: document.querySelector("#victoryPlace"),
   victoryScore: document.querySelector("#victoryScore"),
   victoryForms: document.querySelector("#victoryForms"),
   victoryScreen: document.querySelector("#victoryScreen"),
@@ -176,6 +176,11 @@ let boardAnimation = {
 let isAnimating = false;
 let dragState = null;
 let remoteLeaderboard = [];
+// Authoritative discovered-forms count from Supabase (`user_progress.forms`),
+// captured every time remote progress arrives. Drives the victory card / share
+// card so the "N/36" reflects the cloud, not a local union that guest play could
+// inflate. Stays null until the first remote fetch (guests fall back to local).
+let cloudFormsCount = null;
 // "loading" | "ready" | "error" — drives distinct leaderboard placeholder copy
 // so the user can tell apart fetching, an empty board, and a network failure.
 let leaderboardStatus = "loading";
@@ -220,6 +225,9 @@ function logRunAction(action) {
 // Forms are unioned: local wins for conflicting keys (local has the asset path; server stores null).
 function applyRemoteProgress(remote) {
   if (!remote) return;
+  // Cloud-authoritative forms count — captured before the local union below so
+  // the victory/share card can show the true server number.
+  cloudFormsCount = Object.keys(remote.forms ?? {}).length;
   const localRuns = progress.runs;
   // Take the better of local/remote for each record so a sign-in merge can
   // never regress an unsynced local best (higher score, fewer moves).
@@ -541,8 +549,13 @@ function openPublicProfile(userId, accountName, avatarUrl) {
 
   setScreen("public-profile");
 
+  // Viewing your own card? Reconcile against local progress so a freshly-won
+  // form shows immediately, before submit-run has propagated to
+  // leaderboard_entries (read-after-write lag would otherwise hide it).
+  const isSelf = Boolean(authState.user && userId === authState.user.id);
+
   fetchPublicUserEntries(userId)
-    .then((entries) => renderPublicProfile(entries))
+    .then((entries) => renderPublicProfile(entries, isSelf))
     .catch(() => {
       if (currentScreen === "public-profile" && elements.publicProfileContent) {
         elements.publicProfileContent.innerHTML = `<div class="leaderboard-empty">Could not load profile.</div>`;
@@ -559,7 +572,7 @@ function closePublicProfile() {
   }
 }
 
-function renderPublicProfile(entries) {
+function renderPublicProfile(entries, isSelf = false) {
   if (currentScreen !== "public-profile") return;
 
   // Build discovered-forms map from all their leaderboard entries.
@@ -569,9 +582,23 @@ function renderPublicProfile(entries) {
     forms[e.t4FormKey] = { count: (forms[e.t4FormKey]?.count ?? 0) + 1 };
   }
 
-  const wins = entries.length;
-  const bestScore = entries.reduce((m, e) => Math.max(m, e.score || 0), 0);
-  const fastestMoves = entries.reduce((m, e) => Math.min(m, e.movesUsed ?? Infinity), Infinity);
+  let wins = entries.length;
+  let bestScore = entries.reduce((m, e) => Math.max(m, e.score || 0), 0);
+  let fastestMoves = entries.reduce((m, e) => Math.min(m, e.movesUsed ?? Infinity), Infinity);
+
+  // On your own card, union local progress so a just-won form / stat shows
+  // even before its leaderboard_entries row is readable.
+  if (isSelf) {
+    for (const key of Object.keys(progress.forms ?? {})) {
+      if (!forms[key]) forms[key] = { count: 1 };
+    }
+    wins = Math.max(wins, progress.wins ?? 0);
+    bestScore = Math.max(bestScore, progress.bestScore ?? 0);
+    if (progress.fewestMovesWin != null) {
+      fastestMoves = Math.min(fastestMoves, progress.fewestMovesWin);
+    }
+  }
+
   const formsCount = Object.keys(forms).length;
 
   const stat = (label, val) =>
@@ -681,15 +708,18 @@ function applyState(nextState) {
     setScreen("victory");
     sfx("victory");
     buzz([0, 90, 50, 90, 50, 160]);
-    // Pull fresh leaderboard data so the victory rank reflects reality, then
-    // re-render the victory screen if we're still on it.
-    fetchGlobalLeaderboard()
-      .then((entries) => {
-        remoteLeaderboard = entries;
-        leaderboardStatus = "ready";
-        if (currentScreen === "victory") renderVictoryScreen(state);
-      })
-      .catch(() => {});
+    // Pull fresh cloud progress so the victory card's "N/36" reflects the
+    // server count, then re-render the victory screen if we're still on it.
+    // (The submit-run path in recordVictory also refreshes this once the win
+    // is accepted; this covers the case where there was nothing to submit.)
+    if (authState.user) {
+      fetchUserProgress()
+        .then((remote) => {
+          applyRemoteProgress(remote);
+          if (currentScreen === "victory") renderVictoryScreen(state);
+        })
+        .catch(() => {});
+    }
   } else if (nextState?.gameOver) {
     setScreen("gameover");
   }
@@ -1379,15 +1409,13 @@ function buildShareDataFromState(stateLike) {
   }
   const color = getColor(stateLike.victoryMeta.colorId);
   const partner = getColor(stateLike.victoryMeta.partnerColorId);
-  const rank = getVictoryRank(stateLike);
   return {
     formName: stateLike.victoryMeta.formName,
     pair: `${color.label} + ${partner.label}`,
     accent: color.hex,
     accent2: partner.hex,
     score: stateLike.score,
-    place: `#${rank.rank} of ${rank.total}`,
-    forms: `${discoveredCount(progress)}/${TOTAL_APEX_FORMS}`,
+    forms: `${collectedFormsCount()}/${TOTAL_APEX_FORMS}`,
     reward: VICTORY_REWARD,
     art: getChosenEvolutionForm(stateLike, stateLike.victoryMeta.colorId, 4)?.asset ?? "./assets/blu-logo.png",
   };
@@ -1515,10 +1543,9 @@ async function renderShareCard(data) {
 
   const stats = [
     ["SCORE", String(data.score)],
-    ["PLACE", data.place],
     ["FORMS", data.forms],
   ];
-  const colW = cardW / 3;
+  const colW = cardW / stats.length;
   stats.forEach(([label, value], i) => {
     const sx = cardX + colW * i + colW / 2;
     ctx.fillStyle = "#8497ad";
@@ -1945,25 +1972,12 @@ function renderGameoverScreen(stateLike) {
   elements.gameoverScore.textContent = `${stateLike.score}`;
 }
 
-// Best-effort global rank for a finished run, computed from whatever leaderboard
-// data is loaded (the All-Time column dedups to each user's best score). The
-// victory branch kicks off a fetch so this becomes accurate shortly after a win;
-// with no data at all it falls back to a solo 1/1.
-function getVictoryRank(stateLike) {
-  const score = stateLike?.score ?? 0;
-  const best = new Map();
-  for (const entry of remoteLeaderboard) {
-    const id = entry.userId || entry.accountName || JSON.stringify(entry);
-    const prev = best.get(id);
-    if (prev == null || (entry.score ?? 0) > prev) best.set(id, entry.score ?? 0);
-  }
-  const myId = authState.user?.id;
-  const scores = [...best.values()];
-  const higher = scores.filter((s) => s > score).length;
-  // Count this run as a participant if it isn't already represented.
-  const alreadyListed = Boolean(myId && best.has(myId));
-  const total = Math.max(1, scores.length + (alreadyListed ? 0 : 1));
-  return { rank: higher + 1, total };
+// Discovered-forms count for the victory/share card. Prefers the cloud number
+// (`cloudFormsCount`) when signed in so a guest's local-only forms can't inflate
+// it; falls back to the local collection for guests / before the first fetch.
+function collectedFormsCount() {
+  if (authState.user && cloudFormsCount != null) return cloudFormsCount;
+  return discoveredCount(progress);
 }
 
 function renderVictoryScreen(stateLike) {
@@ -1974,13 +1988,11 @@ function renderVictoryScreen(stateLike) {
   const color = getColor(stateLike.victoryMeta.colorId);
   const partner = getColor(stateLike.victoryMeta.partnerColorId);
   const winningForm = getChosenEvolutionForm(stateLike, stateLike.victoryMeta.colorId, 4);
-  const victoryRank = getVictoryRank(stateLike);
-  const formsCollected = `${discoveredCount(progress)}/${TOTAL_APEX_FORMS}`;
+  const formsCollected = `${collectedFormsCount()}/${TOTAL_APEX_FORMS}`;
 
   elements.victoryTitle.textContent = "YOU WON!";
   elements.victoryDetail.textContent = `${color.label} + ${partner.label} → ${stateLike.victoryMeta.formName}`;
   elements.victoryScore.textContent = `${stateLike.score}`;
-  elements.victoryPlace.textContent = `#${victoryRank.rank} of ${victoryRank.total}`;
   if (elements.victoryForms) {
     elements.victoryForms.textContent = formsCollected;
   }
@@ -1994,7 +2006,6 @@ function renderVictoryScreen(stateLike) {
     accent: color.hex,
     accent2: partner.hex,
     score: stateLike.score,
-    place: `#${victoryRank.rank} of ${victoryRank.total}`,
     forms: formsCollected,
     reward: VICTORY_REWARD,
     art: winningForm?.asset ?? "./assets/blu-logo.png",
@@ -2088,12 +2099,19 @@ function renderLeaderboard() {
   const tab = (id, label) =>
     `<button class="leaderboard-tab${leaderboardTab === id ? " is-active" : ""}" type="button" role="tab" data-tab="${id}" aria-selected="${leaderboardTab === id ? "true" : "false"}">${label}</button>`;
 
-  elements.leaderboardContent.innerHTML = `
-    <div class="leaderboard-columns" data-active="${leaderboardTab}">
+  // Tabs render into their own host above the scroll container; the columns of
+  // record cards render into the scrolling content below.
+  if (elements.leaderboardTabsHost) {
+    elements.leaderboardTabsHost.innerHTML = `
       <div class="leaderboard-tabs" role="tablist" aria-label="Leaderboard category">
         ${tab("score", "All Time")}
         ${tab("speed", "Speed Run")}
       </div>
+    `;
+  }
+
+  elements.leaderboardContent.innerHTML = `
+    <div class="leaderboard-columns" data-active="${leaderboardTab}">
       <section class="leaderboard-column" data-col="score">
         <div class="leaderboard-column-head">
           <h3>All Time</h3>
@@ -2596,20 +2614,22 @@ bindClick(elements.backToStart, goToStart);
 bindClick(elements.leaderboardBackBtn, closeLeaderboard);
 bindClick(elements.profileBackBtn, closeProfile);
 bindClick(elements.publicProfileBackBtn, closePublicProfile);
-elements.leaderboardContent?.addEventListener("click", (e) => {
+// Tabs now live in their own host above the scroll container, so switching
+// categories doesn't scroll with (or get hidden by) the list of record cards.
+elements.leaderboardTabsHost?.addEventListener("click", (e) => {
   const tabBtn = e.target.closest(".leaderboard-tab");
-  if (tabBtn?.dataset.tab) {
-    leaderboardTab = tabBtn.dataset.tab;
-    const cols = elements.leaderboardContent.querySelector(".leaderboard-columns");
-    if (cols) cols.dataset.active = leaderboardTab;
-    elements.leaderboardContent.querySelectorAll(".leaderboard-tab").forEach((t) => {
-      const on = t.dataset.tab === leaderboardTab;
-      t.classList.toggle("is-active", on);
-      t.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    sfx("ui");
-    return;
-  }
+  if (!tabBtn?.dataset.tab) return;
+  leaderboardTab = tabBtn.dataset.tab;
+  const cols = elements.leaderboardContent.querySelector(".leaderboard-columns");
+  if (cols) cols.dataset.active = leaderboardTab;
+  elements.leaderboardTabsHost.querySelectorAll(".leaderboard-tab").forEach((t) => {
+    const on = t.dataset.tab === leaderboardTab;
+    t.classList.toggle("is-active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  sfx("ui");
+});
+elements.leaderboardContent?.addEventListener("click", (e) => {
   const btn = e.target.closest(".leaderboard-user-btn");
   if (btn?.dataset.userId) {
     openPublicProfile(btn.dataset.userId, btn.dataset.account, btn.dataset.avatar);
