@@ -10,14 +10,12 @@ import {
   getEvolutionFormSelection,
   getProgressPercent,
   getStateMatchResolver,
-  HATCH_GOAL,
-  REROLL_MAX_CHARGES,
   getTopPartnerOptions,
   previewSwap,
   rerollBoard,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260618-gameplay-4";
+} from "./game.js?v=20260618-gameplay-5";
 import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic } from "./audio.js?v=20260617-3";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
@@ -365,8 +363,6 @@ async function startRun({ guided = false } = {}) {
     rng: runRng,
   });
   resetInteractionState();
-  // Reset reroll bar immediately so the transition doesn't replay the old pct.
-  if (elements.rerollRun) elements.rerollRun.style.removeProperty("--pct");
   setScreen("game");
   render();
   if (guided) {
@@ -398,7 +394,7 @@ function startGuideTour() {
     {
       target: () => elements.rerollRun,
       title: "Reroll",
-      body: "Matches charge the meter. When it's full, you earn a reroll — tap to spend one and reshuffle the whole board. You start with one.",
+      body: "Matches charge the meter. When the button lights up you've earned a reroll — tap it to reshuffle the whole board. You can bank only one at a time, and you start with none.",
     },
     {
       target: () => document.querySelector(".topbar-stats"),
@@ -727,6 +723,9 @@ function renderTopBar(stateLike) {
   }
   if (elements.rerollHudBadge) {
     elements.rerollHudBadge.textContent = String(charges);
+    // Binary economy (max 1 charge): the lit button colour signals readiness,
+    // so the numeric badge is only useful when there's actually a charge.
+    elements.rerollHudBadge.hidden = charges <= 0;
   }
 
   if (elements.rerollPips?.length) {
@@ -734,16 +733,11 @@ function renderTopBar(stateLike) {
     const pipsEl = elements.rerollPips[0]?.parentElement;
     if (pipsEl) pipsEl.dataset.charges = String(charges);
   }
-  // Halo the egg only while there's a charge to spend, so it reads as a button.
+  // No progress fill anymore — the button simply lights up (Enter-Run gradient)
+  // once a charge is ready, and is neutral while the meter is still filling.
   elements.rerollRun.classList.toggle("has-charge", charges > 0);
-  if (elements.rerollRun) {
-    const atMax = charges >= REROLL_MAX_CHARGES;
-    const pct = atMax ? 100 : Math.min(100, Math.round(((stateLike.hatchProgress ?? 0) / HATCH_GOAL) * 100));
-    elements.rerollRun.style.setProperty("--pct", String(pct));
-    if (elements.rerollHud) {
-      elements.rerollHud.classList.toggle("has-charge", charges > 0);
-      elements.rerollHud.style.setProperty("--pct", String(pct));
-    }
+  if (elements.rerollHud) {
+    elements.rerollHud.classList.toggle("has-charge", charges > 0);
   }
 }
 

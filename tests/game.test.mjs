@@ -346,6 +346,7 @@ test("same T3 form syncs matching colors into T4 without doubling score bonus", 
 
 test("rerollBoard preserves evolution progress and restores failed runs", () => {
   const state = createInitialState({ diagonalAssist: true, rng: makeRng(11) });
+  state.rerollCharges = 1;
   state.evolutionTiers.red = 3;
   state.evolutionFusions.red = { partnerColorId: "blue" };
   state.evolutionChoices.red[2] = "T2_VIOLET_POISON";
@@ -388,7 +389,7 @@ test("rerollBoard avoids pre-existing matches under current evolved form resolve
   assert.equal(hasPossibleMoves(nextState.board, true, matchResolver), true);
 });
 
-test("hatch reroll economy: new runs seed one charge and an empty meter", () => {
+test("hatch reroll economy: new runs seed no charges and an empty meter", () => {
   const state = createInitialState({ rng: makeRng(11) });
   assert.equal(state.rerollCharges, REROLL_START_CHARGES);
   assert.equal(state.hatchProgress, 0);
@@ -432,7 +433,7 @@ test("a full meter hatches an extra reroll charge", () => {
 
 test("rerollBoard spends a charge and refuses at zero", () => {
   const state = createInitialState({ rng: makeRng(11) });
-  assert.equal(state.rerollCharges, 1);
+  state.rerollCharges = 1;
 
   const afterOne = rerollBoard(state, makeRng(12));
   assert.equal(afterOne.rerollCharges, 0);

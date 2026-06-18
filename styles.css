@@ -23,6 +23,13 @@
   --accent-cream: #fff0a8;
   --accent-pink: #ff9be8;
 
+  /* "Ready" look shared with the Enter Run button — the reroll button swaps to
+     this pastel fill (+ rainbow border) the moment a charge is banked. */
+  --reroll-ready-fill:
+    linear-gradient(110deg, rgba(255, 255, 255, 0.98), rgba(232, 250, 255, 0.9), rgba(255, 245, 188, 0.86) 48%, rgba(255, 224, 250, 0.86) 68%, rgba(235, 249, 255, 0.9));
+  --reroll-ready-border:
+    linear-gradient(100deg, #5ce8ff, #fff0a8, #ff9be8, #6fcfff, #5ce8ff);
+
   /* BluKit's exact sky: a soft top highlight over a 4-stop blue→white fall-off. */
   --blupets-sky-background:
     radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.34), transparent 34%),
@@ -874,11 +881,8 @@ h2 {
   place-items: center;
   border-radius: 14px;
   border: 1.5px solid var(--color-border);
-  /* Fill overlay via background-size so the badge can overflow freely */
-  background:
-    linear-gradient(90deg, rgba(232, 64, 112, 0.18) 0%, rgba(232, 64, 112, 0.04) 100%)
-    0 0 / calc(var(--pct, 0) * 1%) 100% no-repeat,
-    var(--color-surface-strong);
+  /* Neutral while the meter fills — no progress overlay. */
+  background: var(--color-surface-strong);
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(15, 39, 66, 0.1);
   transition:
@@ -887,15 +891,15 @@ h2 {
     background 460ms var(--ease-slow);
 }
 .reroll-hud-btn.has-charge {
-  border-color: rgba(92, 232, 255, 0.45);
-  background:
-    linear-gradient(90deg, rgba(92, 232, 255, 0.28) 0%, rgba(92, 232, 255, 0.07) 100%)
-    0 0 / 100% 100% no-repeat,
-    var(--color-surface-strong);
+  /* Charge ready: light up with the Enter-Run pastel fill + rainbow border. */
+  border: 1.5px solid transparent;
+  background: var(--reroll-ready-fill) padding-box, var(--reroll-ready-border) border-box;
   box-shadow:
     0 4px 14px rgba(15, 39, 66, 0.1),
-    0 0 0 2px rgba(92, 232, 255, 0.18);
+    0 0 16px rgba(255, 235, 128, 0.4),
+    0 0 22px rgba(104, 216, 255, 0.28);
 }
+.reroll-hud-btn.has-charge .reroll-hud-icon { color: #075faf; }
 .reroll-hud-btn:hover { transform: translateY(-1px); }
 .reroll-hud-btn:active { transform: scale(0.95); }
 .reroll-hud-btn:disabled { opacity: 0.4; cursor: default; transform: none; box-shadow: none; }
@@ -1002,7 +1006,7 @@ h2 {
   cursor: pointer;
   font: inherit;
   color: var(--color-text);
-  transition: --pct 0.38s var(--ease-slow), border-color 0.25s, box-shadow 0.25s, transform 0.18s;
+  transition: background 0.3s var(--ease-slow), border-color 0.25s, box-shadow 0.25s, transform 0.18s;
 }
 
 /* Left: circular icon medallion */
@@ -3920,21 +3924,7 @@ button,
     color: var(--color-text);
   }
 
-  /* Fill overlay grows left→right behind text */
-  .game-frame .reroll-bar::before {
-    content: "";
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: calc(var(--pct, 0) * 1%);
-    background: linear-gradient(
-      90deg,
-      rgba(232, 64, 112, 0.22) 0%,
-      rgba(232, 64, 112, 0.07) 100%
-    );
-    pointer-events: none;
-    z-index: 0;
-  }
-
+  /* No progress overlay — the whole button lights up once a charge is ready. */
 
   /* Count block — below the label */
   .game-frame .reroll-pip { display: none; }
@@ -3967,24 +3957,18 @@ button,
     color: var(--color-text-soft);
   }
 
-  /* has-charge: cyan fill + glow border */
+  /* has-charge: light up with the Enter-Run pastel fill + rainbow border. */
   .game-frame .reroll-bar.has-charge {
-    border-color: rgba(92, 232, 255, 0.45);
+    border: 1.5px solid transparent;
+    background: var(--reroll-ready-fill) padding-box, var(--reroll-ready-border) border-box;
     box-shadow:
       0 4px 18px rgba(15, 39, 66, 0.1),
-      0 0 0 2px rgba(92, 232, 255, 0.18);
-  }
-
-  .game-frame .reroll-bar.has-charge::before {
-    background: linear-gradient(
-      90deg,
-      rgba(92, 232, 255, 0.28) 0%,
-      rgba(92, 232, 255, 0.07) 100%
-    );
+      0 0 18px rgba(255, 235, 128, 0.34),
+      0 0 26px rgba(104, 216, 255, 0.22);
   }
 
   .game-frame .reroll-bar.has-charge .reroll-pips::before {
-    color: #0a8faf;
+    color: #075faf;
   }
 
   .game-frame .reroll-bar:not(:disabled):hover {

@@ -43,8 +43,8 @@ export const REROLL_RECOVERY_MOVES = 8;
 // Origin-hatch reroll economy: rerolls are no longer free. Each reroll spends one
 // hatched charge. Charges are earned by filling the hatch meter through matches —
 // bigger matches and deeper cascades fill it faster (see hatchPointsFromResolution).
-export const REROLL_START_CHARGES = 1;
-export const REROLL_MAX_CHARGES = 3;
+export const REROLL_START_CHARGES = 0;
+export const REROLL_MAX_CHARGES = 1;
 export const HATCH_GOAL = 50;
 
 const COLOR_BY_ID = Object.fromEntries(COLORS.map((color) => [color.id, color]));
