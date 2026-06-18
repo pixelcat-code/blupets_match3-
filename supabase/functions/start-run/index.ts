@@ -1,8 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
 
-const MAX_OPEN_RUNS = 3;
-
 Deno.serve(async (req) => {
   const cors = corsHeaders(req);
   if (req.method === "OPTIONS") {
@@ -27,29 +25,16 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401, cors);
     }
 
-    // Clean up stale open runs (>30 min old) before checking the cap.
-    // Abandoned runs accumulate when the user quits mid-game; purging them
-    // here prevents legitimate players from hitting the cherry-pick guard.
-    const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    // A player runs exactly one game at a time. Clear any prior unsubmitted
+    // runs for this user before issuing a new seed. This prevents abandoned or
+    // failed-to-submit runs from piling up (which used to hit a hard cap and
+    // lock the player out of starting new games), and keeps at most one open
+    // run per user, so seeds can't be hoarded for cherry-picking.
     await supabase
       .from("game_runs")
       .delete()
       .eq("user_id", userData.user.id)
-      .is("submitted_at", null)
-      .lt("created_at", staleThreshold);
-
-    // Block seed cherry-picking: reject if user already has too many recent
-    // open (unsubmitted) runs even after cleanup.
-    const { count, error: countError } = await supabase
-      .from("game_runs")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userData.user.id)
       .is("submitted_at", null);
-
-    if (countError) throw countError;
-    if ((count ?? 0) >= MAX_OPEN_RUNS) {
-      return json({ error: "too_many_open_runs" }, 429, cors);
-    }
 
     const seedBytes = new Uint32Array(1);
     crypto.getRandomValues(seedBytes);
