@@ -1691,7 +1691,7 @@ function renderBoard(stateLike) {
               data-row="${rowIndex}"
               data-col="${colIndex}"
               ${tier > 1 ? `data-tier="T${tier}"` : ""}
-              style="grid-row:${rowIndex + 1}; grid-column:${colIndex + 1}; --tile-accent:${color.hex}; --tile-delay:${rowIndex * 18 + colIndex * 8}ms; color:${color.hex}${swapStyle}"
+              style="grid-row:${rowIndex + 1}; grid-column:${colIndex + 1}; --tile-accent:${color.hex}; --tile-delay:${rowIndex * 18 + colIndex * 8}ms; color:${color.hex};${swapStyle}"
               aria-label="${color.label} tile"
               aria-selected="${isSelected ? "true" : "false"}"
             >
