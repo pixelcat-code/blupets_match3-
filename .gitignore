@@ -11,3 +11,6 @@ node_modules/
 output/
 .planning/
 docs/superpowers/
+
+# Supabase CLI local working files (linked project, pooler url, versions)
+supabase/.temp/
