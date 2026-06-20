@@ -390,24 +390,48 @@ function queueTriggeredEvolutions(state) {
   }
 
   const pendingEvolutionQueue = [...state.pendingEvolutionQueue];
+  const thresholdOrder = state.colorThresholdOrder ?? {};
 
-  for (const color of COLORS) {
+  const ready = [];
+  COLORS.forEach((color, colorIndex) => {
     const currentTier = state.evolutionTiers[color.id];
     if (currentTier >= 4) {
-      continue;
+      return;
     }
 
     const threshold = getThresholdForTier(currentTier);
     if (threshold <= 0 || state.colorMatchCounts[color.id] < threshold) {
-      continue;
+      return;
     }
 
     const nextTier = currentTier + 1;
     if (hasQueuedEvolution(pendingEvolutionQueue, color.id, nextTier)) {
-      continue;
+      return;
     }
 
-    pendingEvolutionQueue.push(buildQueueItem(state, color.id, nextTier));
+    ready.push({ colorId: color.id, nextTier, colorIndex });
+  });
+
+  // Evolve in fill order: colors with a recorded threshold-crossing order go
+  // first (lowest order = filled earliest); any without one fall back to the
+  // stable COLORS index so behavior is deterministic.
+  ready.sort((a, b) => {
+    const ao = thresholdOrder[a.colorId];
+    const bo = thresholdOrder[b.colorId];
+    if (ao != null && bo != null) {
+      return ao - bo;
+    }
+    if (ao != null) {
+      return -1;
+    }
+    if (bo != null) {
+      return 1;
+    }
+    return a.colorIndex - b.colorIndex;
+  });
+
+  for (const item of ready) {
+    pendingEvolutionQueue.push(buildQueueItem(state, item.colorId, item.nextTier));
   }
 
   if (pendingEvolutionQueue.length === state.pendingEvolutionQueue.length) {
@@ -469,6 +493,11 @@ function promoteColorTier(state, colorId, tier) {
         : Math.max(0, state.colorMatchCounts[colorId] - threshold),
   };
 
+  // Drop this color's threshold-crossing stamp now that it has evolved, so its
+  // next tier earns a fresh fill-order timestamp instead of reusing the old one.
+  const nextThresholdOrder = { ...(state.colorThresholdOrder ?? {}) };
+  delete nextThresholdOrder[colorId];
+
   return {
     ...state,
     colorMatchCounts: decayOtherColors(
@@ -477,6 +506,7 @@ function promoteColorTier(state, colorId, tier) {
       tier,
       state.vibe.decayResist ?? 0,
     ),
+    colorThresholdOrder: nextThresholdOrder,
     evolutionTiers: {
       ...state.evolutionTiers,
       [colorId]: tier,
@@ -822,13 +852,34 @@ function applyCascadeProgress(state, cascadeSteps) {
   const comboEssence = state.vibe.comboEssence ?? 0;
   const auraBonus = (state.evolutionAuraMovesLeft ?? 0) > 0 ? 1 : 0;
 
+  // Record the order in which each color first reaches its current evolution
+  // threshold while this resolution plays out. When two colors cross on the
+  // same move, the one that filled FIRST (earlier cleared tile) must evolve
+  // first — not whichever sits earlier in the fixed COLORS array.
+  const colorThresholdOrder = { ...(state.colorThresholdOrder ?? {}) };
+  let thresholdSeq = state.colorThresholdSeq ?? 0;
+  const noteEssence = (colorId, before, after) => {
+    const tier = state.evolutionTiers[colorId];
+    if (tier >= 4 || colorThresholdOrder[colorId] != null) {
+      return;
+    }
+    const threshold = getThresholdForTier(tier);
+    if (threshold > 0 && before < threshold && after >= threshold) {
+      thresholdSeq += 1;
+      colorThresholdOrder[colorId] = thresholdSeq;
+    }
+  };
+
   for (const step of cascadeSteps) {
     for (const clearedTile of step.clearedTiles) {
       if (state.evolutionTiers[clearedTile.color] >= 4) {
         continue;
       }
 
-      colorMatchCounts[clearedTile.color] = (colorMatchCounts[clearedTile.color] ?? 0) + 1 + auraBonus;
+      const before = colorMatchCounts[clearedTile.color] ?? 0;
+      const after = before + 1 + auraBonus;
+      colorMatchCounts[clearedTile.color] = after;
+      noteEssence(clearedTile.color, before, after);
     }
 
     // comboEssence vibe: a 5+ tile match grants bonus essence to each base color
@@ -852,7 +903,10 @@ function applyCascadeProgress(state, cascadeSteps) {
             continue;
           }
 
-          colorMatchCounts[colorId] = (colorMatchCounts[colorId] ?? 0) + comboEssence;
+          const before = colorMatchCounts[colorId] ?? 0;
+          const after = before + comboEssence;
+          colorMatchCounts[colorId] = after;
+          noteEssence(colorId, before, after);
         }
       }
     }
@@ -861,6 +915,8 @@ function applyCascadeProgress(state, cascadeSteps) {
   return {
     ...state,
     colorMatchCounts,
+    colorThresholdOrder,
+    colorThresholdSeq: thresholdSeq,
   };
 }
 
@@ -965,6 +1021,8 @@ export function createInitialState(options = {}) {
       colorIds.map((id) => [id, { 2: null, 3: null, 4: null }]),
     ),
     pendingEvolutionQueue: [],
+    colorThresholdOrder: {},
+    colorThresholdSeq: 0,
     score: 0,
     movesLeft: STARTMOVES + (vibe.startMoves ?? 0),
     movesUsed: 0,

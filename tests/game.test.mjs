@@ -110,6 +110,47 @@ test("attemptSwap increments matched color progress and queues evolution", () =>
   assert.equal(nextState.pendingEvolutionQueue[0].tier, 2);
 });
 
+test("simultaneous threshold: evolves the color that filled first, not the COLORS-order first", () => {
+  // green sits earlier in the COLORS array than red, so the old code always
+  // queued green first on a tie. The cascade order should win instead: the
+  // color whose essence actually crossed the threshold first evolves first.
+  const board = [
+    ["red", "green", "red", "green", "purple", "white", "cyan", "black"],
+    ["green", "red", "green", "red", "white", "cyan", "black", "purple"],
+    ["red", "green", "red", "green", "cyan", "black", "purple", "white"],
+    ["green", "white", "cyan", "yellow", "black", "blue", "red", "green"],
+    ["purple", "white", "cyan", "yellow", "black", "green", "purple", "white"],
+    ["white", "cyan", "yellow", "black", "blue", "red", "green", "purple"],
+    ["cyan", "yellow", "black", "blue", "red", "green", "purple", "white"],
+    ["yellow", "black", "blue", "red", "green", "purple", "white", "cyan"],
+  ];
+
+  const makeState = () => {
+    const state = createInitialState({ diagonalAssist: false, rng: makeRng(1), vibe: NEUTRAL_VIBE });
+    state.board = boardFromColorIds(board);
+    state.colorMatchCounts.red = 9;
+    state.colorMatchCounts.green = 9;
+    return state;
+  };
+
+  // This swap fills red first → red evolves first (would be green under the bug).
+  const redFirst = attemptSwap(makeState(), { row: 0, col: 1 }, { row: 1, col: 1 }, makeRng(2));
+  assert.deepEqual(
+    redFirst.pendingEvolutionQueue.map((item) => item.colorId),
+    ["red", "green"],
+  );
+  assert.equal(redFirst.colorThresholdOrder.red, 1);
+  assert.equal(redFirst.colorThresholdOrder.green, 2);
+
+  // A different swap on the same board fills green first → green evolves first,
+  // proving the order tracks fill time rather than being a constant.
+  const greenFirst = attemptSwap(makeState(), { row: 0, col: 2 }, { row: 1, col: 2 }, makeRng(2));
+  assert.deepEqual(
+    greenFirst.pendingEvolutionQueue.map((item) => item.colorId),
+    ["green", "red"],
+  );
+});
+
 test("invalid swap clears stale resolution metadata", () => {
   const state = createInitialState({
     diagonalAssist: false,
