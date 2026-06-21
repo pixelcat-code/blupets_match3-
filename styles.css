@@ -1262,6 +1262,20 @@ h2 {
   }
 }
 
+/* Soft-endless T4 milestone flash — a quick pastel pulse over the game frame
+   without leaving the board. */
+@keyframes t4-flash-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 214, 102, 0); }
+  35% { box-shadow: 0 0 0 6px rgba(255, 214, 102, 0.55); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 214, 102, 0); }
+}
+.game-frame.t4-flash {
+  animation: t4-flash-pulse 0.7s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-frame.t4-flash { animation: none; }
+}
+
 .stat-pill,
 .leaderboard-row {
   border: 1px solid var(--hairline);

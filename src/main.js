@@ -718,12 +718,63 @@ function recordVictory(nextState) {
 }
 
 
+// One color reached T4 during a soft-endless run. Celebrate in place (no screen
+// change) and record the apex form into the local cross-run collection. Does NOT
+// submit to the leaderboard.
+function recordEndlessT4(nextState, colorId) {
+  const form = getChosenEvolutionForm(nextState, colorId, 4);
+  const formKey = nextState.evolutionChoices[colorId]?.[4] ?? form?.key ?? "UNKNOWN";
+  recordWin(progress, {
+    formKey,
+    formName: form?.name ?? formKey,
+    asset: form?.asset ?? null,
+    color: colorId,
+    partner: nextState.evolutionFusions[colorId]?.partnerColorId ?? colorId,
+    score: nextState.score,
+    movesUsed: nextState.movesUsed,
+  });
+  updateProfileChip();
+  celebrateEndlessT4();
+}
+
+// In-place T4 flash on the game frame + a celebratory sound/buzz, without leaving
+// the board. Mirrors the pulseHatch animation-restart pattern.
+let _t4FlashTimer = null;
+function celebrateEndlessT4() {
+  const frame = elements.gameFrame;
+  if (frame) {
+    frame.classList.remove("t4-flash");
+    void frame.offsetWidth; // restart the animation if it fires twice in a row
+    frame.classList.add("t4-flash");
+    if (_t4FlashTimer) clearTimeout(_t4FlashTimer);
+    _t4FlashTimer = setTimeout(() => {
+      frame.classList.remove("t4-flash");
+      _t4FlashTimer = null;
+    }, 700);
+  }
+  sfx("victory");
+  buzz([0, 80, 40, 120]);
+}
+
 function applyState(nextState) {
   const wasVictory = state?.victory;
   const prevCharges = state?.rerollCharges ?? 0;
+  const prevTiers = state?.evolutionTiers ?? {};
   state = nextState;
   if ((nextState?.rerollCharges ?? 0) > prevCharges) {
     pulseHatch();
+  }
+  // Soft-endless: each color that newly reaches T4 this step celebrates in place
+  // and is recorded into the local collection. No leaderboard submit (deferred to
+  // the badge rework).
+  if (nextState?.endlessRun && !nextState.victory) {
+    for (const color of COLORS) {
+      const before = prevTiers[color.id] ?? 1;
+      const after = nextState.evolutionTiers?.[color.id] ?? 1;
+      if (before < 4 && after >= 4) {
+        recordEndlessT4(nextState, color.id);
+      }
+    }
   }
   if (!wasVictory && nextState?.victory) {
     recordVictory(nextState);
