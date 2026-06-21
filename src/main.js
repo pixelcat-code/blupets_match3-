@@ -28,12 +28,13 @@ import {
   discoveredCount,
   getCollectionEntries,
   badgeProgressFor,
+  familyBadgeProgress,
   getFamilyByApexKey,
   TOTAL_APEX_FORMS,
   foldRunMerges,
   unlockedBadgeCount,
   TOTAL_BADGES,
-} from "./progress.js?v=20260621-10";
+} from "./progress.js?v=20260621-11";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -2303,8 +2304,16 @@ function renderStatsHeader() {
 function renderCollectionGrid() {
   const entries = getCollectionEntries(progress);
   const cards = entries
-    .map(
-      (entry) => `
+    .map((entry) => {
+      // Per-family tile-unlock count (N/total). Own profile only — the public
+      // grid (renderPublicProfile) never renders this pill, since badges are
+      // local-only. A family may show a non-zero count even while its apex is
+      // still locked, because tiles unlock from merges, not wins.
+      const fam = familyBadgeProgress(progress, entry.key);
+      const isComplete = fam.total > 0 && fam.unlocked === fam.total;
+      const pillClass = `collection-badge-count${fam.unlocked === 0 ? " is-empty" : ""}${isComplete ? " is-complete" : ""}`;
+      const pillText = `${isComplete ? "✦" : ""}${fam.unlocked}/${fam.total}`;
+      return `
       <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
         <div class="collection-art">
           ${
@@ -2312,11 +2321,12 @@ function renderCollectionGrid() {
               ? `<img src="${escapeHtml(entry.asset)}" alt="${escapeHtml(entry.name)}" />`
               : `<img class="collection-art-blurred" src="${escapeHtml(entry.asset)}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
           }
+          <span class="${pillClass}">${pillText}</span>
         </div>
         <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
       </div>
-    `,
-    )
+    `;
+    })
     .join("");
   return `<div class="collection-grid">${cards}</div>`;
 }

@@ -272,3 +272,26 @@ export function badgeProgressFor(progress, formKey) {
     threshold: BADGE_THRESHOLDS[tier],
   };
 }
+
+// Per-family tile-unlock progress for the apex collection card. Given an apex
+// (T4) key, count how many of its family's evolution tiles (T2 + T3 + T4 =
+// normally 9) have their badge unlocked. `total` is derived from the family's
+// own form counts, not hardcoded, so it stays correct if canon shifts. An
+// unknown apex key (no matching family) returns { unlocked: 0, total: 0 }.
+export function familyBadgeProgress(progress, apexKey) {
+  const family = getFamilyByApexKey(apexKey);
+  if (!family) {
+    return { unlocked: 0, total: 0 };
+  }
+  let unlocked = 0;
+  let total = 0;
+  for (const tier of [2, 3, 4]) {
+    for (const form of family.forms?.[tier] ?? []) {
+      total += 1;
+      if (isBadgeUnlocked(progress, form.key ?? form.name)) {
+        unlocked += 1;
+      }
+    }
+  }
+  return { unlocked, total };
+}

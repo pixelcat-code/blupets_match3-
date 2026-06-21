@@ -8,6 +8,7 @@ import {
   unlockedBadgeCount,
   foldRunMerges,
   badgeProgressFor,
+  familyBadgeProgress,
 } from "../src/progress.js";
 
 test("TOTAL_BADGES counts every T2-T4 form in canon (324)", () => {
@@ -75,4 +76,43 @@ test("badgeProgressFor returns null threshold for a non-badge key", () => {
     assert.equal(p.unlocked, false);
     assert.equal(p.count, 0);
   }
+});
+
+test("familyBadgeProgress counts unlocked tiles out of nine for a family", () => {
+  // HEAT: 5 T2 + 3 T3 + 1 T4 = 9 tiles. Unlock 2 T2 and 1 T3 → 3/9.
+  const progress = {
+    badges: {
+      T2_HEAT_FIRE: BADGE_THRESHOLDS[2],
+      T2_HEAT_LAVA: BADGE_THRESHOLDS[2],
+      T3_HEAT_CINDERFANG: BADGE_THRESHOLDS[3],
+    },
+  };
+  const p = familyBadgeProgress(progress, "T4_PYRONIX");
+  assert.equal(p.total, 9);
+  assert.equal(p.unlocked, 3);
+});
+
+test("familyBadgeProgress reports a fully-unlocked family as unlocked === total", () => {
+  const badges = {};
+  for (const key of [
+    "T2_HEAT_FIRE",
+    "T2_HEAT_LAVA",
+    "T2_HEAT_EMBER",
+    "T2_HEAT_RUBY",
+    "T2_HEAT_BLOOD",
+    "T3_HEAT_CINDERFANG",
+    "T3_HEAT_MAGMASPINE",
+    "T3_HEAT_BLOODRUBY_REVENANT",
+  ]) {
+    badges[key] = BADGE_THRESHOLDS[2];
+  }
+  badges.T4_PYRONIX = BADGE_THRESHOLDS[4];
+  const p = familyBadgeProgress({ badges }, "T4_PYRONIX");
+  assert.equal(p.total, 9);
+  assert.equal(p.unlocked, p.total);
+});
+
+test("familyBadgeProgress returns zeroes for an unknown apex key", () => {
+  const p = familyBadgeProgress({ badges: {} }, "NOPE");
+  assert.deepEqual(p, { unlocked: 0, total: 0 });
 });
