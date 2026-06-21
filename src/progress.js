@@ -295,3 +295,18 @@ export function familyBadgeProgress(progress, apexKey) {
   }
   return { unlocked, total };
 }
+
+// Snapshot of per-family unlocked-tile counts across every family, keyed by apex
+// (T4) form key: { apexKey: unlockedCount }. Sent to the cloud on a victory so
+// other players' public profiles can render the same N/total card pills. Only
+// the unlocked count is shared (not raw per-tile merge counts).
+export function collectFamilyBadges(progress) {
+  const snapshot = {};
+  for (const family of BLUPETS_FAMILIES) {
+    for (const form of family.forms?.[4] ?? []) {
+      const apexKey = form.key ?? form.name;
+      snapshot[apexKey] = familyBadgeProgress(progress, apexKey).unlocked;
+    }
+  }
+  return snapshot;
+}

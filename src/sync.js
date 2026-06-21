@@ -33,13 +33,13 @@ export async function startTrustedRun() {
 // `result` is the client-reported win: { score, movesUsed, formKey, formName,
 // colorId, partnerColorId, vibe }. The server validates plausibility and writes
 // the leaderboard entry — browsers stay RLS-blocked from writing tables directly.
-export async function submitTrustedRun(runId, result) {
+export async function submitTrustedRun(runId, result, familyBadges) {
   const { configured } = getSupabaseConfig();
   if (!configured) throw new Error("Supabase is not configured.");
 
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("submit-run", {
-    body: { runId, result },
+    body: { runId, result, familyBadges: familyBadges ?? {} },
   });
   if (error) throw new Error(await fnErrorCode(error));
   return data;
@@ -74,7 +74,7 @@ export async function fetchPublicUserEntries(userId) {
   const client = await getSupabaseClient();
   const { data, error } = await client
     .from("leaderboard_entries")
-    .select("score, moves_used, t4_color, t4_partner, t4_form_key, created_at")
+    .select("score, moves_used, t4_color, t4_partner, t4_form_key, family_badges, created_at")
     .eq("user_id", userId)
     .order("score", { ascending: false })
     .limit(500);
@@ -86,6 +86,7 @@ export async function fetchPublicUserEntries(userId) {
     t4Color: row.t4_color,
     t4Partner: row.t4_partner,
     t4FormKey: row.t4_form_key,
+    familyBadges: row.family_badges ?? {},
     timestamp: row.created_at ? new Date(row.created_at).getTime() : 0,
   }));
 }

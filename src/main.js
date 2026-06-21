@@ -29,6 +29,7 @@ import {
   getCollectionEntries,
   badgeProgressFor,
   familyBadgeProgress,
+  collectFamilyBadges,
   getFamilyByApexKey,
   TOTAL_APEX_FORMS,
   foldRunMerges,
@@ -42,7 +43,7 @@ import {
   fetchUserProgress,
   startTrustedRun,
   submitTrustedRun,
-} from "./sync.js?v=20260618-12";
+} from "./sync.js?v=20260621-13";
 
 // TEMP TESTING KNOB: global slow-motion multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
@@ -648,18 +649,35 @@ function renderPublicProfile(entries, isSelf = false) {
 
   if (elements.publicProfileContent) {
     const collectionEntries = getCollectionEntries({ forms });
-    const cards = collectionEntries.map((entry) => `
+    // Their per-family unlocked-tile snapshot from the newest entry that carries
+    // one (cumulative; older rows are stale). Own self-view uses fresh local
+    // counts instead, matching the own-profile pill.
+    const cloudBadges = entries.reduce((best, e) => {
+      const has = e.familyBadges && Object.keys(e.familyBadges).length > 0;
+      return has && e.timestamp >= (best?.timestamp ?? -1) ? e : best;
+    }, null)?.familyBadges ?? {};
+    const cards = collectionEntries.map((entry) => {
+      const total = familyBadgeProgress(null, entry.key).total;
+      const unlocked = isSelf
+        ? familyBadgeProgress(progress, entry.key).unlocked
+        : (Number(cloudBadges[entry.key]) || 0);
+      const isComplete = total > 0 && unlocked === total;
+      const pillClass = `collection-badge-count${unlocked === 0 ? " is-empty" : ""}${isComplete ? " is-complete" : ""}`;
+      const pillText = `${isComplete ? "✦" : ""}${unlocked}/${total}`;
+      return `
       <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
         <div class="collection-art">
           ${
             entry.discovered
-              ? `<img src="${entry.asset}" alt="${escapeHtml(entry.name)}" />`
-              : `<img class="collection-art-blurred" src="${entry.asset}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
+              ? `<img src="${escapeHtml(entry.asset)}" alt="${escapeHtml(entry.name)}" />`
+              : `<img class="collection-art-blurred" src="${escapeHtml(entry.asset)}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
           }
+          <span class="${pillClass}">${pillText}</span>
         </div>
         <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
       </div>
-    `).join("");
+    `;
+    }).join("");
     elements.publicProfileContent.innerHTML = `<div class="collection-grid">${cards}</div>`;
   }
 }
@@ -681,6 +699,11 @@ function recordVictory(nextState) {
     score: nextState.score,
     movesUsed: nextState.movesUsed,
   });
+  // Fold this run's per-form merges into the lifetime badge store before we
+  // snapshot. A run ends in exactly one branch (victory OR gameOver, mutually
+  // exclusive per tick, guarded by !wasVictory), so this folds once — and it
+  // fixes the prior bug where merges were lost when a run ended via victory.
+  foldRunMerges(progress, nextState.runMergeCounts ?? {});
   updateProfileChip();
 
   if (authState.user && runProof) {
@@ -694,8 +717,11 @@ function recordVictory(nextState) {
       partnerColorId,
       vibe: nextState.vibe?.id ?? null,
     };
+    // Per-family unlocked-tile snapshot so other players' public profiles can
+    // render N/total card pills. Only unlocked counts are shared.
+    const familyBadges = collectFamilyBadges(progress);
     console.info("[sync] submitting run result:", proof.runId, result);
-    submitTrustedRun(proof.runId, result)
+    submitTrustedRun(proof.runId, result, familyBadges)
       .then((data) => {
         console.info("[sync] submit-run accepted:", data);
         if (data?.progress) {

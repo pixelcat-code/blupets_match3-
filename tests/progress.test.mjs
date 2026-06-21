@@ -9,6 +9,7 @@ import {
   foldRunMerges,
   badgeProgressFor,
   familyBadgeProgress,
+  collectFamilyBadges,
 } from "../src/progress.js";
 
 test("TOTAL_BADGES counts every T2-T4 form in canon (324)", () => {
@@ -119,4 +120,25 @@ test("familyBadgeProgress reports a fully-unlocked family as unlocked === total"
 test("familyBadgeProgress returns zeroes for an unknown apex key", () => {
   const p = familyBadgeProgress({ badges: {} }, "NOPE");
   assert.deepEqual(p, { unlocked: 0, total: 0 });
+});
+
+test("collectFamilyBadges has one entry per apex family, all zero when empty", () => {
+  const snap = collectFamilyBadges({ badges: {} });
+  // 36 apex families in canon, each keyed by its T4 form key.
+  assert.equal(Object.keys(snap).length, 36);
+  assert.ok(Object.prototype.hasOwnProperty.call(snap, "T4_PYRONIX"));
+  assert.ok(Object.values(snap).every((v) => v === 0));
+});
+
+test("collectFamilyBadges count matches familyBadgeProgress unlocked", () => {
+  const progress = {
+    badges: {
+      T2_HEAT_FIRE: BADGE_THRESHOLDS[2],
+      T2_HEAT_LAVA: BADGE_THRESHOLDS[2],
+      T3_HEAT_CINDERFANG: BADGE_THRESHOLDS[3],
+    },
+  };
+  const snap = collectFamilyBadges(progress);
+  assert.equal(snap.T4_PYRONIX, familyBadgeProgress(progress, "T4_PYRONIX").unlocked);
+  assert.equal(snap.T4_PYRONIX, 3);
 });

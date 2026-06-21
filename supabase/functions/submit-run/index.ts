@@ -131,6 +131,19 @@ Deno.serve(async (req) => {
     const { result, error: validationError } = validateResult(body.result);
     if (validationError) return json({ error: validationError }, 422, cors);
 
+    // Per-family unlocked-tile snapshot ({ apexKey: count }). Self-reported (no
+    // server-side merge validation is possible), so just defend the shape:
+    // at most 36 entries, integer counts clamped to [0, 9], short keys.
+    const familyBadges: Record<string, number> = {};
+    const rawBadges = body.familyBadges;
+    if (rawBadges && typeof rawBadges === "object" && !Array.isArray(rawBadges)) {
+      for (const [key, value] of Object.entries(rawBadges).slice(0, 36)) {
+        const n = Math.trunc(Number(value));
+        familyBadges[String(key).slice(0, 64)] =
+          Number.isFinite(n) ? Math.max(0, Math.min(9, n)) : 0;
+      }
+    }
+
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
       requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
@@ -193,6 +206,7 @@ Deno.serve(async (req) => {
       t4_partner: result.partnerColorId,
       t4_form_key: result.formKey,
       vibe: result.vibe,
+      family_badges: familyBadges,
     };
 
     const { data: progressRow } = await supabase

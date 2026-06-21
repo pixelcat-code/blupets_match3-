@@ -61,8 +61,13 @@ create table if not exists public.leaderboard_entries (
   t4_partner   text,
   t4_form_key  text,
   vibe         text,
+  family_badges jsonb      not null default '{}',
   created_at   timestamptz not null default now()
 );
+
+-- For existing deployments: add the per-family unlocked-tile snapshot column.
+alter table public.leaderboard_entries
+  add column if not exists family_badges jsonb not null default '{}';
 
 alter table public.leaderboard_entries enable row level security;
 
