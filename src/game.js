@@ -1147,6 +1147,9 @@ export function createInitialState(options = {}) {
   // Power-up tiles (rocket/bomb) created by big matches. Off by default so the
   // core logic and existing tests are unaffected; production opts in.
   const specialTiles = options.specialTiles ?? false;
+  // Soft-endless run: when on, reaching T4 no longer ends the run. Off by default
+  // so existing victory-at-T4 tests are unaffected; production opts in.
+  const endlessRun = options.endlessRun ?? false;
   const colorIds = COLORS.map((color) => color.id);
   const board = createBoard(BOARDSIZE, colorIds, rng, diagonalAssist, undefined, diagonalSwaps);
 
@@ -1178,6 +1181,7 @@ export function createInitialState(options = {}) {
     diagonalAssist,
     diagonalSwaps,
     specialTiles,
+    endlessRun,
     victory: false,
     victoryMeta: null,
     gameOver: false,

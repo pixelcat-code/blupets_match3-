@@ -825,3 +825,10 @@ test("replayRun: movesUsed is a non-negative integer tracked per matching swap",
   assert.ok(state.movesUsed >= 0, "movesUsed must be non-negative");
   assert.ok(state.movesUsed <= 5, "movesUsed cannot exceed number of attempted swaps");
 });
+
+test("endlessRun flag defaults off and can be enabled", () => {
+  const off = createInitialState({ rng: makeRng(101), vibe: NEUTRAL_VIBE });
+  assert.equal(off.endlessRun, false);
+  const on = createInitialState({ rng: makeRng(101), vibe: NEUTRAL_VIBE, endlessRun: true });
+  assert.equal(on.endlessRun, true);
+});
