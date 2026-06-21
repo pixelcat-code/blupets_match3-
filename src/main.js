@@ -2090,7 +2090,7 @@ function renderGameoverScreen(stateLike) {
             (badge) =>
               `<span class="run-summary-badge" title="${escapeHtml(badge.name)}">` +
               (badge.asset
-                ? `<img src="${escapeHtml(safeImgSrc(badge.asset))}" alt="" />`
+                ? `<img src="${escapeHtml(badge.asset)}" alt="" />`
                 : "") +
               `</span>`,
           )
