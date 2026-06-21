@@ -201,6 +201,32 @@ test("Diagonal Assist allows diagonal swaps that create diagonal matches", () =>
   assert.match(nextState.status, /Matched 3 tiles/);
 });
 
+test("Diagonal swaps disabled but diagonal matches kept: orthogonal swap still resolves a diagonal line", () => {
+  const state = createInitialState({
+    diagonalAssist: true,
+    diagonalSwaps: false,
+    rng: makeRng(61),
+  });
+  state.board = boardFromColorIds([
+    ["red", "blue", "green"],
+    ["yellow", "blue", "red"],
+    ["black", "cyan", "red"],
+  ]);
+
+  assert.equal(state.diagonalSwaps, false);
+
+  // A diagonal swap is now rejected purely on adjacency — no move is consumed.
+  const rejected = attemptSwap(state, { row: 1, col: 1 }, { row: 0, col: 2 }, makeRng(62));
+  assert.equal(rejected.movesLeft, state.movesLeft);
+  assert.match(rejected.status, /adjacent tiles/);
+
+  // An orthogonal swap that forms a diagonal three-in-a-row still resolves, proving
+  // diagonal MATCHES remain active even though diagonal SWAPS are off.
+  const resolved = attemptSwap(state, { row: 1, col: 1 }, { row: 1, col: 2 }, makeRng(62));
+  assert.equal(resolved.movesLeft, state.movesLeft - 1);
+  assert.match(resolved.status, /Matched \d+ tiles/);
+});
+
 test("hasPossibleMoves detects diagonal-only opportunities when Diagonal Assist is enabled", () => {
   const board = boardFromColorIds([
     ["red", "blue", "red"],
@@ -673,6 +699,99 @@ test("comboEssence vibe grants bonus essence on 5+ matches", () => {
   // The swap forms a red 5-in-a-row, so the comboEssence vibe must earn red more
   // essence than the neutral run off the identical board and rng.
   assert.ok(boostedResult.colorMatchCounts.red > baseResult.colorMatchCounts.red);
+});
+
+test("special tiles: a straight match of 4 spawns a rocket, not a full clear", () => {
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(200) });
+  state.board = boardFromColorIds([
+    ["red", "red", "red", "red", "green"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+
+  const result = resolveBoard(state.board, state, makeRng(201));
+  const spawns = result.cascadeSteps[0].specialSpawns;
+
+  assert.equal(spawns.length, 1);
+  assert.equal(spawns[0].special, "rocket");
+  assert.equal(spawns[0].dir, "row"); // horizontal match -> horizontal rocket
+  // The 4-match leaves a rocket behind: only 3 of the 4 red tiles actually clear.
+  assert.equal(result.cascadeSteps[0].colorClearCounts.red, 3);
+});
+
+test("special tiles: a straight match of 5 spawns a bomb", () => {
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(202) });
+  state.board = boardFromColorIds([
+    ["red", "red", "red", "red", "red"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+
+  const result = resolveBoard(state.board, state, makeRng(203));
+  const spawns = result.cascadeSteps[0].specialSpawns;
+
+  assert.equal(spawns.length, 1);
+  assert.equal(spawns[0].special, "bomb");
+});
+
+test("special tiles: an L/T intersection of two 3-lines spawns a bomb", () => {
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(204) });
+  // Horizontal red 3-line on row 0 and vertical red 3-line on col 0 share (0,0).
+  state.board = boardFromColorIds([
+    ["red", "red", "red", "blue", "green"],
+    ["red", "blue", "green", "blue", "green"],
+    ["red", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+
+  const result = resolveBoard(state.board, state, makeRng(205));
+  const spawns = result.cascadeSteps[0].specialSpawns;
+
+  assert.equal(spawns.some((s) => s.special === "bomb" && s.row === 0 && s.col === 0), true);
+});
+
+test("special tiles: an existing rocket caught in a match detonates its whole row", () => {
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(206) });
+  state.board = boardFromColorIds([
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+    ["red", "red", "red", "yellow", "cyan"],
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+  ]);
+  // Turn the middle red tile into a horizontal rocket; the red 3-line on row 2
+  // detonates it, which should clear the ENTIRE row (including yellow + cyan).
+  state.board[2][2] = { id: 9991, color: "red", special: "rocket", dir: "row" };
+
+  const result = resolveBoard(state.board, state, makeRng(207));
+  const rowTwoCleared = new Set(
+    result.cascadeSteps[0].clearedTiles
+      .filter((t) => t.row === 2)
+      .map((t) => t.col),
+  );
+
+  // All five columns of row 2 were cleared — the blast reached past the match.
+  assert.deepEqual([...rowTwoCleared].sort((a, b) => a - b), [0, 1, 2, 3, 4]);
+});
+
+test("special tiles stay off by default: a match of 4 clears all four tiles", () => {
+  const state = createInitialState({ diagonalAssist: false, rng: makeRng(208) });
+  state.board = boardFromColorIds([
+    ["red", "red", "red", "red", "green"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+
+  const result = resolveBoard(state.board, state, makeRng(209));
+  assert.equal(result.cascadeSteps[0].specialSpawns.length, 0);
+  assert.equal(result.cascadeSteps[0].colorClearCounts.red, 4);
 });
 
 test("trusted replay recomputes a submitted run from seed and action log", () => {

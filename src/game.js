@@ -57,6 +57,87 @@ function makeTile(color) {
   };
 }
 
+// --- Special tiles (power-ups created by big matches) -----------------------
+// A straight match of exactly 4 spawns a ROCKET (clears its whole row or column
+// when later detonated). A straight match of 5+, or an L/T intersection of a
+// horizontal and a vertical 3-line, spawns a BOMB (clears the 3x3 area around
+// it). Specials sit on the board when created and detonate when later caught in
+// a match; their blast chains into any other specials it hits. The whole system
+// is gated behind state.specialTiles, so behaviour is unchanged when it is off.
+function makeSpecialTile(color, special, dir = null) {
+  return { id: nextTileId++, color, special, dir };
+}
+
+function blastCellsFor(size, pos, tile) {
+  const cells = [];
+  if (tile.special === "rocket") {
+    if (tile.dir === "row") {
+      for (let col = 0; col < size; col += 1) {
+        cells.push({ row: pos.row, col });
+      }
+    } else {
+      for (let row = 0; row < size; row += 1) {
+        cells.push({ row, col: pos.col });
+      }
+    }
+  } else if (tile.special === "bomb") {
+    for (let row = pos.row - 1; row <= pos.row + 1; row += 1) {
+      for (let col = pos.col - 1; col <= pos.col + 1; col += 1) {
+        if (row >= 0 && row < size && col >= 0 && col < size) {
+          cells.push({ row, col });
+        }
+      }
+    }
+  }
+  return cells;
+}
+
+// Given the matched line groups of one cascade step, decide which cells should
+// become special tiles. Returns a Map of "row:col" -> spawn spec. Bomb spawns
+// outrank rocket spawns when they collide on the same cell.
+function planSpecialSpawns(groups, board) {
+  const spawns = new Map();
+  const horizMembers = new Set();
+  const vertMembers = new Set();
+
+  const consider = (pos, special, dir) => {
+    const key = keyFor(pos.row, pos.col);
+    const existing = spawns.get(key);
+    if (existing && (existing.special === "bomb" || special !== "bomb")) {
+      return;
+    }
+    const tile = board[pos.row][pos.col];
+    spawns.set(key, {
+      row: pos.row,
+      col: pos.col,
+      special,
+      dir,
+      color: tile ? tile.color : null,
+    });
+  };
+
+  for (const group of groups) {
+    const horizontal = group.length >= 2 && group[0].row === group[1].row;
+    for (const pos of group) {
+      (horizontal ? horizMembers : vertMembers).add(keyFor(pos.row, pos.col));
+    }
+    if (group.length >= 4) {
+      const mid = group[Math.floor(group.length / 2)];
+      consider(mid, group.length >= 5 ? "bomb" : "rocket", horizontal ? "row" : "col");
+    }
+  }
+
+  // L/T shapes surface as a cell shared by a horizontal and a vertical 3-line.
+  for (const key of horizMembers) {
+    if (vertMembers.has(key)) {
+      const [row, col] = key.split(":").map(Number);
+      consider({ row, col }, "bomb", null);
+    }
+  }
+
+  return spawns;
+}
+
 export function randomFrom(items, rng = Math.random) {
   return items[Math.floor(rng() * items.length)];
 }
@@ -95,6 +176,7 @@ export function createBoard(
   rng = Math.random,
   diagonalAssist = false,
   matchResolver = defaultMatchResolver,
+  diagonalSwaps = diagonalAssist,
 ) {
   const matchKeyForColor = (color, row, col) => matchResolver({ color }, row, col) ?? null;
 
@@ -154,7 +236,7 @@ export function createBoard(
       }
     }
 
-    if (hasPossibleMoves(board, diagonalAssist, matchResolver)) {
+    if (hasPossibleMoves(board, diagonalAssist, matchResolver, diagonalSwaps)) {
       return board;
     }
   }
@@ -279,7 +361,12 @@ export function areAdjacent(first, second, allowDiagonal = false) {
     : rowDelta + colDelta === 1;
 }
 
-export function hasPossibleMoves(board, diagonalAssist = false, matchResolver = defaultMatchResolver) {
+export function hasPossibleMoves(
+  board,
+  diagonalAssist = false,
+  matchResolver = defaultMatchResolver,
+  diagonalSwaps = diagonalAssist,
+) {
   const size = board.length;
 
   for (let row = 0; row < size; row += 1) {
@@ -305,7 +392,7 @@ export function hasPossibleMoves(board, diagonalAssist = false, matchResolver = 
       }
 
       if (
-        diagonalAssist &&
+        diagonalSwaps &&
         row + 1 < size &&
         col + 1 < size &&
         findMatches(swapInBoard(board, current, downRight), diagonalAssist, matchResolver).length > 0
@@ -314,7 +401,7 @@ export function hasPossibleMoves(board, diagonalAssist = false, matchResolver = 
       }
 
       if (
-        diagonalAssist &&
+        diagonalSwaps &&
         row + 1 < size &&
         col - 1 >= 0 &&
         findMatches(swapInBoard(board, current, downLeft), diagonalAssist, matchResolver).length > 0
@@ -331,7 +418,12 @@ export function hasPossibleMoves(board, diagonalAssist = false, matchResolver = 
 // of bailing on the first one. Used by the idle hint loop to wobble the tiles of
 // one move at a time. Each adjacency is visited once (right / down / the two
 // downward diagonals) so a pair is never reported twice.
-export function findPossibleMoves(board, diagonalAssist = false, matchResolver = defaultMatchResolver) {
+export function findPossibleMoves(
+  board,
+  diagonalAssist = false,
+  matchResolver = defaultMatchResolver,
+  diagonalSwaps = diagonalAssist,
+) {
   const size = board.length;
   const moves = [];
 
@@ -351,10 +443,10 @@ export function findPossibleMoves(board, diagonalAssist = false, matchResolver =
       if (row + 1 < size) {
         consider(current, { row: row + 1, col });
       }
-      if (diagonalAssist && row + 1 < size && col + 1 < size) {
+      if (diagonalSwaps && row + 1 < size && col + 1 < size) {
         consider(current, { row: row + 1, col: col + 1 });
       }
-      if (diagonalAssist && row + 1 < size && col - 1 >= 0) {
+      if (diagonalSwaps && row + 1 < size && col - 1 >= 0) {
         consider(current, { row: row + 1, col: col - 1 });
       }
     }
@@ -780,10 +872,44 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       }
     }
 
+    const specialsOn = state.specialTiles ?? false;
+    const spawns = specialsOn ? planSpecialSpawns(groups, nextBoard) : new Map();
+
+    // Start from the matched cells, then (when specials are on) expand with the
+    // blast of any EXISTING special caught in the match, chaining into others.
+    const clearSet = new Map();
+    if (specialsOn) {
+      const queue = [...cells.values()];
+      while (queue.length > 0) {
+        const position = queue.shift();
+        const key = keyFor(position.row, position.col);
+        if (clearSet.has(key)) {
+          continue;
+        }
+        clearSet.set(key, position);
+        const tile = nextBoard[position.row][position.col];
+        // A cell we are about to convert into a fresh special must not detonate.
+        if (tile && tile.special && !spawns.has(key)) {
+          for (const blastCell of blastCellsFor(nextBoard.length, position, tile)) {
+            queue.push(blastCell);
+          }
+        }
+      }
+    } else {
+      for (const [key, position] of cells) {
+        clearSet.set(key, position);
+      }
+    }
+
     const colorClearCounts = emptyCountMap();
     const clearedTiles = [];
 
-    for (const position of cells.values()) {
+    for (const position of clearSet.values()) {
+      const key = keyFor(position.row, position.col);
+      if (spawns.has(key)) {
+        // This cell transforms into a special instead of clearing.
+        continue;
+      }
       const tile = nextBoard[position.row][position.col];
       if (!tile) {
         continue;
@@ -799,11 +925,20 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       cleared += 1;
     }
 
+    // Place newly created specials in place. They stay on the board (don't fall)
+    // and do not detonate this step — the player triggers them in a later match.
+    const specialSpawns = [];
+    for (const spawn of spawns.values()) {
+      nextBoard[spawn.row][spawn.col] = makeSpecialTile(spawn.color, spawn.special, spawn.dir);
+      specialSpawns.push(spawn);
+    }
+
     const boardAfterClear = cloneBoard(nextBoard);
     cascadeSteps.push({
       groups,
       clearedTiles,
       colorClearCounts,
+      specialSpawns,
       boardBeforeClear,
       boardAfterClear,
       boardAfterCollapse: null,
@@ -815,7 +950,7 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
 
   let shuffled = false;
 
-  if (!hasPossibleMoves(nextBoard, state.diagonalAssist, matchResolver)) {
+  if (!hasPossibleMoves(nextBoard, state.diagonalAssist, matchResolver, state.diagonalSwaps)) {
     shuffled = true;
     boardBeforeShuffle = cloneBoard(nextBoard);
     const fresh = createBoard(
@@ -824,6 +959,7 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       rng,
       state.diagonalAssist,
       matchResolver,
+      state.diagonalSwaps,
     );
 
     for (let row = 0; row < nextBoard.length; row += 1) {
@@ -964,7 +1100,7 @@ function applyHatchProgress(state, resolution) {
 function settleBoardForCurrentForms(state, rng = Math.random, reason = "Form resonance cleared") {
   const matchResolver = getStateMatchResolver(state);
   if (findMatches(state.board, state.diagonalAssist, matchResolver).length === 0) {
-    if (hasPossibleMoves(state.board, state.diagonalAssist, matchResolver)) {
+    if (hasPossibleMoves(state.board, state.diagonalAssist, matchResolver, state.diagonalSwaps)) {
       return state;
     }
 
@@ -976,6 +1112,7 @@ function settleBoardForCurrentForms(state, rng = Math.random, reason = "Form res
         rng,
         state.diagonalAssist,
         matchResolver,
+        state.diagonalSwaps,
       ),
       status: `${state.status} Board realigned for current forms.`,
     };
@@ -1003,8 +1140,15 @@ export function createInitialState(options = {}) {
   const rolledVibe = randomFrom(VIBES, rng);
   const vibe = options.vibe ?? rolledVibe;
   const diagonalAssist = options.diagonalAssist ?? true;
+  // Diagonal MATCHES (lines/cascades) and diagonal SWAPS are decoupled. By default
+  // swaps fall back to the matching flag, but callers can disable diagonal swaps
+  // while keeping diagonal matches (orthogonal-only swaps, classic match-3 feel).
+  const diagonalSwaps = options.diagonalSwaps ?? diagonalAssist;
+  // Power-up tiles (rocket/bomb) created by big matches. Off by default so the
+  // core logic and existing tests are unaffected; production opts in.
+  const specialTiles = options.specialTiles ?? false;
   const colorIds = COLORS.map((color) => color.id);
-  const board = createBoard(BOARDSIZE, colorIds, rng, diagonalAssist);
+  const board = createBoard(BOARDSIZE, colorIds, rng, diagonalAssist, undefined, diagonalSwaps);
 
   const colorMatchCounts = Object.fromEntries(colorIds.map((id) => [id, 0]));
   if (vibe.startEssence) {
@@ -1032,6 +1176,8 @@ export function createInitialState(options = {}) {
     _hatched: 0,
     cascadesResolved: 0,
     diagonalAssist,
+    diagonalSwaps,
+    specialTiles,
     victory: false,
     victoryMeta: null,
     gameOver: false,
@@ -1045,10 +1191,10 @@ export function attemptSwap(state, first, second, rng = Math.random) {
     return state;
   }
 
-  if (!areAdjacent(first, second, state.diagonalAssist)) {
+  if (!areAdjacent(first, second, state.diagonalSwaps)) {
     return {
       ...state,
-      status: state.diagonalAssist
+      status: state.diagonalSwaps
         ? "Swap works on nearby tiles, including diagonals."
         : "Swap only works on adjacent tiles.",
       _lastResolution: null,
@@ -1211,6 +1357,7 @@ export function rerollBoard(state, rng = Math.random) {
     rng,
     state.diagonalAssist,
     getStateMatchResolver(state),
+    state.diagonalSwaps,
   );
   const recoveryFloor = REROLL_RECOVERY_MOVES;
   const movesLeft = restoredFromGameOver

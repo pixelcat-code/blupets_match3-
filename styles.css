@@ -1679,30 +1679,36 @@ h2 {
   opacity: 0.55;
 }
 
+/* Tiles are "out of the container": no white box behind the art. The ::before
+   slot is kept for empties (.tile--empty::before re-adds its own look) but the
+   real-tile box is removed so the blupets sit straight on the board. */
 .tile::before {
   content: "";
   position: absolute;
   inset: 5px;
   border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.2)),
-    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.92), transparent 40%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(123, 177, 226, 0.18),
-    0 10px 24px rgba(71, 146, 214, 0.12);
+  background: none;
+  box-shadow: none;
   z-index: 0;
 }
 
+/* The ::after ring is now invisible by default; .selected / .drag-target re-add
+   a coloured outline for the highlight (see below), and .tile--special::after
+   draws the power-up pulse ring. */
 .tile::after {
   content: "";
   position: absolute;
   inset: 5px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  opacity: 0.96;
+  border: 1px solid transparent;
+  opacity: 0;
   z-index: 1;
   pointer-events: none;
+}
+
+.tile.selected::after,
+.tile.drag-target::after {
+  opacity: 1;
 }
 
 .tile:hover {
@@ -1712,24 +1718,24 @@ h2 {
 .tile.is-swapping {
   z-index: 4;
   /* Both swapped tiles must travel together, so ignore the positional stagger. */
-  animation: tile-swap-slide 210ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  animation: tile-swap-slide calc(210ms * var(--anim-scale, 1)) cubic-bezier(0.22, 0.9, 0.3, 1) both;
   animation-delay: 0ms;
 }
 
 .tile.is-rejecting {
   z-index: 4;
-  animation: tile-swap-reject 300ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  animation: tile-swap-reject calc(300ms * var(--anim-scale, 1)) cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
 .tile.is-falling {
   z-index: 3;
   /* Gentle ease-out so tiles decelerate into place instead of slamming. */
-  animation: tile-fall-in 360ms cubic-bezier(0.25, 0.6, 0.3, 1) both;
+  animation: tile-fall-in calc(360ms * var(--anim-scale, 1)) cubic-bezier(0.25, 0.6, 0.3, 1) both;
   animation-delay: var(--tile-delay, 0ms);
 }
 
 .tile.is-reshuffling {
-  animation: tile-reshuffle-in 320ms cubic-bezier(0.2, 0.9, 0.22, 1) both;
+  animation: tile-reshuffle-in calc(320ms * var(--anim-scale, 1)) cubic-bezier(0.2, 0.9, 0.22, 1) both;
   animation-delay: var(--tile-delay, 0ms);
 }
 
@@ -1776,7 +1782,7 @@ h2 {
     0 0 10px var(--crystal-color, var(--accent-cyan));
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.3);
-  animation: tile-crystal-burst 280ms cubic-bezier(0.14, 0.86, 0.22, 1) both;
+  animation: tile-crystal-burst calc(280ms * var(--clear-scale, 1)) cubic-bezier(0.14, 0.86, 0.22, 1) both;
 }
 
 .tile-burst i:nth-child(1) { --crystal-angle: 8deg;   --crystal-distance: 26px; --crystal-color: var(--accent-cyan); }
@@ -1811,25 +1817,25 @@ h2 {
 }
 
 .tile.clearing {
-  animation: tile-clear-shell 280ms cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
+  animation: tile-clear-shell calc(280ms * var(--clear-scale, 1)) cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
 }
 
 .tile.clearing::before {
-  animation: tile-clear-glass 280ms cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
+  animation: tile-clear-glass calc(280ms * var(--clear-scale, 1)) cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
 }
 
 .tile.clearing::after {
-  animation: tile-clear-outline 280ms cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
+  animation: tile-clear-outline calc(280ms * var(--clear-scale, 1)) cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
 }
 
 .tile-art {
   position: absolute;
-  inset: 12%;
-  width: 76%;
-  height: 76%;
+  inset: 5%;
+  width: 90%;
+  height: 90%;
   object-fit: contain;
   image-rendering: pixelated;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
+  filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.22));
   transform: scale(1.04);
   transform-origin: center;
   pointer-events: none;
@@ -1837,7 +1843,75 @@ h2 {
 }
 
 .tile.clearing .tile-art {
-  animation: tile-clear-art 280ms cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
+  animation: tile-clear-art calc(280ms * var(--clear-scale, 1)) cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
+}
+
+/* --- Power-up tiles (rocket / bomb) -------------------------------------- */
+.tile--special .tile-art {
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.18)) brightness(1.12) saturate(1.2);
+}
+
+.tile--special::after {
+  content: "";
+  position: absolute;
+  inset: 7%;
+  border-radius: 30%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 0 10px var(--tile-accent),
+    inset 0 0 9px rgba(255, 255, 255, 0.5);
+  animation: tile-power-pulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.tile-power {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.tile-power::before {
+  font-weight: 900;
+  font-size: clamp(15px, 4.4vw, 28px);
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 0 5px rgba(0, 0, 0, 0.6),
+    0 0 11px var(--tile-accent);
+}
+
+.tile-power--rocket[data-dir="row"]::before {
+  content: "⇆";
+}
+
+.tile-power--rocket[data-dir="col"]::before {
+  content: "⇅";
+}
+
+.tile-power--bomb::before {
+  content: "✸";
+}
+
+@keyframes tile-power-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile--special::after {
+    animation: none;
+  }
 }
 
 .vibe-status {
@@ -4746,10 +4820,7 @@ button,
   }
 
   .tile::before {
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.86),
-      inset 0 -1px 0 rgba(123, 177, 226, 0.12),
-      0 6px 12px rgba(71, 146, 214, 0.08);
+    box-shadow: none;
   }
 
   .tile-art,

@@ -15,7 +15,7 @@ import {
   rerollBoard,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260618-gameplay-5";
+} from "./game.js?v=20260621-gameplay-7";
 import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260618-8";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
@@ -39,18 +39,32 @@ import {
   submitTrustedRun,
 } from "./sync.js?v=20260618-12";
 
-const SWAP_ANIMATION_MS = 210;
+// TEMP TESTING KNOB: global slow-motion multiplier for the board-resolution
+// animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
+// JS pacing below AND the CSS animation durations (via the --anim-scale custom
+// property, set at startup) so they stay in sync. Set back to 1 to restore
+// normal speed.
+const ANIM_SCALE = 1;
+// Dedicated, stronger multiplier for JUST the tile DISAPPEARANCE animation (the
+// clear/pop/dissolve), so you can watch exactly which tiles vanish. Independent
+// of ANIM_SCALE. Set to 1 for normal speed.
+const CLEAR_SCALE = 1;
+const SWAP_ANIMATION_MS = 210 * ANIM_SCALE;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
 // "tried, bounced back" instead of silently doing nothing.
-const REJECT_ANIMATION_MS = 300;
-const CLEAR_ANIMATION_MS = 280;
-const DROP_ANIMATION_MS = 360;
+const REJECT_ANIMATION_MS = 300 * ANIM_SCALE;
+const CLEAR_ANIMATION_MS = 280 * CLEAR_SCALE;
+const DROP_ANIMATION_MS = 360 * ANIM_SCALE;
 // Falling tiles are staggered by --tile-delay (up to ~190ms for the bottom-right
 // cell). Hold the drop phase long enough that the last-staggered tile's
 // animation finishes instead of being cut off and snapping into place.
-const DROP_STAGGER_MS = 150;
-const CASCADE_SETTLE_MS = 80;
-const RESHUFFLE_ANIMATION_MS = 320;
+const DROP_STAGGER_MS = 150 * ANIM_SCALE;
+const CASCADE_SETTLE_MS = 80 * ANIM_SCALE;
+const RESHUFFLE_ANIMATION_MS = 320 * ANIM_SCALE;
+// Push the same multiplier into CSS so the keyframe durations scale in lockstep
+// with the JS pacing above (see styles.css: calc(<ms> * var(--anim-scale, 1))).
+document.documentElement.style.setProperty("--anim-scale", String(ANIM_SCALE));
+document.documentElement.style.setProperty("--clear-scale", String(CLEAR_SCALE));
 const VICTORY_REWARD = 40;
 // Idle hint: while the board waits for input, occasionally wobble the pair of
 // tiles for one available move, cycling through the moves one at a time. The
@@ -391,7 +405,13 @@ async function startRun({ guided = false } = {}) {
   }
   runRng = createSeededRng(seed);
   state = createInitialState({
-    diagonalAssist: true,
+    // Pure orthogonal match-3: diagonal matches AND diagonal swaps are both off.
+    // Classic feel — lines only form horizontally/vertically. Difficulty is offset
+    // by power-up tiles (rocket from a match-4, bomb from a match-5 / L-T) that
+    // help clear the board.
+    diagonalAssist: false,
+    diagonalSwaps: false,
+    specialTiles: true,
     rng: runRng,
   });
   resetInteractionState();
@@ -1609,6 +1629,7 @@ function hintTick() {
       state.board,
       state.diagonalAssist,
       getStateMatchResolver(state),
+      state.diagonalSwaps,
     );
     hintCursor = 0;
     if (hintMoves.length === 0) {
@@ -1684,18 +1705,29 @@ function renderBoard(stateLike) {
             ? ` --swap-dx:${swapVector.dx}; --swap-dy:${swapVector.dy};`
             : "";
 
+          const specialClass = tile.special ? ` tile--special tile--${tile.special}` : "";
+          const powerOverlay = tile.special
+            ? `<span class="tile-power tile-power--${tile.special}" data-dir="${tile.dir ?? ""}" aria-hidden="true"></span>`
+            : "";
+          const powerLabel = tile.special === "rocket"
+            ? " (rocket power-up)"
+            : tile.special === "bomb"
+              ? " (bomb power-up)"
+              : "";
+
           return `
             <button
               type="button"
-              class="tile ${isSelected ? "selected" : ""} ${isDragTarget ? "drag-target" : ""} ${animationClass} ${tier > 1 ? "evolved" : ""} ${isSettling ? "is-settling" : ""}"
+              class="tile ${isSelected ? "selected" : ""} ${isDragTarget ? "drag-target" : ""} ${animationClass} ${tier > 1 ? "evolved" : ""} ${isSettling ? "is-settling" : ""}${specialClass}"
               data-row="${rowIndex}"
               data-col="${colIndex}"
               ${tier > 1 ? `data-tier="T${tier}"` : ""}
               style="grid-row:${rowIndex + 1}; grid-column:${colIndex + 1}; --tile-accent:${color.hex}; --tile-delay:${rowIndex * 18 + colIndex * 8}ms; color:${color.hex};${swapStyle}"
-              aria-label="${color.label} tile"
+              aria-label="${color.label} tile${powerLabel}"
               aria-selected="${isSelected ? "true" : "false"}"
             >
               <img class="tile-art" src="${getBlockAsset(tile.color, stateLike)}" alt="" />
+              ${powerOverlay}
             </button>
           `;
         })
@@ -2506,7 +2538,7 @@ async function handleTapSelection(tile) {
     return;
   }
 
-  if (!areAdjacent(selectedTile, tile, state?.diagonalAssist)) {
+  if (!areAdjacent(selectedTile, tile, state?.diagonalSwaps)) {
     selectedTile = tile;
     render();
     return;
@@ -2557,7 +2589,7 @@ function handleBoardPointerMove(event) {
 
   const hoveredTile = getTileFromPoint(event.clientX, event.clientY);
   const previousKey = dragState.currentTile ? cellKey(dragState.currentTile.row, dragState.currentTile.col) : "";
-  if (hoveredTile && areAdjacent(dragState.originTile, hoveredTile, state?.diagonalAssist)) {
+  if (hoveredTile && areAdjacent(dragState.originTile, hoveredTile, state?.diagonalSwaps)) {
     dragState.currentTile = hoveredTile;
     dragState.moved = true;
   } else {
