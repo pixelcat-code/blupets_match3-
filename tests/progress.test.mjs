@@ -100,11 +100,15 @@ test("familyBadgeProgress reports a fully-unlocked family as unlocked === total"
     "T2_HEAT_EMBER",
     "T2_HEAT_RUBY",
     "T2_HEAT_BLOOD",
+  ]) {
+    badges[key] = BADGE_THRESHOLDS[2];
+  }
+  for (const key of [
     "T3_HEAT_CINDERFANG",
     "T3_HEAT_MAGMASPINE",
     "T3_HEAT_BLOODRUBY_REVENANT",
   ]) {
-    badges[key] = BADGE_THRESHOLDS[2];
+    badges[key] = BADGE_THRESHOLDS[3];
   }
   badges.T4_PYRONIX = BADGE_THRESHOLDS[4];
   const p = familyBadgeProgress({ badges }, "T4_PYRONIX");
