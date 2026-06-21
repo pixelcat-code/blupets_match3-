@@ -15,7 +15,7 @@ import {
   rerollBoard,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260621-gameplay-8";
+} from "./game.js?v=20260621-gameplay-9";
 import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260618-8";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
@@ -29,6 +29,9 @@ import {
   getCollectionEntries,
   getFamilyByApexKey,
   TOTAL_APEX_FORMS,
+  foldRunMerges,
+  unlockedBadgeCount,
+  TOTAL_BADGES,
 } from "./progress.js?v=20260618-6";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
@@ -794,6 +797,18 @@ function applyState(nextState) {
         .catch(() => {});
     }
   } else if (nextState?.gameOver) {
+    // Endless run ended (moves = 0). Fold this run's per-form merges into the
+    // lifetime badge store and capture the summary the end screen will render.
+    // Local only — no cloud submit in Phase 2a.
+    if (nextState.endlessRun) {
+      const fold = foldRunMerges(progress, nextState.runMergeCounts ?? {});
+      lastRunSummary = {
+        score: nextState.score,
+        newBadges: fold.newlyUnlocked,
+        unlockedTotal: fold.unlockedTotal,
+      };
+      updateProfileChip();
+    }
     setScreen("gameover");
   }
   render();
@@ -2048,13 +2063,43 @@ function renderModals(stateLike) {
   syncGameModalFocus("form");
 }
 
+// The run-summary captured when the last endless run ended, rendered by the
+// run-summary (gameover) screen. Null until a run ends this session.
+let lastRunSummary = null;
+
 function renderGameoverScreen(stateLike) {
   if (currentScreen !== "gameover" || !stateLike?.gameOver) {
     return;
   }
 
-  elements.gameoverDetail.textContent = `${getBestProgressSummary(stateLike)} Start a new run.`;
-  elements.gameoverScore.textContent = `${stateLike.score}`;
+  const summary = lastRunSummary ?? {
+    score: stateLike.score,
+    newBadges: [],
+    unlockedTotal: unlockedBadgeCount(progress),
+  };
+
+  elements.gameoverScore.textContent = `${summary.score}`;
+
+  const newCount = summary.newBadges.length;
+  const strip =
+    newCount === 0
+      ? `<span class="run-summary-empty">No new badges this run</span>`
+      : summary.newBadges
+          .slice(0, 12)
+          .map(
+            (badge) =>
+              `<span class="run-summary-badge" title="${escapeHtml(badge.name)}">` +
+              (badge.asset
+                ? `<img src="${escapeHtml(safeImgSrc(badge.asset))}" alt="" />`
+                : "") +
+              `</span>`,
+          )
+          .join("");
+
+  elements.gameoverDetail.innerHTML =
+    `<div class="run-summary-line">New badges: <strong>${newCount}</strong></div>` +
+    `<div class="run-summary-strip">${strip}</div>` +
+    `<div class="run-summary-line">Collection: <strong>${summary.unlockedTotal}/${TOTAL_BADGES}</strong></div>`;
 }
 
 // Discovered-forms count for the victory/share card. Prefers the cloud number
