@@ -2306,8 +2306,8 @@ function renderCollectionGrid() {
       const cells = fam.forms
         .map((f) => {
           const art = f.unlocked
-            ? `<img src="${escapeHtml(safeImgSrc(f.asset))}" alt="${escapeHtml(f.name)}" />`
-            : `<img class="collection-art-blurred" src="${escapeHtml(safeImgSrc(f.asset))}" alt="" aria-hidden="true" />` +
+            ? `<img src="${escapeHtml(f.asset)}" alt="${escapeHtml(f.name)}" />`
+            : `<img class="collection-art-blurred" src="${escapeHtml(f.asset)}" alt="" aria-hidden="true" />` +
               `<span class="badge-progress">${f.count}/${f.threshold}</span>`;
           const title = f.unlocked ? f.name : `${f.name} — ${f.count}/${f.threshold}`;
           return (
