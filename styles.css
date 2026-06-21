@@ -4520,49 +4520,51 @@ button,
   }
 }
 
-/* Badge gallery — 36 family sections, each a row of 9 badge cells (5 T2, 3 T3, 1 T4). */
+/* Badge gallery — 3 tier sections (T2=180, T3=108, T4=36). Within each tier the
+   cells flow left-to-right and wrap; each family is a tight cluster, clusters
+   separated by a wider gap so families stay visually grouped. */
 .badge-gallery {
   display: block;
   max-height: 60vh;
   overflow-y: auto;
   padding-right: 4px;
 }
-.badge-family-section {
-  margin: 0 0 12px;
+.badge-tier-section {
+  margin: 0 0 16px;
 }
-.badge-family-head {
+.badge-tier-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 6px;
-  font-size: 0.9rem;
+  margin: 0 0 8px;
+  font-size: 0.95rem;
 }
-.badge-family-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--fam, #888);
-  flex: 0 0 auto;
+.badge-tier-name {
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
-.badge-family-name {
-  font-weight: 600;
-}
-.badge-family-count {
+.badge-tier-count {
   margin-left: auto;
   opacity: 0.7;
   font-variant-numeric: tabular-nums;
 }
 .badge-row {
-  display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  gap: 5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.badge-cluster {
+  display: flex;
+  gap: 3px;
 }
 .badge-cell {
   position: relative;
+  width: clamp(26px, 8.5vw, 40px);
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--surface, rgba(255, 255, 255, 0.06));
   overflow: hidden;
+  flex: 0 0 auto;
 }
 .badge-cell .badge-art {
   width: 100%;
@@ -4579,7 +4581,8 @@ button,
 .badge-progress {
   position: absolute;
   inset: auto 0 0 0;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
+  line-height: 1.2;
   text-align: center;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
@@ -4593,8 +4596,11 @@ button,
   .badge-gallery {
     max-height: 48vh;
   }
+  .badge-cell {
+    width: 34px;
+  }
   .badge-row {
-    gap: 6px;
+    gap: 12px;
   }
 }
 

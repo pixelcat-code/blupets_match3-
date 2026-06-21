@@ -27,13 +27,13 @@ import {
   recordWin,
   discoveredCount,
   getCollectionEntries,
-  getBadgeGalleryByFamily,
+  getBadgeGalleryByTier,
   getFamilyByApexKey,
   TOTAL_APEX_FORMS,
   foldRunMerges,
   unlockedBadgeCount,
   TOTAL_BADGES,
-} from "./progress.js?v=20260621-8";
+} from "./progress.js?v=20260621-9";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -2297,36 +2297,37 @@ function renderStatsHeader() {
 }
 
 function renderCollectionGrid() {
-  const families = getBadgeGalleryByFamily(progress);
-  const sections = families
-    .map((fam) => {
-      const apexForm = fam.forms.find((f) => f.tier === 4);
-      const apexKey = apexForm?.key ?? "";
-      const apexUnlocked = apexForm?.unlocked ? "1" : "";
-      const cells = fam.forms
-        .map((f) => {
-          const art = f.unlocked
-            ? `<img src="${escapeHtml(f.asset)}" alt="${escapeHtml(f.name)}" />`
-            : `<img class="collection-art-blurred" src="${escapeHtml(f.asset)}" alt="" aria-hidden="true" />` +
-              `<span class="badge-progress">${f.count}/${f.threshold}</span>`;
-          const title = f.unlocked ? f.name : `${f.name} — ${f.count}/${f.threshold}`;
-          return (
-            `<div class="collection-card badge-cell badge-cell--t${f.tier} ${f.unlocked ? "is-owned" : "is-locked"}" ` +
-            `data-form-key="${escapeHtml(apexKey)}" data-discovered="${apexUnlocked}" ` +
-            `role="button" tabindex="0" title="${escapeHtml(title)}">` +
-            `<div class="collection-art badge-art">${art}</div>` +
-            `</div>`
-          );
+  const groups = getBadgeGalleryByTier(progress);
+  const sections = groups
+    .map((group) => {
+      const clusters = group.families
+        .map((fam) => {
+          const cells = fam.cells
+            .map((f) => {
+              const art = f.unlocked
+                ? `<img src="${escapeHtml(f.asset)}" alt="${escapeHtml(f.name)}" />`
+                : `<img class="collection-art-blurred" src="${escapeHtml(f.asset)}" alt="" aria-hidden="true" />` +
+                  `<span class="badge-progress">${f.count}/${f.threshold}</span>`;
+              const title = f.unlocked ? f.name : `${f.name} — ${f.count}/${f.threshold}`;
+              return (
+                `<div class="collection-card badge-cell badge-cell--t${f.tier} ${f.unlocked ? "is-owned" : "is-locked"}" ` +
+                `data-form-key="${escapeHtml(fam.apexKey)}" data-discovered="${fam.apexUnlocked ? "1" : ""}" ` +
+                `role="button" tabindex="0" title="${escapeHtml(title)}">` +
+                `<div class="collection-art badge-art">${art}</div>` +
+                `</div>`
+              );
+            })
+            .join("");
+          return `<div class="badge-cluster">${cells}</div>`;
         })
         .join("");
       return (
-        `<section class="badge-family-section">` +
-        `<header class="badge-family-head">` +
-        `<span class="badge-family-swatch" style="--fam:${escapeHtml(fam.color ?? "#888")}"></span>` +
-        `<span class="badge-family-name">${escapeHtml(fam.name)}</span>` +
-        `<span class="badge-family-count">${fam.collected}/${fam.total}</span>` +
+        `<section class="badge-tier-section badge-tier--t${group.tier}">` +
+        `<header class="badge-tier-head">` +
+        `<span class="badge-tier-name">${escapeHtml(group.label)}</span>` +
+        `<span class="badge-tier-count">${group.collected}/${group.total}</span>` +
         `</header>` +
-        `<div class="badge-row">${cells}</div>` +
+        `<div class="badge-row">${clusters}</div>` +
         `</section>`
       );
     })

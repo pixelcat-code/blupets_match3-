@@ -257,36 +257,47 @@ export function getCollectionEntries(progress) {
   return entries;
 }
 
-// Group every badge (T2-T4) by canon family for the profile gallery. Each family
-// yields its 9 forms in tier order (5 T2, 3 T3, 1 T4) with unlock state and the
-// per-badge progress (count / threshold) the locked cells display.
-export function getBadgeGalleryByFamily(progress) {
+// Group every badge (T2-T4) by tier for the profile gallery: three groups
+// (T2=180, T3=108, T4=36). Within each tier the badges stay clustered by canon
+// family (families iterate in canon order) so a family's forms render adjacent.
+// Each family cluster carries its apex (T4) key + unlock state so a tap on ANY
+// cell opens that family's evo-tree popup (which resolves by apex key only).
+export function getBadgeGalleryByTier(progress) {
   const badges = progress?.badges ?? {};
-  const families = [];
+  const groups = [2, 3, 4].map((tier) => ({
+    tier,
+    label: `T${tier}`,
+    collected: 0,
+    total: 0,
+    families: [],
+  }));
+  const byTier = new Map(groups.map((g) => [g.tier, g]));
   for (const family of BLUPETS_FAMILIES) {
-    const forms = [];
+    const apexForm = (family.forms?.[4] ?? [])[0];
+    const apexKey = apexForm?.key ?? apexForm?.name ?? "";
+    const apexUnlocked = isBadgeUnlocked(progress, apexKey);
     for (const tier of [2, 3, 4]) {
+      const group = byTier.get(tier);
+      const cells = [];
       for (const form of family.forms?.[tier] ?? []) {
         const key = form.key ?? form.name;
-        forms.push({
+        const unlocked = isBadgeUnlocked(progress, key);
+        cells.push({
           key,
           tier,
           name: form.name,
           asset: form.asset ?? null,
-          unlocked: isBadgeUnlocked(progress, key),
+          unlocked,
           count: badges[key] ?? 0,
           threshold: BADGE_THRESHOLDS[tier],
         });
+        group.total += 1;
+        if (unlocked) group.collected += 1;
+      }
+      if (cells.length) {
+        group.families.push({ familyId: family.id, apexKey, apexUnlocked, cells });
       }
     }
-    families.push({
-      familyId: family.id,
-      name: family.name,
-      color: family.color ?? null,
-      collected: forms.filter((f) => f.unlocked).length,
-      total: forms.length,
-      forms,
-    });
   }
-  return families;
+  return groups;
 }
