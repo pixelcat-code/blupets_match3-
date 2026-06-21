@@ -27,12 +27,13 @@ import {
   recordWin,
   discoveredCount,
   getCollectionEntries,
+  getBadgeGalleryByFamily,
   getFamilyByApexKey,
   TOTAL_APEX_FORMS,
   foldRunMerges,
   unlockedBadgeCount,
   TOTAL_BADGES,
-} from "./progress.js?v=20260621-7";
+} from "./progress.js?v=20260621-8";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -1107,8 +1108,7 @@ function updateProfileChip() {
     elements.profileChip.classList.toggle("is-signed-in", Boolean(authState.user));
   }
   if (elements.profileChipCount) {
-    const count = Object.keys(progress.forms || {}).length;
-    elements.profileChipCount.textContent = `${count}/36`;
+    elements.profileChipCount.textContent = `${unlockedBadgeCount(progress)}/${TOTAL_BADGES}`;
   }
 }
 
@@ -2292,31 +2292,46 @@ function renderStatsHeader() {
       ${stat("Runs", String(progress.runs ?? 0))}
       ${fewest != null ? stat("Fastest", `${fewest} mv`) : ""}
     </div>
-    ${renderCollectionProgress(discoveredCount(progress), TOTAL_APEX_FORMS)}
+    ${renderCollectionProgress(unlockedBadgeCount(progress), TOTAL_BADGES)}
   `;
 }
 
 function renderCollectionGrid() {
-  const entries = getCollectionEntries(progress);
-  const cards = entries
-    .map(
-      (entry) => `
-        <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
-          <div class="collection-art">
-            ${
-              entry.discovered
-                ? `<img src="${entry.asset}" alt="${escapeHtml(entry.name)}" />`
-                : `<img class="collection-art-blurred" src="${entry.asset}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
-            }
-          </div>
-          <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
-        </div>
-      `,
-    )
+  const families = getBadgeGalleryByFamily(progress);
+  const sections = families
+    .map((fam) => {
+      const apexForm = fam.forms.find((f) => f.tier === 4);
+      const apexKey = apexForm?.key ?? "";
+      const apexUnlocked = apexForm?.unlocked ? "1" : "";
+      const cells = fam.forms
+        .map((f) => {
+          const art = f.unlocked
+            ? `<img src="${escapeHtml(safeImgSrc(f.asset))}" alt="${escapeHtml(f.name)}" />`
+            : `<img class="collection-art-blurred" src="${escapeHtml(safeImgSrc(f.asset))}" alt="" aria-hidden="true" />` +
+              `<span class="badge-progress">${f.count}/${f.threshold}</span>`;
+          const title = f.unlocked ? f.name : `${f.name} — ${f.count}/${f.threshold}`;
+          return (
+            `<div class="collection-card badge-cell badge-cell--t${f.tier} ${f.unlocked ? "is-owned" : "is-locked"}" ` +
+            `data-form-key="${escapeHtml(apexKey)}" data-discovered="${apexUnlocked}" ` +
+            `role="button" tabindex="0" title="${escapeHtml(title)}">` +
+            `<div class="collection-art badge-art">${art}</div>` +
+            `</div>`
+          );
+        })
+        .join("");
+      return (
+        `<section class="badge-family-section">` +
+        `<header class="badge-family-head">` +
+        `<span class="badge-family-swatch" style="--fam:${escapeHtml(fam.color ?? "#888")}"></span>` +
+        `<span class="badge-family-name">${escapeHtml(fam.name)}</span>` +
+        `<span class="badge-family-count">${fam.collected}/${fam.total}</span>` +
+        `</header>` +
+        `<div class="badge-row">${cells}</div>` +
+        `</section>`
+      );
+    })
     .join("");
-  return `
-    <div class="collection-grid">${cards}</div>
-  `;
+  return `<div class="collection-grid badge-gallery">${sections}</div>`;
 }
 
 // ── Evolution-tree popup ──────────────────────────────────────────────────
