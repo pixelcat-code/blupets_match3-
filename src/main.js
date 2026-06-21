@@ -32,7 +32,7 @@ import {
   foldRunMerges,
   unlockedBadgeCount,
   TOTAL_BADGES,
-} from "./progress.js?v=20260618-6";
+} from "./progress.js?v=20260621-7";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
