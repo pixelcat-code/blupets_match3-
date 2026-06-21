@@ -548,8 +548,16 @@ function markGameOverIfNeeded(state) {
   return {
     ...state,
     gameOver: true,
-    status: "No moves left. Your strongest Blupet stalled before T4.",
+    status: state.endlessRun
+      ? "No moves left — run over."
+      : "No moves left. Your strongest Blupet stalled before T4.",
   };
+}
+
+// Test-only alias so the suite can exercise the (otherwise module-private)
+// end-of-run check directly.
+export function markGameOverIfNeededForTest(state) {
+  return markGameOverIfNeeded(state);
 }
 
 function decayOtherColors(colorMatchCounts, colorId, tier, decayResist = 0) {
@@ -1317,20 +1325,31 @@ export function selectEvolutionForm(state, colorId, tier, formKey, rng = Math.ra
   }
 
   if (tier === 4) {
-    const partnerColorId = nextState.evolutionFusions[colorId]?.partnerColorId ?? colorId;
-    const remainingMoveBonus = nextState.movesLeft * (nextState.vibe.remainingMoveScore ?? 0);
-    nextState = {
-      ...nextState,
-      victory: true,
-      score: nextState.score + remainingMoveBonus,
-      victoryMeta: {
-        colorId,
-        partnerColorId,
-        formKey: chosenForm?.key ?? null,
-        formName: chosenForm?.name ?? getCanonicalTierTitle(colorId, partnerColorId, 4, 0),
-      },
-      status: `${getColor(colorId).label} reached T4 as ${chosenForm?.name ?? "Apex Form"}.`,
-    };
+    if (nextState.endlessRun) {
+      // Soft-endless: T4 is a milestone, not the end. Lock the color at T4
+      // (the currentTier >= 4 guard keeps it out of the re-queue) and keep
+      // playing. No victory, and no leftover-moves bonus (the run always plays
+      // down to 0 moves, so it would be meaningless here).
+      nextState = {
+        ...nextState,
+        status: `${getColor(colorId).label} reached T4 as ${chosenForm?.name ?? "Apex Form"}.`,
+      };
+    } else {
+      const partnerColorId = nextState.evolutionFusions[colorId]?.partnerColorId ?? colorId;
+      const remainingMoveBonus = nextState.movesLeft * (nextState.vibe.remainingMoveScore ?? 0);
+      nextState = {
+        ...nextState,
+        victory: true,
+        score: nextState.score + remainingMoveBonus,
+        victoryMeta: {
+          colorId,
+          partnerColorId,
+          formKey: chosenForm?.key ?? null,
+          formName: chosenForm?.name ?? getCanonicalTierTitle(colorId, partnerColorId, 4, 0),
+        },
+        status: `${getColor(colorId).label} reached T4 as ${chosenForm?.name ?? "Apex Form"}.`,
+      };
+    }
   }
 
   nextState = removeFirstPending(nextState);

@@ -16,6 +16,7 @@ import {
   getTopPartnerOptions,
   hasPossibleMoves,
   HATCH_GOAL,
+  markGameOverIfNeededForTest,
   NEUTRAL_VIBE,
   REROLL_MAX_CHARGES,
   REROLL_START_CHARGES,
@@ -831,4 +832,28 @@ test("endlessRun flag defaults off and can be enabled", () => {
   assert.equal(off.endlessRun, false);
   const on = createInitialState({ rng: makeRng(101), vibe: NEUTRAL_VIBE, endlessRun: true });
   assert.equal(on.endlessRun, true);
+});
+
+test("endlessRun: reaching T4 does NOT set victory and locks the color at T4", () => {
+  const state = createInitialState({ rng: makeRng(9), vibe: NEUTRAL_VIBE, endlessRun: true });
+  state.evolutionTiers.red = 3;
+  state.evolutionFusions.red = { partnerColorId: "blue" };
+  state.colorMatchCounts.red = 18;
+  state.pendingEvolutionQueue = [{ colorId: "red", tier: 4, step: "form" }];
+
+  const selection = getEvolutionFormSelection(state, "red", 4);
+  const nextState = selectEvolutionForm(state, "red", 4, selection.options[0].key);
+
+  assert.equal(nextState.victory, false);
+  assert.equal(nextState.evolutionTiers.red, 4);
+  assert.match(nextState.status, /reached T4/);
+});
+
+test("endlessRun: run ends via gameOver when moves reach 0, not victory", () => {
+  const state = createInitialState({ rng: makeRng(9), vibe: NEUTRAL_VIBE, endlessRun: true });
+  state.movesLeft = 0;
+  const nextState = markGameOverIfNeededForTest(state);
+  assert.equal(nextState.gameOver, true);
+  assert.equal(nextState.victory, false);
+  assert.doesNotMatch(nextState.status, /T4/);
 });
