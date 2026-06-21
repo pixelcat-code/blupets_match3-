@@ -28,8 +28,91 @@ export const TOTAL_APEX_FORMS = (() => {
   return keys.size;
 })();
 
+// Per-tier match-group thresholds to unlock a badge. Lower tiers need more because
+// a color spends most of its life there. Tunable values, not architecture.
+export const BADGE_THRESHOLDS = { 2: 10, 3: 6, 4: 3 };
+
+// Every collectible form (T2-T4) flattened from the canon: the 324-badge catalog.
+export const BADGE_CATALOG = (() => {
+  const out = [];
+  for (const family of BLUPETS_FAMILIES) {
+    for (const tier of [2, 3, 4]) {
+      for (const form of family.forms?.[tier] ?? []) {
+        out.push({
+          key: form.key ?? form.name,
+          tier,
+          name: form.name,
+          asset: form.asset ?? null,
+          familyId: family.id,
+          color: family.color ?? null,
+        });
+      }
+    }
+  }
+  return out;
+})();
+
+// The "X / TOTAL_BADGES" denominator for the badge collection.
+export const TOTAL_BADGES = BADGE_CATALOG.length;
+
+const BADGE_BY_KEY = new Map(BADGE_CATALOG.map((badge) => [badge.key, badge]));
+
+export function badgeTierFor(formKey) {
+  return BADGE_BY_KEY.get(formKey)?.tier ?? null;
+}
+
+export function isBadgeUnlocked(progress, formKey) {
+  const tier = badgeTierFor(formKey);
+  if (!tier) {
+    return false;
+  }
+  return (progress?.badges?.[formKey] ?? 0) >= BADGE_THRESHOLDS[tier];
+}
+
+export function unlockedBadgeCount(progress) {
+  let count = 0;
+  for (const key in progress?.badges ?? {}) {
+    if (isBadgeUnlocked(progress, key)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+// Fold one run's per-form merge counts into the lifetime badge store. Returns the
+// badges that crossed their threshold *this fold* (for the run-summary highlight)
+// and the new lifetime unlocked total.
+export function foldRunMerges(progress, runMergeCounts) {
+  if (!progress.badges) {
+    progress.badges = {};
+  }
+  const newlyUnlocked = [];
+  for (const key in runMergeCounts ?? {}) {
+    const tier = badgeTierFor(key);
+    if (!tier) {
+      continue;
+    }
+    const before = progress.badges[key] ?? 0;
+    const wasUnlocked = before >= BADGE_THRESHOLDS[tier];
+    const after = before + runMergeCounts[key];
+    progress.badges[key] = after;
+    if (!wasUnlocked && after >= BADGE_THRESHOLDS[tier]) {
+      const meta = BADGE_BY_KEY.get(key);
+      newlyUnlocked.push({
+        key,
+        name: meta?.name ?? key,
+        asset: meta?.asset ?? null,
+        tier,
+        color: meta?.color ?? null,
+      });
+    }
+  }
+  save(progress);
+  return { newlyUnlocked, unlockedTotal: unlockedBadgeCount(progress) };
+}
+
 function emptyProgress() {
-  return { forms: {}, runs: 0, wins: 0, bestScore: 0, fewestMovesWin: null };
+  return { forms: {}, badges: {}, runs: 0, wins: 0, bestScore: 0, fewestMovesWin: null };
 }
 
 // Coerce a parsed (possibly corrupted/legacy) record into a clean shape.
@@ -42,6 +125,7 @@ function normalizeProgress(parsed) {
     ...emptyProgress(),
     ...parsed,
     forms: parsed.forms && typeof parsed.forms === "object" ? parsed.forms : {},
+    badges: parsed.badges && typeof parsed.badges === "object" ? parsed.badges : {},
     runs: num(parsed.runs),
     wins: num(parsed.wins),
     bestScore: num(parsed.bestScore),
