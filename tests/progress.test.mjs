@@ -7,6 +7,7 @@ import {
   isBadgeUnlocked,
   unlockedBadgeCount,
   foldRunMerges,
+  getBadgeGalleryByFamily,
 } from "../src/progress.js";
 
 test("TOTAL_BADGES counts every T2-T4 form in canon (324)", () => {
@@ -48,4 +49,35 @@ test("foldRunMerges accumulates across runs to complete a started badge", () => 
   const second = foldRunMerges(progress, { T3_HEAT_CINDERFANG: 2 });
   assert.equal(second.newlyUnlocked.length, 1);
   assert.equal(second.newlyUnlocked[0].key, "T3_HEAT_CINDERFANG");
+});
+
+test("getBadgeGalleryByFamily returns 36 families of 9 ordered badges", () => {
+  const gallery = getBadgeGalleryByFamily({ badges: {} });
+  assert.equal(gallery.length, 36);
+  for (const fam of gallery) {
+    assert.equal(fam.total, 9);
+    assert.equal(fam.forms.length, 9);
+    assert.deepEqual(
+      fam.forms.map((f) => f.tier),
+      [2, 2, 2, 2, 2, 3, 3, 3, 4],
+    );
+    assert.equal(fam.collected, 0);
+    for (const f of fam.forms) {
+      assert.equal(f.unlocked, false);
+      assert.equal(f.threshold, BADGE_THRESHOLDS[f.tier]);
+    }
+  }
+});
+
+test("getBadgeGalleryByFamily reflects unlocked badges and per-badge count", () => {
+  const progress = { badges: { T2_HEAT_FIRE: BADGE_THRESHOLDS[2], T3_HEAT_CINDERFANG: BADGE_THRESHOLDS[3] - 1 } };
+  const heat = getBadgeGalleryByFamily(progress).find((f) => f.familyId === "heat");
+  assert.ok(heat);
+  assert.equal(heat.collected, 1);
+  const fire = heat.forms.find((f) => f.key === "T2_HEAT_FIRE");
+  assert.equal(fire.unlocked, true);
+  assert.equal(fire.count, BADGE_THRESHOLDS[2]);
+  const cinder = heat.forms.find((f) => f.key === "T3_HEAT_CINDERFANG");
+  assert.equal(cinder.unlocked, false);
+  assert.equal(cinder.count, BADGE_THRESHOLDS[3] - 1);
 });

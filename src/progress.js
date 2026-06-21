@@ -256,3 +256,37 @@ export function getCollectionEntries(progress) {
   });
   return entries;
 }
+
+// Group every badge (T2-T4) by canon family for the profile gallery. Each family
+// yields its 9 forms in tier order (5 T2, 3 T3, 1 T4) with unlock state and the
+// per-badge progress (count / threshold) the locked cells display.
+export function getBadgeGalleryByFamily(progress) {
+  const badges = progress?.badges ?? {};
+  const families = [];
+  for (const family of BLUPETS_FAMILIES) {
+    const forms = [];
+    for (const tier of [2, 3, 4]) {
+      for (const form of family.forms?.[tier] ?? []) {
+        const key = form.key ?? form.name;
+        forms.push({
+          key,
+          tier,
+          name: form.name,
+          asset: form.asset ?? null,
+          unlocked: isBadgeUnlocked(progress, key),
+          count: badges[key] ?? 0,
+          threshold: BADGE_THRESHOLDS[tier],
+        });
+      }
+    }
+    families.push({
+      familyId: family.id,
+      name: family.name,
+      color: family.color ?? null,
+      collected: forms.filter((f) => f.unlocked).length,
+      total: forms.length,
+      forms,
+    });
+  }
+  return families;
+}
