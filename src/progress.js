@@ -257,47 +257,18 @@ export function getCollectionEntries(progress) {
   return entries;
 }
 
-// Group every badge (T2-T4) by tier for the profile gallery: three groups
-// (T2=180, T3=108, T4=36). Within each tier the badges stay clustered by canon
-// family (families iterate in canon order) so a family's forms render adjacent.
-// Each family cluster carries its apex (T4) key + unlock state so a tap on ANY
-// cell opens that family's evo-tree popup (which resolves by apex key only).
-export function getBadgeGalleryByTier(progress) {
-  const badges = progress?.badges ?? {};
-  const groups = [2, 3, 4].map((tier) => ({
-    tier,
-    label: `T${tier}`,
-    collected: 0,
-    total: 0,
-    families: [],
-  }));
-  const byTier = new Map(groups.map((g) => [g.tier, g]));
-  for (const family of BLUPETS_FAMILIES) {
-    const apexForm = (family.forms?.[4] ?? [])[0];
-    const apexKey = apexForm?.key ?? apexForm?.name ?? "";
-    const apexUnlocked = isBadgeUnlocked(progress, apexKey);
-    for (const tier of [2, 3, 4]) {
-      const group = byTier.get(tier);
-      const cells = [];
-      for (const form of family.forms?.[tier] ?? []) {
-        const key = form.key ?? form.name;
-        const unlocked = isBadgeUnlocked(progress, key);
-        cells.push({
-          key,
-          tier,
-          name: form.name,
-          asset: form.asset ?? null,
-          unlocked,
-          count: badges[key] ?? 0,
-          threshold: BADGE_THRESHOLDS[tier],
-        });
-        group.total += 1;
-        if (unlocked) group.collected += 1;
-      }
-      if (cells.length) {
-        group.families.push({ familyId: family.id, apexKey, apexUnlocked, cells });
-      }
-    }
+// Per-tile badge status for the evolution-tree popup. Given any form key (T2-T4),
+// report whether its badge is unlocked, the lifetime merge count toward it, and
+// the threshold. For a non-badge key (e.g. a T1 base color, or an unknown key)
+// `threshold` is null so the caller renders no progress label.
+export function badgeProgressFor(progress, formKey) {
+  const tier = badgeTierFor(formKey);
+  if (!tier) {
+    return { unlocked: false, count: 0, threshold: null };
   }
-  return groups;
+  return {
+    unlocked: isBadgeUnlocked(progress, formKey),
+    count: progress?.badges?.[formKey] ?? 0,
+    threshold: BADGE_THRESHOLDS[tier],
+  };
 }

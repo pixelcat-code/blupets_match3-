@@ -27,13 +27,13 @@ import {
   recordWin,
   discoveredCount,
   getCollectionEntries,
-  getBadgeGalleryByTier,
+  badgeProgressFor,
   getFamilyByApexKey,
   TOTAL_APEX_FORMS,
   foldRunMerges,
   unlockedBadgeCount,
   TOTAL_BADGES,
-} from "./progress.js?v=20260621-9";
+} from "./progress.js?v=20260621-10";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -2296,75 +2296,83 @@ function renderStatsHeader() {
   `;
 }
 
+// Compact 36-card apex gallery for the own profile. One card per family apex
+// (T4); tapping a card opens that family's evolution tree, where the individual
+// T2-T4 badge tiles unlock as they're collected. The denominator/counter on the
+// stats header stays X/324 (badges) — these cards just gate the trees.
 function renderCollectionGrid() {
-  const groups = getBadgeGalleryByTier(progress);
-  const sections = groups
-    .map((group) => {
-      const clusters = group.families
-        .map((fam) => {
-          const cells = fam.cells
-            .map((f) => {
-              const art = f.unlocked
-                ? `<img src="${escapeHtml(f.asset)}" alt="${escapeHtml(f.name)}" />`
-                : `<img class="collection-art-blurred" src="${escapeHtml(f.asset)}" alt="" aria-hidden="true" />` +
-                  `<span class="badge-progress">${f.count}/${f.threshold}</span>`;
-              const title = f.unlocked ? f.name : `${f.name} — ${f.count}/${f.threshold}`;
-              return (
-                `<div class="collection-card badge-cell badge-cell--t${f.tier} ${f.unlocked ? "is-owned" : "is-locked"}" ` +
-                `data-form-key="${escapeHtml(fam.apexKey)}" data-discovered="${fam.apexUnlocked ? "1" : ""}" ` +
-                `role="button" tabindex="0" title="${escapeHtml(title)}">` +
-                `<div class="collection-art badge-art">${art}</div>` +
-                `</div>`
-              );
-            })
-            .join("");
-          return `<div class="badge-cluster">${cells}</div>`;
-        })
-        .join("");
-      return (
-        `<section class="badge-tier-section badge-tier--t${group.tier}">` +
-        `<header class="badge-tier-head">` +
-        `<span class="badge-tier-name">${escapeHtml(group.label)}</span>` +
-        `<span class="badge-tier-count">${group.collected}/${group.total}</span>` +
-        `</header>` +
-        `<div class="badge-row">${clusters}</div>` +
-        `</section>`
-      );
-    })
+  const entries = getCollectionEntries(progress);
+  const cards = entries
+    .map(
+      (entry) => `
+      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
+        <div class="collection-art">
+          ${
+            entry.discovered
+              ? `<img src="${escapeHtml(entry.asset)}" alt="${escapeHtml(entry.name)}" />`
+              : `<img class="collection-art-blurred" src="${escapeHtml(entry.asset)}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
+          }
+        </div>
+        <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
+      </div>
+    `,
+    )
     .join("");
-  return `<div class="collection-grid badge-gallery">${sections}</div>`;
+  return `<div class="collection-grid">${cards}</div>`;
 }
 
 // ── Evolution-tree popup ──────────────────────────────────────────────────
 // Tapping a form card (own or public profile) opens its full canon evolution
-// line: T1 base color pair → T2 (5) → T3 (3) → T4 apex. A locked apex is shown
-// as a blurred silhouette so the gallery's reveal isn't spoiled, while the
-// intermediate tiers stay visible as a hint of where the form grows from.
+// line: T1 base color pair → T2 (5) → T3 (3) → T4 apex. Each of the 9 badge
+// tiles (5 T2, 3 T3, 1 T4) "opens up" as it's collected: unlocked tiles show
+// their full art, locked tiles show a blurred silhouette plus the lifetime
+// merge progress (count/threshold) toward unlocking. The T1 base pair carries
+// no badge, so it always renders in full as the line's origin.
 const EVO_COLOR_BY_ID = Object.fromEntries(COLORS.map((c) => [c.id, c]));
 
-function evoNode({ tier, asset, name, locked = false, blockColor = null }) {
-  const art = locked
-    ? `<img class="collection-art-blurred" src="${asset}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
-    : `<img src="${asset}" alt="${escapeHtml(name)}" />`;
+// `badge` is null for non-badge nodes (T1 base colors) and for the public
+// profile (another player's badge counts aren't available client-side — badges
+// are local-only). With a badge, a locked tile shows blurred art + a
+// count/threshold pill. Without one, `locked` falls back to the explicit flag
+// and a locked tile shows the classic lock icon (used for the public apex).
+function evoNode({ tier, asset, name, locked = false, badge = null, blockColor = null }) {
+  const isLocked = badge ? !badge.unlocked : locked;
+  const progressLabel =
+    isLocked && badge && badge.threshold != null
+      ? `<span class="badge-progress">${badge.count}/${badge.threshold}</span>`
+      : "";
+  const lockIcon = isLocked && !progressLabel
+    ? `<span class="collection-lock" aria-hidden="true">🔒</span>`
+    : "";
+  const art = isLocked
+    ? `<img class="collection-art-blurred" src="${escapeHtml(asset)}" alt="" aria-hidden="true" />${progressLabel}${lockIcon}`
+    : `<img src="${escapeHtml(asset)}" alt="${escapeHtml(name)}" />`;
   return `
-    <div class="evo-node${locked ? " is-locked" : ""}${blockColor ? " evo-node--base" : ""}">
+    <div class="evo-node${isLocked ? " is-locked" : ""}${blockColor ? " evo-node--base" : ""}">
       <span class="evo-tier-tag">${tier}</span>
       <div class="evo-node-art"${blockColor ? ` style="--evo-base:${escapeHtml(blockColor)}"` : ""}>${art}</div>
-      <span class="evo-node-name">${locked ? "???" : escapeHtml(name)}</span>
+      <span class="evo-node-name">${isLocked ? "???" : escapeHtml(name)}</span>
     </div>`;
 }
 
-function buildEvoTree(family, apexDiscovered) {
+// `ownBadges` is true only for the signed-in player's own profile: then the 9
+// badge tiles reflect this player's lifetime merge progress. For the public
+// profile it's false — tiles render full as a reference line and only the apex
+// is gated, by whether that player discovered it.
+function buildEvoTree(family, apexDiscovered, ownBadges = false) {
   const apex = (family.forms?.[4] ?? [])[0];
   const t3 = family.forms?.[3] ?? [];
   const t2 = family.forms?.[2] ?? [];
   const pair = family.pair ?? [];
 
+  const badgeFor = (form) =>
+    ownBadges ? badgeProgressFor(progress, form.key ?? form.name) : null;
+
   const apexHtml = apex
-    ? evoNode({ tier: "T4", asset: apex.asset, name: apex.name, locked: !apexDiscovered })
+    ? evoNode({ tier: "T4", asset: apex.asset, name: apex.name, locked: !apexDiscovered, badge: badgeFor(apex) })
     : "";
-  const t3Html = t3.map((f) => evoNode({ tier: "T3", asset: f.asset, name: f.name })).join("");
-  const t2Html = t2.map((f) => evoNode({ tier: "T2", asset: f.asset, name: f.name })).join("");
+  const t3Html = t3.map((f) => evoNode({ tier: "T3", asset: f.asset, name: f.name, badge: badgeFor(f) })).join("");
+  const t2Html = t2.map((f) => evoNode({ tier: "T2", asset: f.asset, name: f.name, badge: badgeFor(f) })).join("");
   const t1Html = pair
     .map((colorId) => {
       const c = EVO_COLOR_BY_ID[colorId];
@@ -2392,10 +2400,10 @@ function buildEvoTree(family, apexDiscovered) {
 }
 
 let _evoKeyHandler = null;
-function openEvoTree(apexKey, discovered) {
+function openEvoTree(apexKey, discovered, ownBadges = false) {
   const family = getFamilyByApexKey(apexKey);
   if (!family || !elements.evoTreeModal || !elements.evoTreeContent) return;
-  elements.evoTreeContent.innerHTML = buildEvoTree(family, discovered);
+  elements.evoTreeContent.innerHTML = buildEvoTree(family, discovered, ownBadges);
   elements.evoTreeModal.hidden = false;
   elements.evoTreeModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
@@ -2428,7 +2436,10 @@ function handleCollectionActivate(event) {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
   }
-  openEvoTree(card.dataset.formKey, card.dataset.discovered === "1");
+  // Own profile shows this player's badge progress in the tree; the public
+  // profile (other listener target) must not — badges are local-only.
+  const ownBadges = event.currentTarget === elements.profileContent;
+  openEvoTree(card.dataset.formKey, card.dataset.discovered === "1", ownBadges);
 }
 
 function render() {
