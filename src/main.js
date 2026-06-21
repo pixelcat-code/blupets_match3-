@@ -15,7 +15,7 @@ import {
   rerollBoard,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260621-gameplay-7";
+} from "./game.js?v=20260621-gameplay-8";
 import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260618-8";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
@@ -412,6 +412,8 @@ async function startRun({ guided = false } = {}) {
     diagonalAssist: false,
     diagonalSwaps: false,
     specialTiles: true,
+    // Soft-endless: reaching T4 is a milestone, the run continues until moves run out.
+    endlessRun: true,
     rng: runRng,
   });
   resetInteractionState();
