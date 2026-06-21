@@ -743,6 +743,45 @@ export function getChosenEvolutionForm(state, colorId, tier = state.evolutionTie
   return selection.options.find((form) => form.key === selectedKey) ?? null;
 }
 
+// The form key whose badge a match of `colorId` currently earns: the player's
+// chosen form at this tier, or the single auto-selected fallback form when the
+// tier has no real choice. Null below T2 (base blocks have no badge).
+export function activeBadgeFormKey(state, colorId) {
+  const tier = state.evolutionTiers[colorId] ?? 1;
+  if (tier < 2) {
+    return null;
+  }
+  const chosen = state.evolutionChoices[colorId]?.[tier];
+  if (chosen) {
+    return chosen;
+  }
+  const selection = getEvolutionFormSelection(state, colorId, tier);
+  return selection.autoSelectFallback ? selection.options[0]?.key ?? null : null;
+}
+
+// Count badge merges from a resolution's cascade steps: +1 per match-group whose
+// color is at T2+ and has an active form. Pure — used by applyCascadeProgress and
+// directly unit-tested.
+export function countMergeGroups(state, cascadeSteps) {
+  const counts = {};
+  for (const step of cascadeSteps) {
+    for (const group of step.groups) {
+      const first = group[0];
+      const tile = step.boardBeforeClear?.[first.row]?.[first.col];
+      const color = tile?.color;
+      if (!color) {
+        continue;
+      }
+      const formKey = activeBadgeFormKey(state, color);
+      if (!formKey) {
+        continue;
+      }
+      counts[formKey] = (counts[formKey] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
 function getTileMatchKey(state, tile) {
   if (!tile) {
     return null;
@@ -1056,11 +1095,20 @@ function applyCascadeProgress(state, cascadeSteps) {
     }
   }
 
+  let runMergeCounts = { ...(state.runMergeCounts ?? {}) };
+  if (state.endlessRun) {
+    const delta = countMergeGroups(state, cascadeSteps);
+    for (const key in delta) {
+      runMergeCounts[key] = (runMergeCounts[key] ?? 0) + delta[key];
+    }
+  }
+
   return {
     ...state,
     colorMatchCounts,
     colorThresholdOrder,
     colorThresholdSeq: thresholdSeq,
+    runMergeCounts,
   };
 }
 
@@ -1190,6 +1238,7 @@ export function createInitialState(options = {}) {
     diagonalSwaps,
     specialTiles,
     endlessRun,
+    runMergeCounts: {},
     victory: false,
     victoryMeta: null,
     gameOver: false,

@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  activeBadgeFormKey,
   attemptSwap,
   boardFromColorIds,
   createBoard,
   createInitialState,
+  countMergeGroups,
   EVOLUTION_SCORE_BONUS,
   findMatches,
   findPossibleMoves,
@@ -856,4 +858,41 @@ test("endlessRun: run ends via gameOver when moves reach 0, not victory", () => 
   assert.equal(nextState.gameOver, true);
   assert.equal(nextState.victory, false);
   assert.doesNotMatch(nextState.status, /T4/);
+});
+
+test("activeBadgeFormKey returns the chosen form key for a tier-2 color, null below T2", () => {
+  const state = createInitialState({ rng: makeRng(1) });
+  state.evolutionTiers.red = 2;
+  state.evolutionChoices.red = { 2: "T2_HEAT_FIRE", 3: null, 4: null };
+  assert.equal(activeBadgeFormKey(state, "red"), "T2_HEAT_FIRE");
+
+  state.evolutionTiers.red = 1;
+  assert.equal(activeBadgeFormKey(state, "red"), null);
+});
+
+test("countMergeGroups counts one per match-group of an active-form color", () => {
+  const state = createInitialState({ rng: makeRng(1) });
+  state.evolutionTiers.red = 2;
+  state.evolutionChoices.red = { 2: "T2_HEAT_FIRE", 3: null, 4: null };
+  // Two red match-groups in one cascade step; a T1 (green) group earns nothing.
+  const cascadeSteps = [
+    {
+      groups: [
+        [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }],
+        [{ row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 }, { row: 1, col: 3 }],
+        [{ row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 }],
+      ],
+      boardBeforeClear: [
+        [{ color: "red" }, { color: "red" }, { color: "red" }, { color: "red" }],
+        [{ color: "red" }, { color: "red" }, { color: "red" }, { color: "red" }],
+        [{ color: "green" }, { color: "green" }, { color: "green" }, { color: "green" }],
+      ],
+    },
+  ];
+  assert.deepEqual(countMergeGroups(state, cascadeSteps), { T2_HEAT_FIRE: 2 });
+});
+
+test("createInitialState seeds an empty runMergeCounts", () => {
+  const state = createInitialState({ rng: makeRng(1) });
+  assert.deepEqual(state.runMergeCounts, {});
 });
