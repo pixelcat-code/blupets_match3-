@@ -1,144 +1,145 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  TOTAL_BADGES,
-  BADGE_THRESHOLDS,
-  badgeTierFor,
-  isBadgeUnlocked,
-  unlockedBadgeCount,
-  foldRunMerges,
-  badgeProgressFor,
-  familyBadgeProgress,
-  collectFamilyBadges,
+  TOTAL_FAMILIES,
+  TOTAL_APEX_FORMS,
+  MILESTONE_BADGES,
+  MENAGERIE_MILESTONES,
+  foldRun,
+  familyBadgeLevel,
+  goldFamilyCount,
+  getMilestoneBadges,
 } from "../src/progress.js";
+import { BLUPETS_FAMILIES } from "../src/blupets-canon-data.js";
 
-test("TOTAL_BADGES counts every T2-T4 form in canon (324)", () => {
-  assert.equal(TOTAL_BADGES, 324);
-});
-
-test("badgeTierFor resolves a form key to its tier", () => {
-  assert.equal(badgeTierFor("T2_HEAT_FIRE"), 2);
-  assert.equal(badgeTierFor("T4_PYRONIX"), 4);
-  assert.equal(badgeTierFor("NOPE"), null);
-});
-
-test("foldRunMerges below threshold does not unlock", () => {
-  const progress = { badges: {} };
-  const result = foldRunMerges(progress, { T2_HEAT_FIRE: BADGE_THRESHOLDS[2] - 1 });
-  assert.equal(result.newlyUnlocked.length, 0);
-  assert.equal(result.unlockedTotal, 0);
-  assert.equal(isBadgeUnlocked(progress, "T2_HEAT_FIRE"), false);
-});
-
-test("foldRunMerges at threshold unlocks and reports the badge once", () => {
-  const progress = { badges: {} };
-  const result = foldRunMerges(progress, { T2_HEAT_FIRE: BADGE_THRESHOLDS[2] });
-  assert.equal(result.newlyUnlocked.length, 1);
-  assert.equal(result.newlyUnlocked[0].key, "T2_HEAT_FIRE");
-  assert.equal(result.unlockedTotal, 1);
-  assert.equal(isBadgeUnlocked(progress, "T2_HEAT_FIRE"), true);
-
-  // A second fold on an already-unlocked badge does not re-report it.
-  const again = foldRunMerges(progress, { T2_HEAT_FIRE: 5 });
-  assert.equal(again.newlyUnlocked.length, 0);
-  assert.equal(again.unlockedTotal, 1);
-});
-
-test("foldRunMerges accumulates across runs to complete a started badge", () => {
-  const progress = { badges: {} };
-  const first = foldRunMerges(progress, { T3_HEAT_CINDERFANG: BADGE_THRESHOLDS[3] - 2 });
-  assert.equal(first.newlyUnlocked.length, 0);
-  const second = foldRunMerges(progress, { T3_HEAT_CINDERFANG: 2 });
-  assert.equal(second.newlyUnlocked.length, 1);
-  assert.equal(second.newlyUnlocked[0].key, "T3_HEAT_CINDERFANG");
-});
-
-test("badgeProgressFor reports unlocked status at threshold", () => {
-  const progress = { badges: { T2_HEAT_FIRE: BADGE_THRESHOLDS[2] } };
-  const p = badgeProgressFor(progress, "T2_HEAT_FIRE");
-  assert.equal(p.unlocked, true);
-  assert.equal(p.count, BADGE_THRESHOLDS[2]);
-  assert.equal(p.threshold, BADGE_THRESHOLDS[2]);
-});
-
-test("badgeProgressFor reports count below threshold as still locked", () => {
-  const progress = { badges: { T3_HEAT_CINDERFANG: BADGE_THRESHOLDS[3] - 1 } };
-  const p = badgeProgressFor(progress, "T3_HEAT_CINDERFANG");
-  assert.equal(p.unlocked, false);
-  assert.equal(p.count, BADGE_THRESHOLDS[3] - 1);
-  assert.equal(p.threshold, BADGE_THRESHOLDS[3]);
-});
-
-test("badgeProgressFor returns null threshold for a non-badge key", () => {
-  // A T1 family/base key and an unknown key are not in the badge catalog.
-  for (const key of ["HEAT", "NOPE"]) {
-    const p = badgeProgressFor({ badges: {} }, key);
-    assert.equal(p.threshold, null);
-    assert.equal(p.unlocked, false);
-    assert.equal(p.count, 0);
-  }
-});
-
-test("familyBadgeProgress counts unlocked tiles out of nine for a family", () => {
-  // HEAT: 5 T2 + 3 T3 + 1 T4 = 9 tiles. Unlock 2 T2 and 1 T3 → 3/9.
-  const progress = {
-    badges: {
-      T2_HEAT_FIRE: BADGE_THRESHOLDS[2],
-      T2_HEAT_LAVA: BADGE_THRESHOLDS[2],
-      T3_HEAT_CINDERFANG: BADGE_THRESHOLDS[3],
-    },
+// A fresh progress record as produced by loadProgress() for a new player.
+function freshProgress() {
+  return {
+    forms: {},
+    evoBadges: {},
+    milestones: { counters: { lifetimeScore: 0, runs: 0, bombsTotal: 0 }, unlocked: {} },
+    runs: 0,
+    wins: 0,
+    bestScore: 0,
+    fewestMovesWin: null,
   };
-  const p = familyBadgeProgress(progress, "T4_PYRONIX");
-  assert.equal(p.total, 9);
-  assert.equal(p.unlocked, 3);
+}
+
+// Minimal run context. Override fields per test.
+function runCtx(over = {}) {
+  return { score: 0, reachedForms: [], maxCombo: 1, specials: { cross: 0, bomb: 0 }, ...over };
+}
+
+test("canon shape: 36 families, 36 apex forms", () => {
+  assert.equal(TOTAL_FAMILIES, 36);
+  assert.equal(TOTAL_APEX_FORMS, 36);
 });
 
-test("familyBadgeProgress reports a fully-unlocked family as unlocked === total", () => {
-  const badges = {};
-  for (const key of [
-    "T2_HEAT_FIRE",
-    "T2_HEAT_LAVA",
-    "T2_HEAT_EMBER",
-    "T2_HEAT_RUBY",
-    "T2_HEAT_BLOOD",
-  ]) {
-    badges[key] = BADGE_THRESHOLDS[2];
+test("evolution badge records the deepest tier reached per family", () => {
+  const p = freshProgress();
+  // Reach T3 in HEAT (apex T4_PYRONIX). T3 form key carries the family.
+  foldRun(p, runCtx({ reachedForms: [{ key: "T3_HEAT_CINDERFANG", tier: 3 }] }));
+  assert.equal(familyBadgeLevel(p, "T4_PYRONIX"), 3); // silver
+
+  // A later run that only reaches T2 must NOT lower the recorded level.
+  foldRun(p, runCtx({ reachedForms: [{ key: "T2_HEAT_FIRE", tier: 2 }] }));
+  assert.equal(familyBadgeLevel(p, "T4_PYRONIX"), 3);
+
+  // Reaching T4 raises it to gold.
+  foldRun(p, runCtx({ reachedForms: [{ key: "T4_PYRONIX", tier: 4 }] }));
+  assert.equal(familyBadgeLevel(p, "T4_PYRONIX"), 4);
+});
+
+test("a leveling family is reported as a new badge once", () => {
+  const p = freshProgress();
+  const first = foldRun(p, runCtx({ reachedForms: [{ key: "T2_HEAT_FIRE", tier: 2 }] }));
+  assert.equal(first.newBadges.filter((b) => b.kind === "evolution").length, 1);
+
+  // Same level again → not re-reported.
+  const again = foldRun(p, runCtx({ reachedForms: [{ key: "T2_HEAT_FIRE", tier: 2 }] }));
+  assert.equal(again.newBadges.filter((b) => b.kind === "evolution").length, 0);
+});
+
+test("familyBadgeLevel is 0 for an untouched / unknown family", () => {
+  const p = freshProgress();
+  assert.equal(familyBadgeLevel(p, "T4_PYRONIX"), 0);
+  assert.equal(familyBadgeLevel(p, "NOPE"), 0);
+});
+
+test("goldFamilyCount counts T4 families; menagerie unlocks at 9/18/27/36", () => {
+  const p = freshProgress();
+  const apexKeysInOrder = BLUPETS_FAMILIES.map((f) => f.forms["4"][0].key);
+
+  // Drive the first 8 families to gold — menagerie 9 not yet unlocked.
+  for (let i = 0; i < 8; i++) {
+    foldRun(p, runCtx({ reachedForms: [{ key: apexKeysInOrder[i], tier: 4 }] }));
   }
-  for (const key of [
-    "T3_HEAT_CINDERFANG",
-    "T3_HEAT_MAGMASPINE",
-    "T3_HEAT_BLOODRUBY_REVENANT",
-  ]) {
-    badges[key] = BADGE_THRESHOLDS[3];
-  }
-  badges.T4_PYRONIX = BADGE_THRESHOLDS[4];
-  const p = familyBadgeProgress({ badges }, "T4_PYRONIX");
-  assert.equal(p.total, 9);
-  assert.equal(p.unlocked, p.total);
+  assert.equal(goldFamilyCount(p), 8);
+  assert.equal(p.milestones.unlocked.menagerie_9, undefined);
+
+  // The 9th gold unlocks menagerie_9 and reports it new this run.
+  const r = foldRun(p, runCtx({ reachedForms: [{ key: apexKeysInOrder[8], tier: 4 }] }));
+  assert.equal(goldFamilyCount(p), 9);
+  assert.equal(p.milestones.unlocked.menagerie_9, true);
+  assert.ok(r.newBadges.some((b) => b.kind === "menagerie" && b.id === "menagerie_9"));
 });
 
-test("familyBadgeProgress returns zeroes for an unknown apex key", () => {
-  const p = familyBadgeProgress({ badges: {} }, "NOPE");
-  assert.deepEqual(p, { unlocked: 0, total: 0 });
+test("run-score milestone unlocks at its threshold and reports new once", () => {
+  const p = freshProgress();
+  const r1 = foldRun(p, runCtx({ score: 5000 }));
+  assert.equal(p.milestones.unlocked.score_5k, true);
+  assert.ok(r1.newBadges.some((b) => b.id === "score_5k"));
+  // 10k not reached yet.
+  assert.equal(p.milestones.unlocked.score_10k, undefined);
+
+  // Re-crossing 5k in a later run does not re-report it.
+  const r2 = foldRun(p, runCtx({ score: 6000 }));
+  assert.equal(r2.newBadges.some((b) => b.id === "score_5k"), false);
 });
 
-test("collectFamilyBadges has one entry per apex family, all zero when empty", () => {
-  const snap = collectFamilyBadges({ badges: {} });
-  // 36 apex families in canon, each keyed by its T4 form key.
-  assert.equal(Object.keys(snap).length, 36);
-  assert.ok(Object.prototype.hasOwnProperty.call(snap, "T4_PYRONIX"));
-  assert.ok(Object.values(snap).every((v) => v === 0));
+test("combo and specials milestones use per-run signals", () => {
+  const p = freshProgress();
+  const r = foldRun(p, runCtx({ maxCombo: 4, specials: { cross: 1, bomb: 1 } }));
+  assert.equal(p.milestones.unlocked.combo_2, true);
+  assert.equal(p.milestones.unlocked.combo_3, true);
+  assert.equal(p.milestones.unlocked.combo_4, true);
+  assert.equal(p.milestones.unlocked.first_cross, true);
+  assert.equal(p.milestones.unlocked.first_bomb, true);
+  assert.equal(p.milestones.unlocked.bombs_25, undefined); // bombsTotal is 1
+  assert.ok(r.newBadges.some((b) => b.id === "first_cross"));
 });
 
-test("collectFamilyBadges count matches familyBadgeProgress unlocked", () => {
-  const progress = {
-    badges: {
-      T2_HEAT_FIRE: BADGE_THRESHOLDS[2],
-      T2_HEAT_LAVA: BADGE_THRESHOLDS[2],
-      T3_HEAT_CINDERFANG: BADGE_THRESHOLDS[3],
-    },
-  };
-  const snap = collectFamilyBadges(progress);
-  assert.equal(snap.T4_PYRONIX, familyBadgeProgress(progress, "T4_PYRONIX").unlocked);
-  assert.equal(snap.T4_PYRONIX, 3);
+test("lifetime counters accumulate across folds (runs, bombs, lifetimeScore)", () => {
+  const p = freshProgress();
+  foldRun(p, runCtx({ score: 1000, specials: { cross: 0, bomb: 3 } }));
+  foldRun(p, runCtx({ score: 2000, specials: { cross: 0, bomb: 2 } }));
+  assert.equal(p.milestones.counters.runs, 2);
+  assert.equal(p.milestones.counters.bombsTotal, 5);
+  assert.equal(p.milestones.counters.lifetimeScore, 3000);
+});
+
+test("25-bomb milestone unlocks once lifetime bombs cross 25", () => {
+  const p = freshProgress();
+  foldRun(p, runCtx({ specials: { cross: 0, bomb: 20 } }));
+  assert.equal(p.milestones.unlocked.bombs_25, undefined);
+  const r = foldRun(p, runCtx({ specials: { cross: 0, bomb: 6 } }));
+  assert.equal(p.milestones.unlocked.bombs_25, true);
+  assert.ok(r.newBadges.some((b) => b.id === "bombs_25"));
+});
+
+test("getMilestoneBadges reflects unlocked state and gives counter hints", () => {
+  const p = freshProgress();
+  foldRun(p, runCtx({ score: 0 })); // runs = 1
+  const list = getMilestoneBadges(p);
+  const runs10 = list.find((b) => b.id === "runs_10");
+  assert.equal(runs10.unlocked, false);
+  assert.equal(runs10.hint, "1/10");
+  const score50k = list.find((b) => b.id === "score_50k");
+  assert.equal(score50k.hint, null); // per-run best is not stored → no hint
+  assert.equal(list.length, MILESTONE_BADGES.length + MENAGERIE_MILESTONES.length);
+});
+
+test("MILESTONE_BADGES catalog covers all four categories", () => {
+  const cats = new Set(MILESTONE_BADGES.map((m) => m.category));
+  assert.ok(["score", "combo", "special", "endurance"].every((c) => cats.has(c)));
 });

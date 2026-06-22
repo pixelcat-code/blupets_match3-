@@ -28,91 +28,184 @@ export const TOTAL_APEX_FORMS = (() => {
   return keys.size;
 })();
 
-// Per-tier match-group thresholds to unlock a badge. Lower tiers need more because
-// a color spends most of its life there. Tunable values, not architecture.
-export const BADGE_THRESHOLDS = { 2: 10, 3: 6, 4: 3 };
+// ── Badges v2 ────────────────────────────────────────────────────────────────
+// Two buckets. (1) Evolution: per-family deepest-tier-ever badge (bronze/silver/
+// gold). (2) Milestones: discrete achievements from a data-driven catalog. Both
+// are local-only; folded once at run end by foldRun().
 
-// Every collectible form (T2-T4) flattened from the canon: the 324-badge catalog.
-export const BADGE_CATALOG = (() => {
-  const out = [];
+export const TOTAL_FAMILIES = BLUPETS_FAMILIES.length;
+
+// formKey (T2-T4) -> { familyId, tier }. Used to map a run's reached form keys
+// back onto their family + tier when folding evolution badges.
+const FORM_KEY_INDEX = (() => {
+  const map = new Map();
   for (const family of BLUPETS_FAMILIES) {
     for (const tier of [2, 3, 4]) {
       for (const form of family.forms?.[tier] ?? []) {
-        out.push({
-          key: form.key ?? form.name,
-          tier,
-          name: form.name,
-          asset: form.asset ?? null,
-          familyId: family.id,
-          color: family.color ?? null,
-        });
+        map.set(form.key ?? form.name, { familyId: family.id, tier });
       }
     }
   }
-  return out;
+  return map;
 })();
 
-// The "X / TOTAL_BADGES" denominator for the badge collection.
-export const TOTAL_BADGES = BADGE_CATALOG.length;
+const FAMILY_BY_ID = new Map(BLUPETS_FAMILIES.map((f) => [f.id, f]));
 
-const BADGE_BY_KEY = new Map(BADGE_CATALOG.map((badge) => [badge.key, badge]));
+const TIER_LABEL = { 2: "Bronze", 3: "Silver", 4: "Gold" };
 
-export function badgeTierFor(formKey) {
-  return BADGE_BY_KEY.get(formKey)?.tier ?? null;
+// Build the "new badge" payload for a family that just leveled up.
+function evolutionBadge(familyId, tier) {
+  const family = FAMILY_BY_ID.get(familyId);
+  const apex = family?.forms?.[4]?.[0] ?? null;
+  return {
+    id: `evo_${familyId}_${tier}`,
+    name: `${family?.name ?? familyId} — ${TIER_LABEL[tier] ?? "T" + tier}`,
+    kind: "evolution",
+    asset: apex?.asset ?? null,
+  };
 }
 
-export function isBadgeUnlocked(progress, formKey) {
-  const tier = badgeTierFor(formKey);
-  if (!tier) {
-    return false;
-  }
-  return (progress?.badges?.[formKey] ?? 0) >= BADGE_THRESHOLDS[tier];
+// Number of families recorded at gold (T4). Drives the menagerie milestones and
+// the profile chip's N/36.
+export function goldFamilyCount(progress) {
+  return Object.values(progress?.evoBadges ?? {}).filter((t) => t >= 4).length;
 }
 
-export function unlockedBadgeCount(progress) {
-  let count = 0;
-  for (const key in progress?.badges ?? {}) {
-    if (isBadgeUnlocked(progress, key)) {
-      count += 1;
-    }
-  }
-  return count;
+// Deepest tier (0|2|3|4) recorded for the family that owns this apex key.
+export function familyBadgeLevel(progress, apexKey) {
+  const family = getFamilyByApexKey(apexKey);
+  if (!family) return 0;
+  return progress?.evoBadges?.[family.id] ?? 0;
 }
 
-// Fold one run's per-form merge counts into the lifetime badge store. Returns the
-// badges that crossed their threshold *this fold* (for the run-summary highlight)
-// and the new lifetime unlocked total.
-export function foldRunMerges(progress, runMergeCounts) {
-  if (!progress.badges) {
-    progress.badges = {};
+// Milestone catalog. Each rung is its own badge. test(ctx) reads the combined
+// run+lifetime context built in foldRun. hint(counters) is optional and only
+// returned where a stored counter makes a "N/threshold" hint meaningful (runs,
+// lifetime bombs, lifetime score). Per-run bests (run score, combo) are NOT
+// stored, so those rungs have no hint.
+export const MILESTONE_BADGES = [
+  { id: "score_5k",  label: "5,000 in a run",  category: "score", test: (c) => c.runScore >= 5000 },
+  { id: "score_10k", label: "10,000 in a run", category: "score", test: (c) => c.runScore >= 10000 },
+  { id: "score_25k", label: "25,000 in a run", category: "score", test: (c) => c.runScore >= 25000 },
+  { id: "score_50k", label: "50,000 in a run", category: "score", test: (c) => c.runScore >= 50000 },
+
+  { id: "combo_2", label: "Combo ×2", category: "combo", test: (c) => c.runMaxCombo >= 2 },
+  { id: "combo_3", label: "Combo ×3", category: "combo", test: (c) => c.runMaxCombo >= 3 },
+  { id: "combo_4", label: "Combo ×4", category: "combo", test: (c) => c.runMaxCombo >= 4 },
+
+  { id: "first_cross", label: "First Cross", category: "special", test: (c) => c.runSpecials.cross >= 1 },
+  { id: "first_bomb",  label: "First Bomb",  category: "special", test: (c) => c.counters.bombsTotal >= 1 },
+  { id: "bombs_25",    label: "25 Bombs",    category: "special", test: (c) => c.counters.bombsTotal >= 25,
+    hint: (k) => `${Math.min(k.bombsTotal, 25)}/25` },
+
+  { id: "runs_10",  label: "10 Runs",  category: "endurance", test: (c) => c.counters.runs >= 10,
+    hint: (k) => `${Math.min(k.runs, 10)}/10` },
+  { id: "runs_50",  label: "50 Runs",  category: "endurance", test: (c) => c.counters.runs >= 50,
+    hint: (k) => `${Math.min(k.runs, 50)}/50` },
+  { id: "runs_200", label: "200 Runs", category: "endurance", test: (c) => c.counters.runs >= 200,
+    hint: (k) => `${Math.min(k.runs, 200)}/200` },
+  { id: "life_100k", label: "100k lifetime", category: "endurance", test: (c) => c.counters.lifetimeScore >= 100000,
+    hint: (k) => `${Math.min(k.lifetimeScore, 100000)}/100000` },
+  { id: "life_500k", label: "500k lifetime", category: "endurance", test: (c) => c.counters.lifetimeScore >= 500000,
+    hint: (k) => `${Math.min(k.lifetimeScore, 500000)}/500000` },
+];
+
+// Summary milestones layered over the 36 evolution badges: gold-family counts.
+export const MENAGERIE_MILESTONES = [
+  { id: "menagerie_9",  label: "9 Apex Families",  threshold: 9 },
+  { id: "menagerie_18", label: "18 Apex Families", threshold: 18 },
+  { id: "menagerie_27", label: "27 Apex Families", threshold: 27 },
+  { id: "menagerie_36", label: "36 Apex Families", threshold: 36 },
+];
+
+// Fold one finished run into the lifetime badge store. Returns the badges that
+// crossed locked -> unlocked THIS fold (for the run-summary strip). Mutates and
+// persists `progress`. Runs exactly once per run (gameOver fires once; victory
+// is dead in endless mode).
+export function foldRun(progress, ctx) {
+  if (!progress.evoBadges) progress.evoBadges = {};
+  if (!progress.milestones) {
+    progress.milestones = { counters: { lifetimeScore: 0, runs: 0, bombsTotal: 0 }, unlocked: {} };
   }
-  const newlyUnlocked = [];
-  for (const key in runMergeCounts ?? {}) {
-    const tier = badgeTierFor(key);
-    if (!tier) {
-      continue;
-    }
-    const before = progress.badges[key] ?? 0;
-    const wasUnlocked = before >= BADGE_THRESHOLDS[tier];
-    const after = before + runMergeCounts[key];
-    progress.badges[key] = after;
-    if (!wasUnlocked && after >= BADGE_THRESHOLDS[tier]) {
-      const meta = BADGE_BY_KEY.get(key);
-      newlyUnlocked.push({
-        key,
-        name: meta?.name ?? key,
-        asset: meta?.asset ?? null,
-        tier,
-        color: meta?.color ?? null,
-      });
+  const newBadges = [];
+
+  // (1) Evolution badges: max tier per family.
+  for (const { key, tier } of ctx.reachedForms ?? []) {
+    const info = FORM_KEY_INDEX.get(key);
+    if (!info) continue;
+    const prev = progress.evoBadges[info.familyId] ?? 0;
+    if (tier > prev) {
+      progress.evoBadges[info.familyId] = tier;
+      newBadges.push(evolutionBadge(info.familyId, tier));
     }
   }
+
+  // (2) Lifetime counters.
+  const counters = progress.milestones.counters;
+  counters.lifetimeScore += Number(ctx.score) || 0;
+  counters.runs += 1;
+  counters.bombsTotal += Number(ctx.specials?.bomb) || 0;
+
+  // (3) Milestone catalog against the combined context.
+  const evalCtx = {
+    runScore: Number(ctx.score) || 0,
+    runMaxCombo: Number(ctx.maxCombo) || 0,
+    runSpecials: { cross: Number(ctx.specials?.cross) || 0, bomb: Number(ctx.specials?.bomb) || 0 },
+    counters,
+  };
+  for (const m of MILESTONE_BADGES) {
+    if (!progress.milestones.unlocked[m.id] && m.test(evalCtx)) {
+      progress.milestones.unlocked[m.id] = true;
+      newBadges.push({ id: m.id, name: m.label, kind: "milestone", asset: null });
+    }
+  }
+
+  // (4) Menagerie summaries against the gold count.
+  const gold = goldFamilyCount(progress);
+  for (const ms of MENAGERIE_MILESTONES) {
+    if (!progress.milestones.unlocked[ms.id] && gold >= ms.threshold) {
+      progress.milestones.unlocked[ms.id] = true;
+      newBadges.push({ id: ms.id, name: ms.label, kind: "menagerie", asset: null });
+    }
+  }
+
   save(progress);
-  return { newlyUnlocked, unlockedTotal: unlockedBadgeCount(progress) };
+  return { newBadges };
+}
+
+// Flattened badge list for the profile "Badges" section: milestones first, then
+// menagerie. Each: { id, label, category, unlocked, hint|null }.
+export function getMilestoneBadges(progress) {
+  const counters = progress?.milestones?.counters ?? { lifetimeScore: 0, runs: 0, bombsTotal: 0 };
+  const unlocked = progress?.milestones?.unlocked ?? {};
+  const milestones = MILESTONE_BADGES.map((m) => ({
+    id: m.id,
+    label: m.label,
+    category: m.category,
+    unlocked: Boolean(unlocked[m.id]),
+    hint: typeof m.hint === "function" ? m.hint(counters) : null,
+  }));
+  const gold = goldFamilyCount(progress);
+  const menagerie = MENAGERIE_MILESTONES.map((ms) => ({
+    id: ms.id,
+    label: ms.label,
+    category: "menagerie",
+    unlocked: Boolean(unlocked[ms.id]),
+    hint: `${Math.min(gold, ms.threshold)}/${ms.threshold}`,
+  }));
+  return [...milestones, ...menagerie];
 }
 
 function emptyProgress() {
-  return { forms: {}, badges: {}, runs: 0, wins: 0, bestScore: 0, fewestMovesWin: null };
+  return {
+    forms: {},
+    evoBadges: {},
+    milestones: { counters: { lifetimeScore: 0, runs: 0, bombsTotal: 0 }, unlocked: {} },
+    runs: 0,
+    wins: 0,
+    bestScore: 0,
+    fewestMovesWin: null,
+  };
 }
 
 // Coerce a parsed (possibly corrupted/legacy) record into a clean shape.
@@ -121,11 +214,23 @@ function emptyProgress() {
 function normalizeProgress(parsed) {
   const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const fewest = parsed.fewestMovesWin;
+  const evoBadges =
+    parsed.evoBadges && typeof parsed.evoBadges === "object" ? parsed.evoBadges : {};
+  const ms = parsed.milestones && typeof parsed.milestones === "object" ? parsed.milestones : {};
+  const counters = ms.counters && typeof ms.counters === "object" ? ms.counters : {};
   return {
     ...emptyProgress(),
     ...parsed,
     forms: parsed.forms && typeof parsed.forms === "object" ? parsed.forms : {},
-    badges: parsed.badges && typeof parsed.badges === "object" ? parsed.badges : {},
+    evoBadges,
+    milestones: {
+      counters: {
+        lifetimeScore: num(counters.lifetimeScore),
+        runs: num(counters.runs),
+        bombsTotal: num(counters.bombsTotal),
+      },
+      unlocked: ms.unlocked && typeof ms.unlocked === "object" ? ms.unlocked : {},
+    },
     runs: num(parsed.runs),
     wins: num(parsed.wins),
     bestScore: num(parsed.bestScore),
@@ -257,56 +362,3 @@ export function getCollectionEntries(progress) {
   return entries;
 }
 
-// Per-tile badge status for the evolution-tree popup. Given any form key (T2-T4),
-// report whether its badge is unlocked, the lifetime merge count toward it, and
-// the threshold. For a non-badge key (e.g. a T1 base color, or an unknown key)
-// `threshold` is null so the caller renders no progress label.
-export function badgeProgressFor(progress, formKey) {
-  const tier = badgeTierFor(formKey);
-  if (!tier) {
-    return { unlocked: false, count: 0, threshold: null };
-  }
-  return {
-    unlocked: isBadgeUnlocked(progress, formKey),
-    count: progress?.badges?.[formKey] ?? 0,
-    threshold: BADGE_THRESHOLDS[tier],
-  };
-}
-
-// Per-family tile-unlock progress for the apex collection card. Given an apex
-// (T4) key, count how many of its family's evolution tiles (T2 + T3 + T4 =
-// normally 9) have their badge unlocked. `total` is derived from the family's
-// own form counts, not hardcoded, so it stays correct if canon shifts. An
-// unknown apex key (no matching family) returns { unlocked: 0, total: 0 }.
-export function familyBadgeProgress(progress, apexKey) {
-  const family = getFamilyByApexKey(apexKey);
-  if (!family) {
-    return { unlocked: 0, total: 0 };
-  }
-  let unlocked = 0;
-  let total = 0;
-  for (const tier of [2, 3, 4]) {
-    for (const form of family.forms?.[tier] ?? []) {
-      total += 1;
-      if (isBadgeUnlocked(progress, form.key ?? form.name)) {
-        unlocked += 1;
-      }
-    }
-  }
-  return { unlocked, total };
-}
-
-// Snapshot of per-family unlocked-tile counts across every family, keyed by apex
-// (T4) form key: { apexKey: unlockedCount }. Sent to the cloud on a victory so
-// other players' public profiles can render the same N/total card pills. Only
-// the unlocked count is shared (not raw per-tile merge counts).
-export function collectFamilyBadges(progress) {
-  const snapshot = {};
-  for (const family of BLUPETS_FAMILIES) {
-    for (const form of family.forms?.[4] ?? []) {
-      const apexKey = form.key ?? form.name;
-      snapshot[apexKey] = familyBadgeProgress(progress, apexKey).unlocked;
-    }
-  }
-  return snapshot;
-}
