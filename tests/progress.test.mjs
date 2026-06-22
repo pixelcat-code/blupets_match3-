@@ -143,3 +143,22 @@ test("MILESTONE_BADGES catalog covers all four categories", () => {
   const cats = new Set(MILESTONE_BADGES.map((m) => m.category));
   assert.ok(["score", "combo", "special", "endurance"].every((c) => cats.has(c)));
 });
+
+test("foldRun: partially-migrated record with milestones:{} does not throw", () => {
+  // Simulates a record where milestones is present but counters/unlocked are missing
+  // (bypassed loadProgress/normalizeProgress — the latent crash scenario).
+  const p = {
+    forms: {},
+    evoBadges: {},
+    milestones: {}, // no counters, no unlocked
+    runs: 0,
+    wins: 0,
+    bestScore: 0,
+    fewestMovesWin: null,
+  };
+  assert.doesNotThrow(() =>
+    foldRun(p, { score: 1000, reachedForms: [], maxCombo: 1, specials: { cross: 0, bomb: 0 } })
+  );
+  assert.equal(p.milestones.counters.lifetimeScore, 1000);
+  assert.equal(p.milestones.counters.runs, 1);
+});

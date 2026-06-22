@@ -127,6 +127,12 @@ export function foldRun(progress, ctx) {
   if (!progress.milestones) {
     progress.milestones = { counters: { lifetimeScore: 0, runs: 0, bombsTotal: 0 }, unlocked: {} };
   }
+  if (!progress.milestones.counters) {
+    progress.milestones.counters = { lifetimeScore: 0, runs: 0, bombsTotal: 0 };
+  }
+  if (!progress.milestones.unlocked) {
+    progress.milestones.unlocked = {};
+  }
   const newBadges = [];
 
   // (1) Evolution badges: max tier per family.
