@@ -28,7 +28,7 @@ export function runTour(steps, { onDone } = {}) {
   let index = 0;
   let finished = false;
 
-  // Native `title` tooltips on the HUD (the egg/reroll control, …) pop
+  // Native `title` tooltips on the HUD pop
   // up as raw OS chrome that collides with the spotlight while the tour is
   // running — the coachmark already explains each control, so the browser
   // tooltip is redundant and ugly. Park every title for the duration of the

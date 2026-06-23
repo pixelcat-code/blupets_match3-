@@ -25,17 +25,17 @@ This repo is a vanilla JS match-3 game with a responsive mobile-first layout and
 ## Mobile game screen layout (≤699px)
 
 The game frame is a 5-row CSS grid (top to bottom):
-1. **Topbar** — 3-column grid: `[← back | mute]` / `[MOVES | SCORE pills]` / `[circular reroll button — neutral surface, lights up with a pastel-rainbow border + breathing glow when a charge is ready]`
+1. **Topbar** — 3-column grid: `[← back | mute]` / `[MOVES | SCORE | COMBO pills]` / `[empty spacer]`
 2. **Roster row** — 8 color rings in one horizontal flex row
 3. **Board** — fills remaining height
 4. **Vibe status** — strip + status text
 5. **game-footer** — hidden on mobile (display: none)
 
-The desktop reroll medallion+track (`.reroll-dock`) is `display: none` on mobile. The circular reroll HUD (`#reroll-hud`) is `display: none` on desktop.
+Reroll / hatch controls were removed. Board deadlocks are handled by refill safety and the existing reshuffle fallback.
 
 ## Desktop game screen layout (≥700px)
 
-Unchanged from before: 2-column grid, reroll dock in left column, footer with mute at bottom.
+2-column grid with the board in the right column, vibe/status and footer controls in the left column.
 
 ## Key files
 
@@ -49,10 +49,10 @@ Unchanged from before: 2-column grid, reroll dock in left column, footer with mu
 
 ## Current versions (bump on change)
 
-- `styles.css` query string: `?v=20260618-189`
-- `main.js` query string: `?v=20260618-172`
+- `styles.css` query string: `?v=20260622-236`
+- `main.js` query string: `?v=20260622-224`
 - `auth-config.js` query string: `?v=20260617-2`
-- `sync.js` import in `main.js`: `?v=20260618-12` — bump this whenever `sync.js` changes
+- `sync.js` import in `main.js`: `?v=20260622-15` — bump this whenever `sync.js` changes
 
 Always bump `?v=` on `styles.css` in `index.html` after any CSS edit, or the browser serves stale CSS.
 Always bump the `sync.js?v=` import string inside `main.js` when `sync.js` changes, then bump `main.js?v=` in `index.html` too.
@@ -78,12 +78,12 @@ Always bump the `sync.js?v=` import string inside `main.js` when `sync.js` chang
 - `Leaderboard` opens a two-column board with validated records from Supabase.
 - Clicking a player name/avatar in the leaderboard opens their public profile screen (`#public-profile`).
 - The profile gallery is dense enough to show all 36 forms without scroll on the current desktop target.
-- Progress stays local immediately, then verified wins are submitted through Edge Functions when signed in.
+- Progress stays local immediately. In endless mode, run-end badges are local-only; legacy verified wins still submit through Edge Functions if victory mode is used.
 - Browser back button navigates between screens (start ↔ game ↔ leaderboard ↔ profile ↔ public-profile ↔ victory/gameover).
 
 ## Current test status
 
-- `npm test` passes (35/35).
+- `npm test` passes (64/64).
 
 ## Useful run command
 

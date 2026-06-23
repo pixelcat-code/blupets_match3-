@@ -23,9 +23,9 @@ export const BOARD_SIZE = BOARDSIZE;
 export const STARTMOVES = 40;
 export const START_MOVES = STARTMOVES;
 export const EVOLUTION_THRESHOLDS = {
-  1: 10,
-  2: 14,
-  3: 18,
+  1: 8,
+  2: 10,
+  3: 10,
   4: 0,
 };
 export const EVOLUTION_SCORE_BONUS = {
@@ -38,14 +38,6 @@ export const EVOLUTION_DECAY = {
   3: 0.5,
   4: 0,
 };
-export const REROLL_RECOVERY_MOVES = 8;
-
-// Origin-hatch reroll economy: rerolls are no longer free. Each reroll spends one
-// hatched charge. Charges are earned by filling the hatch meter through matches —
-// bigger matches and deeper cascades fill it faster (see hatchPointsFromResolution).
-export const REROLL_START_CHARGES = 0;
-export const REROLL_MAX_CHARGES = 1;
-export const HATCH_GOAL = 50;
 
 const COLOR_BY_ID = Object.fromEntries(COLORS.map((color) => [color.id, color]));
 let nextTileId = 1;
@@ -58,27 +50,25 @@ function makeTile(color) {
 }
 
 // --- Special tiles (power-ups created by big matches) -----------------------
-// A straight match of exactly 4 spawns a ROCKET (clears its whole row or column
-// when later detonated). A straight match of 5+, or an L/T intersection of a
-// horizontal and a vertical 3-line, spawns a BOMB (clears the 3x3 area around
-// it). Specials sit on the board when created and detonate when later caught in
-// a match; their blast chains into any other specials it hits. The whole system
-// is gated behind state.specialTiles, so behaviour is unchanged when it is off.
+// A straight match of exactly 4 spawns a CROSS (clears its whole row AND its
+// whole column when later detonated). A straight match of 5+, or an L/T
+// intersection of a horizontal and a vertical 3-line, spawns a BOMB (clears the
+// 3x3 area around it). Specials sit on the board when created and detonate when
+// later caught in a match; their blast chains into any other specials it hits.
+// The whole system is gated behind state.specialTiles, so behaviour is
+// unchanged when it is off.
 function makeSpecialTile(color, special, dir = null) {
   return { id: nextTileId++, color, special, dir };
 }
 
 function blastCellsFor(size, pos, tile) {
   const cells = [];
-  if (tile.special === "rocket") {
-    if (tile.dir === "row") {
-      for (let col = 0; col < size; col += 1) {
-        cells.push({ row: pos.row, col });
-      }
-    } else {
-      for (let row = 0; row < size; row += 1) {
-        cells.push({ row, col: pos.col });
-      }
+  if (tile.special === "cross") {
+    for (let col = 0; col < size; col += 1) {
+      cells.push({ row: pos.row, col });
+    }
+    for (let row = 0; row < size; row += 1) {
+      cells.push({ row, col: pos.col });
     }
   } else if (tile.special === "bomb") {
     for (let row = pos.row - 1; row <= pos.row + 1; row += 1) {
@@ -94,7 +84,7 @@ function blastCellsFor(size, pos, tile) {
 
 // Given the matched line groups of one cascade step, decide which cells should
 // become special tiles. Returns a Map of "row:col" -> spawn spec. Bomb spawns
-// outrank rocket spawns when they collide on the same cell.
+// outrank cross spawns when they collide on the same cell.
 function planSpecialSpawns(groups, board) {
   const spawns = new Map();
   const horizMembers = new Set();
@@ -123,7 +113,8 @@ function planSpecialSpawns(groups, board) {
     }
     if (group.length >= 4) {
       const mid = group[Math.floor(group.length / 2)];
-      consider(mid, group.length >= 5 ? "bomb" : "rocket", horizontal ? "row" : "col");
+      // Exactly 4 -> CROSS (row + column); 5+ -> BOMB. Cross ignores dir.
+      consider(mid, group.length >= 5 ? "bomb" : "cross", null);
     }
   }
 
@@ -311,8 +302,18 @@ export function findMatches(board, diagonalAssist = false, matchResolver = defau
   return groups;
 }
 
-function collapseBoard(board, rng = Math.random) {
+const REFILL_DEADLOCK_ATTEMPTS = 30;
+
+function collapseBoard(
+  board,
+  rng = Math.random,
+  diagonalAssist = false,
+  matchResolver = defaultMatchResolver,
+  diagonalSwaps = diagonalAssist,
+) {
   const size = board.length;
+  const palette = COLORS.map((color) => color.id);
+  const spawned = [];
 
   for (let col = 0; col < size; col += 1) {
     const column = [];
@@ -330,7 +331,33 @@ function collapseBoard(board, rng = Math.random) {
 
     for (let row = 0; row < size; row += 1) {
       if (!board[row][col]) {
-        board[row][col] = makeTile(randomFrom(COLORS.map((color) => color.id), rng));
+        board[row][col] = makeTile(randomFrom(palette, rng));
+        spawned.push({ row, col });
+      }
+    }
+  }
+
+  // Anti-deadlock refill: if the board settled with no matches AND no legal move,
+  // re-roll only the just-spawned tiles a few times before the caller has to fall
+  // back to a full reshuffle. Existing tiles stay put, so it's far less disruptive
+  // than rerolling the whole board; if every attempt fails we leave it for the
+  // caller's reshuffle safety net (worst case = the old behavior).
+  if (
+    spawned.length > 0 &&
+    findMatches(board, diagonalAssist, matchResolver).length === 0 &&
+    !hasPossibleMoves(board, diagonalAssist, matchResolver, diagonalSwaps)
+  ) {
+    for (let attempt = 0; attempt < REFILL_DEADLOCK_ATTEMPTS; attempt += 1) {
+      for (const cell of spawned) {
+        board[cell.row][cell.col] = makeTile(randomFrom(palette, rng));
+      }
+      // A re-roll that lands an immediate match is fine — the caller's cascade
+      // loop resolves it. Either way, stop once the board is playable again.
+      if (
+        findMatches(board, diagonalAssist, matchResolver).length > 0 ||
+        hasPossibleMoves(board, diagonalAssist, matchResolver, diagonalSwaps)
+      ) {
+        break;
       }
     }
   }
@@ -883,7 +910,8 @@ export function getBestProgressSummary(state) {
 
 function resolveBoardInternal(board, state, rng = Math.random, matchResolver = defaultMatchResolver) {
   const nextBoard = cloneBoard(board);
-  let scoreDelta = 0;
+  let baseDelta = 0;
+  let totalGroups = 0;
   let cascades = 0;
   let cleared = 0;
   const cascadeSteps = [];
@@ -896,20 +924,22 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
     }
 
     cascades += 1;
+    totalGroups += groups.length;
     const boardBeforeClear = cloneBoard(nextBoard);
     const cells = new Map();
 
     for (const group of groups) {
       const rawScore = group.length * 45 + Math.max(0, group.length - 3) * 30;
-      const cascadeScore = rawScore * cascades * (state.vibe.scoreMultiplier ?? 1);
-      scoreDelta += Math.round(cascadeScore);
+      // The combo multiplier (applied once after the cascade resolves) replaces
+      // the old linear per-cascade factor; accumulate the un-multiplied base here.
+      baseDelta += rawScore * (state.vibe.scoreMultiplier ?? 1);
 
       if (state.vibe.tierScoreBonus) {
         const perTile = rawScore / group.length;
         for (const pos of group) {
           const tile = nextBoard[pos.row][pos.col];
           if (tile && (state.evolutionTiers[tile.color] ?? 1) >= 2) {
-            scoreDelta += Math.round(perTile * cascades * state.vibe.tierScoreBonus);
+            baseDelta += perTile * state.vibe.tierScoreBonus;
           }
         }
       }
@@ -954,7 +984,12 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
     for (const position of clearSet.values()) {
       const key = keyFor(position.row, position.col);
       if (spawns.has(key)) {
-        // This cell transforms into a special instead of clearing.
+        // This cell will host a freshly created special. Clear the matched tile
+        // now so gravity refills the cell during the collapse below; the special
+        // then adopts the color of whatever tile lands here (assigned after
+        // collapse). Not counted as a color clear — the cell transforms rather
+        // than simply clearing, so evolution progress is unchanged.
+        nextBoard[position.row][position.col] = null;
         continue;
       }
       const tile = nextBoard[position.row][position.col];
@@ -972,13 +1007,10 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       cleared += 1;
     }
 
-    // Place newly created specials in place. They stay on the board (don't fall)
-    // and do not detonate this step — the player triggers them in a later match.
-    const specialSpawns = [];
-    for (const spawn of spawns.values()) {
-      nextBoard[spawn.row][spawn.col] = makeSpecialTile(spawn.color, spawn.special, spawn.dir);
-      specialSpawns.push(spawn);
-    }
+    // Newly created specials are placed AFTER the collapse below, so each one can
+    // take the color of the tile that falls into its cell (not the matched color).
+    // Record the spawn specs now; their final color is filled in post-collapse.
+    const specialSpawns = [...spawns.values()];
 
     const boardAfterClear = cloneBoard(nextBoard);
     cascadeSteps.push({
@@ -991,9 +1023,34 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       boardAfterCollapse: null,
     });
 
-    collapseBoard(nextBoard, rng);
+    collapseBoard(nextBoard, rng, state.diagonalAssist, matchResolver, state.diagonalSwaps);
+
+    // Gravity has now refilled each earmarked cell. Turn the tile that fell into
+    // place into the power-up, keeping that tile's id and color so it animates
+    // dropping in and reads as "the tile that landed here, now a power-up" —
+    // rather than a leftover tile of the matched color sitting in place.
+    for (const spawn of spawns.values()) {
+      const landed = nextBoard[spawn.row][spawn.col];
+      if (landed) {
+        nextBoard[spawn.row][spawn.col] = { ...landed, special: spawn.special, dir: spawn.dir };
+        spawn.color = landed.color;
+      } else {
+        nextBoard[spawn.row][spawn.col] = makeSpecialTile(spawn.color, spawn.special, spawn.dir);
+      }
+    }
+
     cascadeSteps[cascadeSteps.length - 1].boardAfterCollapse = cloneBoard(nextBoard);
   }
+
+  // Combo bonus: the multiplier IS the cascade depth. Every time the board
+  // collapses and re-matches within one swap, the chain deepens (`cascades`), and
+  // the score is multiplied by how deep it reached, capped at ×4. A single
+  // non-cascading match is ×1. This is the SAME number shown on the COMBO card
+  // and the escalating "Combo ×N" popup over the board — one combo value
+  // everywhere (cascade and combo are now unified). `totalGroups` is still
+  // returned for diagnostics but no longer drives scoring.
+  const comboMultiplier = Math.min(4, Math.max(1, cascades));
+  const scoreDelta = Math.round(baseDelta * comboMultiplier);
 
   let shuffled = false;
 
@@ -1019,6 +1076,8 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
     scoreDelta,
     cascades,
     cleared,
+    totalGroups,
+    comboMultiplier,
     shuffled,
     boardBeforeShuffle,
     boardAfterShuffle: shuffled ? cloneBoard(nextBoard) : null,
@@ -1095,11 +1154,24 @@ function applyCascadeProgress(state, cascadeSteps) {
     }
   }
 
-  let runMergeCounts = { ...(state.runMergeCounts ?? {}) };
+  // Per-run badge signals (endless only, so non-endless tests are unaffected).
+  // Combo: the resolution's multiplier was just stamped onto state._lastResolution
+  // by attemptSwap / settleBoardForCurrentForms before this call. Specials: count
+  // cross/bomb power-ups spawned across this resolution's cascade steps.
+  let runMaxCombo = state.runMaxCombo ?? 0;
+  const runSpecials = { ...(state.runSpecials ?? { cross: 0, bomb: 0 }) };
+  const runTileClears = { ...(state.runTileClears ?? {}) };
   if (state.endlessRun) {
-    const delta = countMergeGroups(state, cascadeSteps);
-    for (const key in delta) {
-      runMergeCounts[key] = (runMergeCounts[key] ?? 0) + delta[key];
+    const combo = state._lastResolution?.comboMultiplier ?? 0;
+    if (combo > runMaxCombo) runMaxCombo = combo;
+    for (const step of cascadeSteps) {
+      for (const clearedTile of step.clearedTiles ?? []) {
+        runTileClears[clearedTile.color] = (runTileClears[clearedTile.color] ?? 0) + 1;
+      }
+      for (const spawn of step.specialSpawns ?? []) {
+        if (spawn.special === "cross") runSpecials.cross += 1;
+        else if (spawn.special === "bomb") runSpecials.bomb += 1;
+      }
     }
   }
 
@@ -1108,49 +1180,10 @@ function applyCascadeProgress(state, cascadeSteps) {
     colorMatchCounts,
     colorThresholdOrder,
     colorThresholdSeq: thresholdSeq,
-    runMergeCounts,
+    runMaxCombo,
+    runSpecials,
+    runTileClears,
   };
-}
-
-// Score a resolution for hatch progress. Every cleared tile feeds the egg; 4+
-// matches add a bonus, and each cascade deeper multiplies the haul, so flashy
-// chains hatch faster than steady 3-matches.
-function hatchPointsFromResolution(resolution) {
-  if (!resolution || !resolution.cascadeSteps) {
-    return 0;
-  }
-
-  let points = 0;
-  resolution.cascadeSteps.forEach((step, index) => {
-    const cascadeBonus = 1 + index * 0.5;
-    for (const group of step.groups) {
-      const bigMatchBonus = Math.max(0, group.length - 3) * 2;
-      points += (group.length + bigMatchBonus) * cascadeBonus;
-    }
-  });
-  return Math.round(points);
-}
-
-// Advance the hatch meter from a player move and convert full eggs into reroll
-// charges (capped). Sits the meter full when charges are maxed so it never
-// overflows into wasted progress.
-function applyHatchProgress(state, resolution) {
-  const gained = hatchPointsFromResolution(resolution);
-  let hatchProgress = (state.hatchProgress ?? 0) + gained;
-  let rerollCharges = state.rerollCharges ?? 0;
-  let hatched = 0;
-
-  while (hatchProgress >= HATCH_GOAL && rerollCharges < REROLL_MAX_CHARGES) {
-    hatchProgress -= HATCH_GOAL;
-    rerollCharges += 1;
-    hatched += 1;
-  }
-
-  if (rerollCharges >= REROLL_MAX_CHARGES) {
-    hatchProgress = Math.min(hatchProgress, HATCH_GOAL);
-  }
-
-  return { ...state, hatchProgress, rerollCharges, _hatched: hatched };
 }
 
 function settleBoardForCurrentForms(state, rng = Math.random, reason = "Form resonance cleared") {
@@ -1200,7 +1233,7 @@ export function createInitialState(options = {}) {
   // swaps fall back to the matching flag, but callers can disable diagonal swaps
   // while keeping diagonal matches (orthogonal-only swaps, classic match-3 feel).
   const diagonalSwaps = options.diagonalSwaps ?? diagonalAssist;
-  // Power-up tiles (rocket/bomb) created by big matches. Off by default so the
+  // Power-up tiles (cross/bomb) created by big matches. Off by default so the
   // core logic and existing tests are unaffected; production opts in.
   const specialTiles = options.specialTiles ?? false;
   // Soft-endless run: when on, reaching T4 no longer ends the run. Off by default
@@ -1230,15 +1263,14 @@ export function createInitialState(options = {}) {
     movesLeft: STARTMOVES + (vibe.startMoves ?? 0),
     movesUsed: 0,
     evolutionAuraMovesLeft: 0,
-    rerollCharges: REROLL_START_CHARGES,
-    hatchProgress: 0,
-    _hatched: 0,
     cascadesResolved: 0,
     diagonalAssist,
     diagonalSwaps,
     specialTiles,
     endlessRun,
-    runMergeCounts: {},
+    runMaxCombo: 0,
+    runSpecials: { cross: 0, bomb: 0 },
+    runTileClears: {},
     victory: false,
     victoryMeta: null,
     gameOver: false,
@@ -1295,7 +1327,6 @@ export function attemptSwap(state, first, second, rng = Math.random) {
   if ((nextState.evolutionAuraMovesLeft ?? 0) > 0) {
     nextState = { ...nextState, evolutionAuraMovesLeft: nextState.evolutionAuraMovesLeft - 1 };
   }
-  nextState = applyHatchProgress(nextState, resolution);
   nextState = queueTriggeredEvolutions(nextState);
   return markGameOverIfNeeded(nextState);
 }
@@ -1408,42 +1439,4 @@ export function selectEvolutionForm(state, colorId, tier, formKey, rng = Math.ra
   }
   nextState = queueTriggeredEvolutions(nextState);
   return markGameOverIfNeeded(nextState);
-}
-
-export function rerollBoard(state, rng = Math.random) {
-  if (state.victory || state.pendingEvolutionQueue.length > 0) {
-    return state;
-  }
-
-  if ((state.rerollCharges ?? 0) <= 0) {
-    return {
-      ...state,
-      status: "No hatched rerolls left — clear matches to fill the egg.",
-    };
-  }
-
-  const restoredFromGameOver = state.gameOver;
-  const board = createBoard(
-    BOARDSIZE,
-    COLORS.map((color) => color.id),
-    rng,
-    state.diagonalAssist,
-    getStateMatchResolver(state),
-    state.diagonalSwaps,
-  );
-  const recoveryFloor = REROLL_RECOVERY_MOVES;
-  const movesLeft = restoredFromGameOver
-    ? Math.max(state.movesLeft, recoveryFloor)
-    : state.movesLeft;
-
-  return {
-    ...state,
-    board,
-    movesLeft,
-    rerollCharges: state.rerollCharges - 1,
-    gameOver: false,
-    status: restoredFromGameOver
-      ? `Hatched reroll spent. Run restored with ${movesLeft} moves.`
-      : "Hatched reroll spent. Evolution progress preserved.",
-  };
 }

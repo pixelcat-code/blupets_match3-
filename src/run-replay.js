@@ -1,7 +1,6 @@
 import {
   createInitialState,
   getEvolutionFormSelection,
-  rerollBoard,
   attemptSwap,
   selectEvolutionForm,
   selectFusionPartner,
@@ -31,9 +30,6 @@ export function sanitizeRunActions(actions) {
       const first = cloneTile(action.first);
       const second = cloneTile(action.second);
       return first && second ? { type: "swap", first, second } : null;
-    }
-    if (action.type === "reroll") {
-      return { type: "reroll" };
     }
     if (action.type === "partner") {
       return {
@@ -92,8 +88,6 @@ export function replayRun(seed, rawActions) {
 
     if (action.type === "swap") {
       state = attemptSwap(state, action.first, action.second, rng);
-    } else if (action.type === "reroll") {
-      state = rerollBoard(state, rng);
     } else if (action.type === "partner") {
       state = selectFusionPartner(state, action.colorId, action.partnerId);
     } else if (action.type === "form") {

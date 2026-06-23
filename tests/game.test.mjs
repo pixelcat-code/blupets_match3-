@@ -7,7 +7,6 @@ import {
   boardFromColorIds,
   createBoard,
   createInitialState,
-  countMergeGroups,
   EVOLUTION_SCORE_BONUS,
   findMatches,
   findPossibleMoves,
@@ -17,13 +16,9 @@ import {
   getProgressPercent,
   getTopPartnerOptions,
   hasPossibleMoves,
-  HATCH_GOAL,
   markGameOverIfNeededForTest,
   NEUTRAL_VIBE,
-  REROLL_MAX_CHARGES,
-  REROLL_START_CHARGES,
   VIBES,
-  rerollBoard,
   resolveBoard,
   selectEvolutionForm,
   selectFusionPartner,
@@ -105,7 +100,7 @@ test("attemptSwap increments matched color progress and queues evolution", () =>
     ["cyan", "yellow", "black", "blue", "red", "green", "purple", "white"],
     ["yellow", "black", "blue", "red", "green", "purple", "white", "cyan"],
   ]);
-  state.colorMatchCounts.red = 9;
+  state.colorMatchCounts.red = 7;
 
   const nextState = attemptSwap(state, { row: 0, col: 1 }, { row: 1, col: 1 }, makeRng(6));
   assert.equal(nextState.movesLeft, state.movesLeft - 1);
@@ -131,8 +126,8 @@ test("simultaneous threshold: evolves the color that filled first, not the COLOR
   const makeState = () => {
     const state = createInitialState({ diagonalAssist: false, rng: makeRng(1), vibe: NEUTRAL_VIBE });
     state.board = boardFromColorIds(board);
-    state.colorMatchCounts.red = 9;
-    state.colorMatchCounts.green = 9;
+    state.colorMatchCounts.red = 7;
+    state.colorMatchCounts.green = 7;
     return state;
   };
 
@@ -414,130 +409,9 @@ test("same T3 form syncs matching colors into T4 without doubling score bonus", 
   assert.equal(nextState.victory, true);
 });
 
-test("rerollBoard preserves evolution progress and restores failed runs", () => {
-  const state = createInitialState({ diagonalAssist: true, rng: makeRng(11) });
-  state.rerollCharges = 1;
-  state.evolutionTiers.red = 3;
-  state.evolutionFusions.red = { partnerColorId: "blue" };
-  state.evolutionChoices.red[2] = "T2_VIOLET_POISON";
-  state.score = 980;
-  state.movesLeft = 0;
-  state.gameOver = true;
-  const previousBoard = state.board;
-
-  const nextState = rerollBoard(state, makeRng(12));
-  assert.equal(nextState.evolutionTiers.red, 3);
-  assert.equal(nextState.evolutionFusions.red.partnerColorId, "blue");
-  assert.equal(nextState.score, 980);
-  assert.notEqual(nextState.board, previousBoard);
-  assert.ok(nextState.movesLeft >= 8);
-});
-
-test("rerollBoard avoids pre-existing matches under current evolved form resolver", () => {
-  const state = createInitialState({ diagonalAssist: true, rng: makeRng(111) });
-  const formKey = getEvolutionFormSelection(state, "red", 2, "blue").options[0].key;
-  state.evolutionTiers.red = 2;
-  state.evolutionTiers.blue = 2;
-  state.evolutionFusions.red = { partnerColorId: "blue" };
-  state.evolutionFusions.blue = { partnerColorId: "red" };
-  state.evolutionChoices.red[2] = formKey;
-  state.evolutionChoices.blue[2] = formKey;
-  state.rerollCharges = 1;
-
-  const nextState = rerollBoard(state, makeRng(112));
-  const matchResolver = (tile) => {
-    if (!tile) {
-      return null;
-    }
-    if (tile.color === "red" || tile.color === "blue") {
-      return `FORM:2:${formKey}`;
-    }
-    return tile.color;
-  };
-
-  assert.equal(findMatches(nextState.board, true, matchResolver).length, 0);
-  assert.equal(hasPossibleMoves(nextState.board, true, matchResolver), true);
-});
-
-test("hatch reroll economy: new runs seed no charges and an empty meter", () => {
-  const state = createInitialState({ rng: makeRng(11) });
-  assert.equal(state.rerollCharges, REROLL_START_CHARGES);
-  assert.equal(state.hatchProgress, 0);
-});
-
-test("attemptSwap feeds the hatch meter", () => {
-  const state = createInitialState({ diagonalAssist: false, rng: makeRng(5) });
-  state.board = boardFromColorIds([
-    ["red", "yellow", "red", "green", "purple", "white", "cyan", "black"],
-    ["blue", "red", "yellow", "purple", "white", "cyan", "black", "yellow"],
-    ["blue", "green", "purple", "white", "cyan", "black", "yellow", "blue"],
-    ["green", "purple", "white", "cyan", "yellow", "blue", "red", "green"],
-    ["purple", "white", "cyan", "yellow", "black", "green", "purple", "white"],
-    ["white", "cyan", "yellow", "black", "blue", "red", "green", "purple"],
-    ["cyan", "yellow", "black", "blue", "red", "green", "purple", "white"],
-    ["yellow", "black", "blue", "red", "green", "purple", "white", "cyan"],
-  ]);
-
-  const nextState = attemptSwap(state, { row: 0, col: 1 }, { row: 1, col: 1 }, makeRng(6));
-  assert.ok(nextState.hatchProgress > 0);
-});
-
-test("a full meter hatches an extra reroll charge", () => {
-  const state = createInitialState({ diagonalAssist: false, rng: makeRng(5) });
-  state.board = boardFromColorIds([
-    ["red", "yellow", "red", "green", "purple", "white", "cyan", "black"],
-    ["blue", "red", "yellow", "purple", "white", "cyan", "black", "yellow"],
-    ["blue", "green", "purple", "white", "cyan", "black", "yellow", "blue"],
-    ["green", "purple", "white", "cyan", "yellow", "blue", "red", "green"],
-    ["purple", "white", "cyan", "yellow", "black", "green", "purple", "white"],
-    ["white", "cyan", "yellow", "black", "blue", "red", "green", "purple"],
-    ["cyan", "yellow", "black", "blue", "red", "green", "purple", "white"],
-    ["yellow", "black", "blue", "red", "green", "purple", "white", "cyan"],
-  ]);
-  state.hatchProgress = HATCH_GOAL - 1;
-
-  const nextState = attemptSwap(state, { row: 0, col: 1 }, { row: 1, col: 1 }, makeRng(6));
-  assert.equal(nextState.rerollCharges, REROLL_START_CHARGES + 1);
-  assert.ok(nextState.hatchProgress < HATCH_GOAL);
-});
-
-test("rerollBoard spends a charge and refuses at zero", () => {
-  const state = createInitialState({ rng: makeRng(11) });
-  state.rerollCharges = 1;
-
-  const afterOne = rerollBoard(state, makeRng(12));
-  assert.equal(afterOne.rerollCharges, 0);
-  assert.notEqual(afterOne.board, state.board);
-
-  const blockedBoard = afterOne.board;
-  const blocked = rerollBoard(afterOne, makeRng(13));
-  assert.equal(blocked.rerollCharges, 0);
-  assert.equal(blocked.board, blockedBoard);
-});
-
-test("hatch charges never exceed the cap", () => {
-  const state = createInitialState({ diagonalAssist: false, rng: makeRng(5) });
-  state.board = boardFromColorIds([
-    ["red", "yellow", "red", "green", "purple", "white", "cyan", "black"],
-    ["blue", "red", "yellow", "purple", "white", "cyan", "black", "yellow"],
-    ["blue", "green", "purple", "white", "cyan", "black", "yellow", "blue"],
-    ["green", "purple", "white", "cyan", "yellow", "blue", "red", "green"],
-    ["purple", "white", "cyan", "yellow", "black", "green", "purple", "white"],
-    ["white", "cyan", "yellow", "black", "blue", "red", "green", "purple"],
-    ["cyan", "yellow", "black", "blue", "red", "green", "purple", "white"],
-    ["yellow", "black", "blue", "red", "green", "purple", "white", "cyan"],
-  ]);
-  state.rerollCharges = REROLL_MAX_CHARGES;
-  state.hatchProgress = HATCH_GOAL - 1;
-
-  const nextState = attemptSwap(state, { row: 0, col: 1 }, { row: 1, col: 1 }, makeRng(6));
-  assert.equal(nextState.rerollCharges, REROLL_MAX_CHARGES);
-  assert.ok(nextState.hatchProgress <= HATCH_GOAL);
-});
-
 test("rollback decay cancels another color's queued evolution", () => {
   const state = createInitialState({ rng: makeRng(11), vibe: NEUTRAL_VIBE });
-  // red and blue both hit the T1->T2 threshold (10) this turn; green stays high.
+  // red and blue both hit the T1->T2 threshold (8) this turn; green stays high.
   state.colorMatchCounts.red = 10;
   state.colorMatchCounts.blue = 10;
   state.colorMatchCounts.green = 40;
@@ -558,7 +432,7 @@ test("rollback decay cancels another color's queued evolution", () => {
 
 test("progress helpers report summary against the current tier threshold", () => {
   const state = createInitialState({ rng: makeRng(13), vibe: NEUTRAL_VIBE });
-  state.colorMatchCounts.green = 5;
+  state.colorMatchCounts.green = 4;
 
   assert.equal(getProgressPercent(state, "green"), 50);
   assert.equal(getBestProgressSummary(state), "Green reached T1 with 50% toward T2.");
@@ -704,7 +578,7 @@ test("comboEssence vibe grants bonus essence on 5+ matches", () => {
   assert.ok(boostedResult.colorMatchCounts.red > baseResult.colorMatchCounts.red);
 });
 
-test("special tiles: a straight match of 4 spawns a rocket, not a full clear", () => {
+test("special tiles: a straight match of 4 spawns a cross, not a full clear", () => {
   const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(200) });
   state.board = boardFromColorIds([
     ["red", "red", "red", "red", "green"],
@@ -718,10 +592,34 @@ test("special tiles: a straight match of 4 spawns a rocket, not a full clear", (
   const spawns = result.cascadeSteps[0].specialSpawns;
 
   assert.equal(spawns.length, 1);
-  assert.equal(spawns[0].special, "rocket");
-  assert.equal(spawns[0].dir, "row"); // horizontal match -> horizontal rocket
-  // The 4-match leaves a rocket behind: only 3 of the 4 red tiles actually clear.
+  assert.equal(spawns[0].special, "cross");
+  // The 4-match leaves a cross behind: only 3 of the 4 red tiles actually clear.
   assert.equal(result.cascadeSteps[0].colorClearCounts.red, 3);
+});
+
+test("special tiles: the spawned power-up takes the color of the tile that falls into its cell, not the matched color", () => {
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(210) });
+  // A red 4-match on row 2 spawns a cross at its middle cell (2,2). The only
+  // cell cleared in column 2 is (2,2) itself, so the green tile directly above
+  // at (1,2) drops into place. The cross must end up GREEN (the faller), never
+  // red (the matched color).
+  state.board = boardFromColorIds([
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["red", "red", "red", "red", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+
+  const result = resolveBoard(state.board, state, makeRng(211));
+  const step = result.cascadeSteps[0];
+
+  assert.equal(step.specialSpawns.length, 1);
+  assert.equal(step.specialSpawns[0].special, "cross");
+  const spawned = step.boardAfterCollapse[2][2];
+  assert.equal(spawned.special, "cross");
+  assert.equal(spawned.color, "green");
+  assert.notEqual(spawned.color, "red");
 });
 
 test("special tiles: a straight match of 5 spawns a bomb", () => {
@@ -758,7 +656,7 @@ test("special tiles: an L/T intersection of two 3-lines spawns a bomb", () => {
   assert.equal(spawns.some((s) => s.special === "bomb" && s.row === 0 && s.col === 0), true);
 });
 
-test("special tiles: an existing rocket caught in a match detonates its whole row", () => {
+test("special tiles: an existing cross caught in a match detonates its whole row and column", () => {
   const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(206) });
   state.board = boardFromColorIds([
     ["green", "blue", "green", "blue", "green"],
@@ -767,19 +665,21 @@ test("special tiles: an existing rocket caught in a match detonates its whole ro
     ["blue", "green", "blue", "green", "blue"],
     ["green", "blue", "green", "blue", "green"],
   ]);
-  // Turn the middle red tile into a horizontal rocket; the red 3-line on row 2
-  // detonates it, which should clear the ENTIRE row (including yellow + cyan).
-  state.board[2][2] = { id: 9991, color: "red", special: "rocket", dir: "row" };
+  // Turn the middle red tile into a cross; the red 3-line on row 2 detonates it,
+  // which should clear the ENTIRE row 2 AND the ENTIRE column 2.
+  state.board[2][2] = { id: 9991, color: "red", special: "cross", dir: null };
 
   const result = resolveBoard(state.board, state, makeRng(207));
   const rowTwoCleared = new Set(
-    result.cascadeSteps[0].clearedTiles
-      .filter((t) => t.row === 2)
-      .map((t) => t.col),
+    result.cascadeSteps[0].clearedTiles.filter((t) => t.row === 2).map((t) => t.col),
+  );
+  const colTwoCleared = new Set(
+    result.cascadeSteps[0].clearedTiles.filter((t) => t.col === 2).map((t) => t.row),
   );
 
-  // All five columns of row 2 were cleared — the blast reached past the match.
+  // Whole row 2 and whole column 2 cleared — the cross blast reached past the match.
   assert.deepEqual([...rowTwoCleared].sort((a, b) => a - b), [0, 1, 2, 3, 4]);
+  assert.deepEqual([...colTwoCleared].sort((a, b) => a - b), [0, 1, 2, 3, 4]);
 });
 
 test("special tiles stay off by default: a match of 4 clears all four tiles", () => {
@@ -870,29 +770,29 @@ test("activeBadgeFormKey returns the chosen form key for a tier-2 color, null be
   assert.equal(activeBadgeFormKey(state, "red"), null);
 });
 
-test("countMergeGroups counts one per match-group of an active-form color", () => {
+test("createInitialState seeds per-run signal fields", () => {
   const state = createInitialState({ rng: makeRng(1) });
-  state.evolutionTiers.red = 2;
-  state.evolutionChoices.red = { 2: "T2_HEAT_FIRE", 3: null, 4: null };
-  // Two red match-groups in one cascade step; a T1 (green) group earns nothing.
-  const cascadeSteps = [
-    {
-      groups: [
-        [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }],
-        [{ row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 }, { row: 1, col: 3 }],
-        [{ row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 }],
-      ],
-      boardBeforeClear: [
-        [{ color: "red" }, { color: "red" }, { color: "red" }, { color: "red" }],
-        [{ color: "red" }, { color: "red" }, { color: "red" }, { color: "red" }],
-        [{ color: "green" }, { color: "green" }, { color: "green" }, { color: "green" }],
-      ],
-    },
-  ];
-  assert.deepEqual(countMergeGroups(state, cascadeSteps), { T2_HEAT_FIRE: 2 });
+  assert.equal(state.runMaxCombo, 0);
+  assert.deepEqual(state.runSpecials, { cross: 0, bomb: 0 });
+  assert.deepEqual(state.runTileClears, {});
+  assert.equal("runMergeCounts" in state, false);
 });
 
-test("createInitialState seeds an empty runMergeCounts", () => {
-  const state = createInitialState({ rng: makeRng(1) });
-  assert.deepEqual(state.runMergeCounts, {});
+test("endless run accumulates runMaxCombo and runSpecials from cascades", () => {
+  // specialTiles on so a 4-match spawns a cross; endlessRun on so signals fold.
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, endlessRun: true, rng: makeRng(200) });
+  // Board: swapping (2,0)=red with (2,1)=green yields ["green","red","red","red","red"]
+  // on row 2 — a 4-in-a-row that spawns a cross.
+  state.board = boardFromColorIds([
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["red", "green", "red", "red", "red"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+  const next = attemptSwap(state, { row: 2, col: 0 }, { row: 2, col: 1 }, makeRng(200));
+  assert.ok(next.runMaxCombo >= 1, "combo recorded");
+  assert.ok(next.runSpecials.cross >= 1, "cross spawn counted");
+  assert.equal(typeof next.runSpecials.bomb, "number");
+  assert.ok(next.runTileClears.red >= 3, "tile clears counted by color");
 });

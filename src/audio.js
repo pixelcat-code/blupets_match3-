@@ -17,9 +17,7 @@ const SFX = {
   match: ["block-heavy-hit.wav"],
   cascade: ["block-stone-lift.wav"],
   evolve: ["modal-open.wav"],
-  hatch: ["rare-hatch.wav"],
   victory: ["reveal-transition.wav"],
-  reroll: ["block-stone-lift.wav"],
 };
 
 const GAIN = {
@@ -29,9 +27,7 @@ const GAIN = {
   match: 0.55,
   cascade: 0.5,
   evolve: 0.7,
-  hatch: 0.8,
   victory: 0.9,
-  reroll: 0.6,
 };
 
 const MUSIC_FILE = "site-background.mp3";

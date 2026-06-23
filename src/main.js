@@ -1,4 +1,5 @@
 import {
+  activeBadgeFormKey,
   COLORS,
   attemptSwap,
   areAdjacent,
@@ -12,12 +13,11 @@ import {
   getStateMatchResolver,
   getTopPartnerOptions,
   previewSwap,
-  rerollBoard,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260621-gameplay-9";
+} from "./game.js?v=20260622-gameplay-20";
 import { runTour } from "./coachmarks.js?v=20260618-1";
-import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260618-8";
+import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260622-9";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
@@ -27,15 +27,24 @@ import {
   recordWin,
   discoveredCount,
   getCollectionEntries,
-  badgeProgressFor,
-  familyBadgeProgress,
-  collectFamilyBadges,
-  getFamilyByApexKey,
+  getCollectionTileEntries,
+  getAscendedKeyByFormKey,
+  getLineageByAscendedKey,
   TOTAL_APEX_FORMS,
-  foldRunMerges,
-  unlockedBadgeCount,
-  TOTAL_BADGES,
-} from "./progress.js?v=20260621-11";
+  TOTAL_FAMILIES,
+  TOTAL_INVENTORY_FORMS,
+  COLLECTION_TIERS,
+  COLLECTION_TIER_LABEL,
+  SHARDS_PER_CAPSULE,
+  foldRun,
+  lineageStageLevel,
+  collectionLineageStageLevel,
+  ascendedLineageCount,
+  collectionTileCount,
+  openCapsule,
+  exchangeShardsForCapsules,
+  getMilestoneBadges,
+} from "./progress.js?v=20260623-tutorial-1";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -43,7 +52,7 @@ import {
   fetchUserProgress,
   startTrustedRun,
   submitTrustedRun,
-} from "./sync.js?v=20260621-13";
+} from "./sync.js?v=20260622-15";
 
 // TEMP TESTING KNOB: global slow-motion multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
@@ -105,18 +114,36 @@ const elements = {
   backToStart: document.querySelector("#back-to-start"),
   board: document.querySelector("#board"),
   boardShell: document.querySelector(".board-shell"),
+  capsuleRevealClose: document.querySelector("#capsuleRevealClose"),
+  capsuleRevealCube: document.querySelector("#capsuleRevealCube"),
+  capsuleRevealModal: document.querySelector("#capsuleRevealModal"),
+  capsuleRevealOutput: document.querySelector("#capsuleRevealOutput"),
   gameFrame: document.querySelector(".game-frame"),
   formHeadline: document.querySelector("#formHeadline"),
   formOptions: document.querySelector("#formOptions"),
   gameScreen: document.querySelector("#gameScreen"),
   gameoverBtn: document.querySelector("#gameoverBtn"),
   gameoverDetail: document.querySelector("#gameoverDetail"),
+  gameoverFormArt: document.querySelector("#gameoverFormArt"),
+  gameoverFormName: document.querySelector("#gameoverFormName"),
+  gameoverHomeBtn: document.querySelector("#gameoverHomeBtn"),
   gameoverScore: document.querySelector("#gameoverScore"),
+  gameoverShareBtn: document.querySelector("#gameoverShareBtn"),
   gameoverScreen: document.querySelector("#gameoverScreen"),
   leaderboardBackBtn: document.querySelector("#leaderboardBackBtn"),
   leaderboardContent: document.querySelector("#leaderboard-content"),
+  leaderboardMetaNav: document.querySelector("#leaderboardMetaNav"),
   leaderboardTabsHost: document.querySelector("#leaderboard-tabs-host"),
   leaderboardScreen: document.querySelector("#leaderboardScreen"),
+  globalMetaNav: document.querySelector("#globalMetaNav"),
+  metaPopup: document.querySelector("#metaPopup"),
+  metaPopupActions: document.querySelector("#metaPopupActions"),
+  metaPopupClose: document.querySelector("#metaPopupClose"),
+  metaPopupContent: document.querySelector("#metaPopupContent"),
+  metaPopupStats: document.querySelector("#metaPopupStats"),
+  metaPopupStatus: document.querySelector("#metaPopupStatus"),
+  metaPopupTabsHost: document.querySelector("#metaPopupTabsHost"),
+  metaPopupTitle: document.querySelector("#metaPopupTitle"),
   publicProfileScreen: document.querySelector("#publicProfileScreen"),
   publicProfileBackBtn: document.querySelector("#publicProfileBackBtn"),
   publicProfileAvatarEl: document.querySelector("#publicProfileAvatarEl"),
@@ -133,6 +160,7 @@ const elements = {
   profileChipCount: document.querySelector("#profileChipCount"),
   profileContent: document.querySelector("#profile-content"),
   profileLogoutBtn: document.querySelector("#profileLogoutBtn"),
+  profileMetaNav: document.querySelector("#profileMetaNav"),
   profileName: document.querySelector("#profileName"),
   profileScreen: document.querySelector("#profileScreen"),
   profileSignInBtn: document.querySelector("#profileSignInBtn"),
@@ -147,20 +175,17 @@ const elements = {
   toast: document.querySelector("#toast"),
   partnerHeadline: document.querySelector("#partnerHeadline"),
   partnerOptions: document.querySelector("#partnerOptions"),
-  // The egg/reroll control is one element: it shows hatch progress AND spends
-  // charges as the reroll button. rerollRun is that single node.
-  rerollRun: document.querySelector("#reroll-run"),
-  rerollPips: document.querySelectorAll("#rerollPips .reroll-pip"),
-  rerollHud: document.querySelector("#reroll-hud"),
-  rerollHudBadge: document.querySelector("#rerollHudBadge"),
   colorRoster: document.querySelector("#colorRoster"),
   vibeStrip: document.querySelector("#vibeStrip"),
   vibeStripName: document.querySelector("#vibeStripName"),
   vibeStripPerks: document.querySelector("#vibeStripPerks"),
   scoreValue: document.querySelector("#scoreValue"),
+  comboValue: document.querySelector("#comboValue"),
   startRun: document.querySelector("#start-run"),
+  startCollection: document.querySelector("#start-collection"),
   startGuide: document.querySelector("#start-guide"),
   startLeaderboard: document.querySelector("#start-leaderboard"),
+  startQuests: document.querySelector("#start-quests"),
   startMuteBtn: document.querySelector("#startMuteBtn"),
   startScreen: document.querySelector("#startScreen"),
   statusText: document.querySelector("#statusText"),
@@ -208,6 +233,10 @@ let leaderboardStatus = "loading";
 // into a tab switcher). "score" = All Time, "speed" = Speed Run. Persists across
 // re-renders so a data refresh doesn't snap the user back to the first tab.
 let leaderboardTab = "score";
+let profileTab = "collection";
+let questTab = "collection";
+let activeMetaOverlay = null;
+let metaPublicProfile = null;
 let progress = loadProgress();
 let authState = {
   configured: false,
@@ -226,6 +255,7 @@ let hintTimer = null;
 let vibeIntroOpen = false;
 let runRng = Math.random;
 let runProof = null;
+let recentCapsuleResults = [];
 
 function delay(ms) {
   return new Promise((resolve) => {
@@ -266,6 +296,7 @@ function applyRemoteProgress(remote) {
     runs: Math.max(localRuns, remote.runs ?? 0),
     bestScore: Math.max(localBest, remote.bestScore ?? 0),
     fewestMovesWin: mergedFewest,
+    tutorialSeen: Boolean(progress.tutorialSeen) || Number(remote.runs) > 0,
     forms: { ...(remote.forms ?? {}), ...(progress.forms ?? {}) },
   };
   saveProgress(progress);
@@ -367,7 +398,8 @@ function setScreen(screen) {
       stopMusic();
     }
   }
-  elements.startScreen.hidden = screen !== "start";
+  elements.startScreen.hidden = screen !== "start" && screen !== "gameover";
+  elements.startScreen.classList.toggle("is-end-backdrop", screen === "gameover");
   elements.gameScreen.hidden = screen !== "game";
   elements.victoryScreen.hidden = screen !== "victory";
   elements.gameoverScreen.hidden = screen !== "gameover";
@@ -381,11 +413,22 @@ function setScreen(screen) {
 }
 
 async function startRun({ guided = false } = {}) {
+  if (activeMetaOverlay && currentScreen === "start") {
+    return;
+  }
   unlockAudio();
   sfx("ui");
+  closeMetaOverlay();
+  const autoGuide = !guided && !progress.tutorialSeen;
+  if (guided || autoGuide) {
+    progress.tutorialSeen = true;
+    saveProgress(progress);
+  }
   recordRunStart(progress);
   _prevScore = 0; // reset score-pop baseline for the new run
   runProof = null;
+  gameoverRevealResult = null;
+  gameoverRevealBatch = [];
   let seed = randomSeed();
   if (authState.user) {
     try {
@@ -413,7 +456,7 @@ async function startRun({ guided = false } = {}) {
   state = createInitialState({
     // Pure orthogonal match-3: diagonal matches AND diagonal swaps are both off.
     // Classic feel — lines only form horizontally/vertically. Difficulty is offset
-    // by power-up tiles (rocket from a match-4, bomb from a match-5 / L-T) that
+    // by power-up tiles (cross from a match-4, bomb from a match-5 / L-T) that
     // help clear the board.
     diagonalAssist: false,
     diagonalSwaps: false,
@@ -425,53 +468,135 @@ async function startRun({ guided = false } = {}) {
   resetInteractionState();
   setScreen("game");
   render();
-  if (guided) {
+  if (guided || autoGuide) {
     startGuideTour();
   } else {
     showVibeIntro();
   }
 }
 
-// "Guide" on the start screen: spin up a real run, then walk the player through
-// the live HUD with coachmarks. The tour freezes the board until they finish,
-// then hands the run back so they can keep playing from where the guide left.
+// First-run onboarding: show coachmarks only when the related mechanic actually
+// appears during the match. This keeps the first run teachable without front-
+// loading a long static tour.
 let guideTour = null;
+let tutorialRun = null;
 
 function startGuideTour() {
   guideTour?.stop();
-  const steps = [
-    {
-      target: () => elements.board,
-      title: "Match to grow",
-      body: "Swap two touching blocks to line up 3 or more of the same color.",
-      placement: "top",
-    },
-    {
-      target: () => document.querySelector("#colorRoster .roster-item"),
-      title: "Essence rings",
-      body: "Every match fills that color's ring. Fill it up to evolve the color.",
-    },
-    {
-      target: () => elements.rerollRun,
-      title: "Reroll",
-      body: "Matches charge the meter. When the button lights up you've earned a reroll — tap it to reshuffle the whole board. You can bank only one at a time, and you start with none.",
-    },
-    {
-      target: () => document.querySelector(".topbar-stats"),
-      title: "Score & moves",
-      body: "Your score climbs with every match and cascade.",
-    },
-    {
-      target: () => null,
-      title: "Evolve to win",
-      body: "Max a color's essence to evolve it through its forms. Reach the final form to win the run. Have fun!",
-    },
-  ];
-  guideTour = runTour(steps, {
-    onDone: () => {
-      guideTour = null;
-    },
+  tutorialRun = {
+    active: true,
+    seen: new Set(),
+    queue: Promise.resolve(),
+  };
+  showTutorialCoachmark("swap", {
+    target: () => elements.board,
+    title: "Make matches",
+    body: "Swap two touching blocks to line up 3 or more of the same color. Only real matches spend a move.",
+    placement: "top",
   });
+  showTutorialCoachmark("vibe", {
+    target: () => elements.vibeStrip && !elements.vibeStrip.hidden ? elements.vibeStrip : document.querySelector(".game-frame"),
+    title: "Run vibe",
+    body: "Each run rolls a vibe bonus. It can change essence, moves, decay, or scoring behavior.",
+  });
+}
+
+function stopTutorialRun() {
+  if (tutorialRun) {
+    tutorialRun.active = false;
+  }
+  guideTour?.stop();
+  guideTour = null;
+  tutorialRun = null;
+}
+
+function tutorialTileTarget(spawn) {
+  return () =>
+    document.querySelector(
+      `.tile[data-row="${spawn.row}"][data-col="${spawn.col}"]`,
+    ) ?? elements.board;
+}
+
+function showTutorialCoachmark(key, step) {
+  if (!tutorialRun?.active || tutorialRun.seen.has(key)) {
+    return Promise.resolve();
+  }
+  tutorialRun.seen.add(key);
+  tutorialRun.queue = tutorialRun.queue.then(
+    () =>
+      new Promise((resolve) => {
+        if (!tutorialRun?.active) {
+          resolve();
+          return;
+        }
+        guideTour?.stop();
+        guideTour = runTour([step], {
+          onDone: () => {
+            guideTour = null;
+            resolve();
+          },
+        });
+      }),
+  );
+  return tutorialRun.queue;
+}
+
+async function showTutorialForResolutionStep(step, stepIndex) {
+  if (!tutorialRun?.active) {
+    return;
+  }
+
+  if (stepIndex >= 1) {
+    await showTutorialCoachmark("combo", {
+      target: () => document.querySelector(".stat-pill--combo") ?? elements.board,
+      title: "Combo",
+      body: "Cascades after your match raise the combo multiplier and add more score.",
+    });
+  }
+
+  const cross = step.specialSpawns?.find((spawn) => spawn.special === "cross");
+  if (cross) {
+    await showTutorialCoachmark("cross", {
+      target: tutorialTileTarget(cross),
+      title: "Match 4: Cross",
+      body: "A straight match of 4 creates a cross tile. Match it later to clear its row and column.",
+    });
+  }
+
+  const bomb = step.specialSpawns?.find((spawn) => spawn.special === "bomb");
+  if (bomb) {
+    await showTutorialCoachmark("bomb", {
+      target: tutorialTileTarget(bomb),
+      title: "Match 5+: Bomb",
+      body: "A match of 5, L shape, or T shape creates a bomb. Match it later to clear a 3 by 3 area.",
+    });
+  }
+}
+
+async function showTutorialForStateTransition(previousState, nextState) {
+  if (!tutorialRun?.active || !nextState) {
+    return;
+  }
+
+  if ((nextState.pendingEvolutionQueue?.length ?? 0) > (previousState?.pendingEvolutionQueue?.length ?? 0)) {
+    await showTutorialCoachmark("evolution", {
+      target: () =>
+        nextState.pendingEvolutionQueue?.[0]?.step === "form"
+          ? elements.modalForm
+          : elements.modalPartner,
+      title: "Evolution choice",
+      body: "When an essence ring fills, choose a partner or form to evolve that color.",
+    });
+  }
+
+  if (nextState.gameOver) {
+    await showTutorialCoachmark("rewards", {
+      target: () => null,
+      title: "Rewards",
+      body: "After the run, score thresholds and quests can award capsules. Capsules unlock Blupets; duplicates become shards.",
+    });
+    stopTutorialRun();
+  }
 }
 
 // Reveal the rolled vibe as a one-time overlay at the top of each run, so the
@@ -504,8 +629,113 @@ function hasLiveRun() {
   return Boolean(state && !state.victory && !state.gameOver);
 }
 
+const META_NAV_ITEMS = Object.freeze([
+  ["collection", "Collection"],
+  ["quests", "Quests"],
+  ["rank", "Leaderboard"],
+  ["guide", "Guide"],
+]);
+
+function renderMetaNav(host, active) {
+  if (!host) return;
+  host.innerHTML = META_NAV_ITEMS.map(([id, label]) => {
+    const current = id === active;
+    return `
+      <button class="meta-nav-btn${current ? " is-active" : ""}" type="button" data-meta-nav="${id}" aria-current="${current ? "page" : "false"}">
+        <span>${escapeHtml(label)}</span>
+      </button>`;
+  }).join("");
+}
+
+function renderStartMetaTabs(active = activeMetaOverlay) {
+  if (elements.startRun) {
+    elements.startRun.disabled = Boolean(active);
+  }
+  elements.startScreen?.classList.toggle("has-meta-popup", Boolean(active));
+  const map = [
+    [elements.startCollection, "collection"],
+    [elements.startQuests, "quests"],
+    [elements.startLeaderboard, "rank"],
+    [elements.startGuide, "guide"],
+  ];
+  const normalizedActive = active === "public-profile" ? "rank" : active;
+  for (const [button, id] of map) {
+    if (!button) continue;
+    const current = normalizedActive === id;
+    button.classList.toggle("is-active", current);
+    button.setAttribute("aria-current", current ? "page" : "false");
+  }
+}
+
+function openMetaSection(section, fromScreen = currentScreen) {
+  if (section === "play") {
+    closeMetaOverlay();
+    return;
+  }
+  profileTab =
+    section === "account" ? "account" :
+    section === "rank" ? "rank" :
+    section === "quests" ? "quests" :
+    section === "capsules" ? "capsules" :
+    section === "guide" ? "guide" :
+    "collection";
+  openMetaOverlay(profileTab);
+}
+
+function closeMetaOverlay() {
+  activeMetaOverlay = null;
+  metaPublicProfile = null;
+  if (elements.metaPopup) {
+    elements.metaPopup.hidden = true;
+    elements.metaPopup.setAttribute("aria-hidden", "true");
+    delete elements.metaPopup.dataset.section;
+  }
+  if (elements.globalMetaNav) {
+    elements.globalMetaNav.hidden = true;
+  }
+  renderStartMetaTabs(null);
+}
+
+function handleMetaPopupClose() {
+  if (activeMetaOverlay === "public-profile") {
+    metaPublicProfile = null;
+    activeMetaOverlay = "rank";
+    renderMetaOverlay();
+    return;
+  }
+  closeMetaOverlay();
+}
+
+async function openMetaOverlay(section) {
+  metaPublicProfile = null;
+  activeMetaOverlay =
+    section === "account" ? "account" :
+    section === "rank" ? "rank" :
+    section === "quests" ? "quests" :
+    section === "capsules" ? "capsules" :
+    section === "guide" ? "guide" :
+    "collection";
+  if (elements.metaPopup) {
+    elements.metaPopup.hidden = false;
+    elements.metaPopup.setAttribute("aria-hidden", "false");
+    elements.metaPopup.dataset.section = activeMetaOverlay;
+  }
+  if (activeMetaOverlay === "rank" && leaderboardStatus !== "ready") {
+    leaderboardStatus = "loading";
+    renderMetaOverlay();
+    try {
+      remoteLeaderboard = await fetchGlobalLeaderboard();
+      leaderboardStatus = "ready";
+    } catch {
+      leaderboardStatus = "error";
+    }
+  }
+  renderMetaOverlay();
+}
+
 function goToStart() {
-  guideTour?.stop();
+  stopTutorialRun();
+  closeMetaOverlay();
   resetInteractionState();
   clearRunProof();
   // Drop the finished/abandoned run so nothing can navigate back into a frozen
@@ -515,8 +745,13 @@ function goToStart() {
   render();
 }
 
-function openProfile(fromScreen = currentScreen) {
+function openProfile(fromScreen = currentScreen, section = profileTab) {
   lastScreenBeforeProfile = fromScreen;
+  profileTab =
+    section === "account" ? "account" :
+    section === "quests" ? "quests" :
+    section === "capsules" ? "capsules" :
+    "collection";
   setScreen("profile");
   render();
   if (authState.user) {
@@ -562,6 +797,31 @@ function closeLeaderboard() {
 }
 
 function openPublicProfile(userId, accountName, avatarUrl) {
+  const inMetaPopup = currentScreen === "start" && elements.metaPopup && !elements.metaPopup.hidden;
+  if (inMetaPopup) {
+    metaPublicProfile = {
+      userId,
+      accountName,
+      avatarUrl,
+      entries: null,
+      loading: true,
+      error: false,
+    };
+    activeMetaOverlay = "public-profile";
+    renderMetaOverlay();
+    fetchPublicUserEntries(userId)
+      .then((entries) => {
+        if (!metaPublicProfile || metaPublicProfile.userId !== userId) return;
+        metaPublicProfile = { ...metaPublicProfile, entries, loading: false, error: false };
+        renderMetaOverlay();
+      })
+      .catch(() => {
+        if (!metaPublicProfile || metaPublicProfile.userId !== userId) return;
+        metaPublicProfile = { ...metaPublicProfile, entries: [], loading: false, error: true };
+        renderMetaOverlay();
+      });
+    return;
+  }
   if (!elements.publicProfileScreen) return;
   if (elements.publicProfileAvatarEl) {
     elements.publicProfileAvatarEl.style.backgroundImage = safeCssUrl(avatarUrl || "");
@@ -583,7 +843,7 @@ function openPublicProfile(userId, accountName, avatarUrl) {
   const isSelf = Boolean(authState.user && userId === authState.user.id);
 
   fetchPublicUserEntries(userId)
-    .then((entries) => renderPublicProfile(entries, isSelf))
+    .then((entries) => renderPublicProfile(entries, isSelf, userId))
     .catch(() => {
       if (currentScreen === "public-profile" && elements.publicProfileContent) {
         elements.publicProfileContent.innerHTML = `<div class="leaderboard-empty">Could not load profile.</div>`;
@@ -600,9 +860,27 @@ function closePublicProfile() {
   }
 }
 
-function renderPublicProfile(entries, isSelf = false) {
+function renderPublicProfile(entries, isSelf = false, userId = "") {
   if (currentScreen !== "public-profile") return;
+  const html = renderPublicProfileHtml(entries, isSelf, userId);
+  if (elements.publicProfileScreen) {
+    const sectionHead = elements.publicProfileScreen.querySelector(".profile-section-head");
+    if (sectionHead) {
+      let statsBlock = elements.publicProfileScreen.querySelector(".profile-stats");
+      if (!statsBlock) {
+        statsBlock = document.createElement("div");
+        statsBlock.className = "profile-stats";
+        sectionHead.before(statsBlock);
+      }
+      statsBlock.innerHTML = html.stats;
+    }
+  }
+  if (elements.publicProfileContent) {
+    elements.publicProfileContent.innerHTML = html.content;
+  }
+}
 
+function renderPublicProfileHtml(entries, isSelf = false, userId = "") {
   // Build discovered-forms map from all their leaderboard entries.
   const forms = {};
   for (const e of entries) {
@@ -610,9 +888,8 @@ function renderPublicProfile(entries, isSelf = false) {
     forms[e.t4FormKey] = { count: (forms[e.t4FormKey]?.count ?? 0) + 1 };
   }
 
-  let wins = entries.length;
   let bestScore = entries.reduce((m, e) => Math.max(m, e.score || 0), 0);
-  let fastestMoves = entries.reduce((m, e) => Math.min(m, e.movesUsed ?? Infinity), Infinity);
+  let gamesPlayed = entries.length;
 
   // On your own card, union local progress so a just-won form / stat shows
   // even before its leaderboard_entries row is readable.
@@ -620,66 +897,54 @@ function renderPublicProfile(entries, isSelf = false) {
     for (const key of Object.keys(progress.forms ?? {})) {
       if (!forms[key]) forms[key] = { count: 1 };
     }
-    wins = Math.max(wins, progress.wins ?? 0);
     bestScore = Math.max(bestScore, progress.bestScore ?? 0);
-    if (progress.fewestMovesWin != null) {
-      fastestMoves = Math.min(fastestMoves, progress.fewestMovesWin);
+    gamesPlayed = Math.max(gamesPlayed, Number(progress.runs) || 0);
+  }
+
+  const publicCollectionTiles = publicCollectionTilesFromApexForms(forms);
+  const publicBlupetsCount = Object.keys(publicCollectionTiles).length;
+  const ranks = leaderboardRanksForUser(userId);
+  return {
+    stats: renderProfileStatsPanel({
+      bestScore,
+      gamesPlayed,
+      scoreRank: ranks.score,
+      speedRank: ranks.speed,
+      blupets: `${publicBlupetsCount}/${TOTAL_INVENTORY_FORMS}`,
+      progressValue: publicBlupetsCount,
+      progressTotal: TOTAL_INVENTORY_FORMS,
+    }),
+    content: renderPublicBlupetsCollection(publicCollectionTiles),
+  };
+}
+
+function publicCollectionTilesFromApexForms(forms) {
+  const collectionTiles = {};
+  for (const apexKey of Object.keys(forms ?? {})) {
+    const family = getLineageByAscendedKey(apexKey);
+    if (!family) continue;
+    for (const tier of [2, 3, 4]) {
+      for (const form of family.forms?.[tier] ?? []) {
+        const key = form.key ?? form.name;
+        collectionTiles[key] = { count: forms[apexKey]?.count ?? 1 };
+      }
     }
   }
+  return collectionTiles;
+}
 
-  const formsCount = Object.keys(forms).length;
-
-  const stat = (label, val) =>
-    `<div class="lifetime-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(val))}</strong></div>`;
-
-  const sectionHead = elements.publicProfileScreen?.querySelector(".profile-section-head");
-  if (sectionHead) {
-    let statsBlock = elements.publicProfileScreen.querySelector(".profile-stats");
-    if (!statsBlock) {
-      statsBlock = document.createElement("div");
-      statsBlock.className = "profile-stats";
-      sectionHead.before(statsBlock);
-    }
-    statsBlock.innerHTML = `<div class="lifetime-stats">
-      ${stat("Wins", wins)}
-      ${stat("Best", bestScore)}
-      ${fastestMoves < Infinity ? stat("Fastest", `${fastestMoves} mv`) : ""}
-    </div>${renderCollectionProgress(formsCount, TOTAL_APEX_FORMS)}`;
+function renderMetaPublicProfileContent() {
+  if (!metaPublicProfile || metaPublicProfile.loading) {
+    return `<div class="leaderboard-empty">Loading profile…</div>`;
   }
-
-  if (elements.publicProfileContent) {
-    const collectionEntries = getCollectionEntries({ forms });
-    // Their per-family unlocked-tile snapshot from the newest entry that carries
-    // one (cumulative; older rows are stale). Own self-view uses fresh local
-    // counts instead, matching the own-profile pill.
-    const cloudBadges = entries.reduce((best, e) => {
-      const has = e.familyBadges && Object.keys(e.familyBadges).length > 0;
-      return has && e.timestamp >= (best?.timestamp ?? -1) ? e : best;
-    }, null)?.familyBadges ?? {};
-    const cards = collectionEntries.map((entry) => {
-      const total = familyBadgeProgress(null, entry.key).total;
-      const unlocked = isSelf
-        ? familyBadgeProgress(progress, entry.key).unlocked
-        : (Number(cloudBadges[entry.key]) || 0);
-      const isComplete = total > 0 && unlocked === total;
-      const pillClass = `collection-badge-count${unlocked === 0 ? " is-empty" : ""}${isComplete ? " is-complete" : ""}`;
-      const pillText = `${isComplete ? "✦" : ""}${unlocked}/${total}`;
-      return `
-      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
-        <div class="collection-art">
-          ${
-            entry.discovered
-              ? `<img src="${escapeHtml(entry.asset)}" alt="${escapeHtml(entry.name)}" />`
-              : `<img class="collection-art-blurred" src="${escapeHtml(entry.asset)}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
-          }
-          <span class="${pillClass}">${pillText}</span>
-        </div>
-        <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
-      </div>
-    `;
-    }).join("");
-    elements.publicProfileContent.innerHTML = `<div class="collection-grid">${cards}</div>`;
+  if (metaPublicProfile.error) {
+    return `<div class="leaderboard-empty">Could not load profile.</div>`;
   }
+  return renderPublicProfileHtml(
+    metaPublicProfile.entries ?? [],
+    Boolean(authState.user && metaPublicProfile.userId === authState.user.id),
+    metaPublicProfile.userId,
+  ).content;
 }
 
 function recordVictory(nextState) {
@@ -699,11 +964,6 @@ function recordVictory(nextState) {
     score: nextState.score,
     movesUsed: nextState.movesUsed,
   });
-  // Fold this run's per-form merges into the lifetime badge store before we
-  // snapshot. A run ends in exactly one branch (victory OR gameOver, mutually
-  // exclusive per tick, guarded by !wasVictory), so this folds once — and it
-  // fixes the prior bug where merges were lost when a run ended via victory.
-  foldRunMerges(progress, nextState.runMergeCounts ?? {});
   updateProfileChip();
 
   if (authState.user && runProof) {
@@ -717,11 +977,8 @@ function recordVictory(nextState) {
       partnerColorId,
       vibe: nextState.vibe?.id ?? null,
     };
-    // Per-family unlocked-tile snapshot so other players' public profiles can
-    // render N/total card pills. Only unlocked counts are shared.
-    const familyBadges = collectFamilyBadges(progress);
     console.info("[sync] submitting run result:", proof.runId, result);
-    submitTrustedRun(proof.runId, result, familyBadges)
+    submitTrustedRun(proof.runId, result)
       .then((data) => {
         console.info("[sync] submit-run accepted:", data);
         if (data?.progress) {
@@ -769,7 +1026,7 @@ function recordEndlessT4(nextState, colorId) {
 }
 
 // In-place T4 flash on the game frame + a celebratory sound/buzz, without leaving
-// the board. Mirrors the pulseHatch animation-restart pattern.
+// the board. Restarts the animation if it fires twice in a row.
 let _t4FlashTimer = null;
 function celebrateEndlessT4() {
   const frame = elements.gameFrame;
@@ -789,12 +1046,8 @@ function celebrateEndlessT4() {
 
 function applyState(nextState) {
   const wasVictory = state?.victory;
-  const prevCharges = state?.rerollCharges ?? 0;
   const prevTiers = state?.evolutionTiers ?? {};
   state = nextState;
-  if ((nextState?.rerollCharges ?? 0) > prevCharges) {
-    pulseHatch();
-  }
   // Soft-endless: each color that newly reaches T4 this step celebrates in place
   // and is recorded into the local collection. No leaderboard submit (deferred to
   // the badge rework).
@@ -825,15 +1078,37 @@ function applyState(nextState) {
         .catch(() => {});
     }
   } else if (nextState?.gameOver) {
-    // Endless run ended (moves = 0). Fold this run's per-form merges into the
-    // lifetime badge store and capture the summary the end screen will render.
-    // Local only — no cloud submit in Phase 2a.
+    // Endless run ended (moves = 0). Fold this run into the lifetime badge store
+    // exactly once and capture the summary the end screen renders. Local only.
     if (nextState.endlessRun) {
-      const fold = foldRunMerges(progress, nextState.runMergeCounts ?? {});
+      const reachedForms = [];
+      for (const color of COLORS) {
+        const tier = nextState.evolutionTiers?.[color.id] ?? 1;
+        for (let formTier = 2; formTier <= Math.min(4, tier); formTier += 1) {
+          const key =
+            nextState.evolutionChoices?.[color.id]?.[formTier] ??
+            getChosenEvolutionForm(nextState, color.id, formTier)?.key ??
+            (formTier === tier ? activeBadgeFormKey(nextState, color.id) : null);
+          if (key) reachedForms.push({ key, tier: formTier });
+        }
+      }
+      const fold = foldRun(progress, {
+        score: nextState.score,
+        reachedForms,
+        maxCombo: nextState.runMaxCombo ?? 0,
+        specials: nextState.runSpecials ?? { cross: 0, bomb: 0 },
+        tileClears: nextState.runTileClears ?? {},
+      });
       lastRunSummary = {
         score: nextState.score,
-        newBadges: fold.newlyUnlocked,
-        unlockedTotal: fold.unlockedTotal,
+        movesUsed: nextState.movesUsed ?? 0,
+        maxCombo: nextState.runMaxCombo ?? 0,
+        specials: nextState.runSpecials ?? { cross: 0, bomb: 0 },
+        newBadges: fold.newBadges,
+        capsulesEarned: fold.capsulesEarned ?? 0,
+        bonusCapsules: fold.newBadges.reduce((sum, badge) => sum + (Number(badge.capsules) || 0), 0),
+        ascendedCount: ascendedLineageCount(progress),
+        blupetsCount: collectionTileCount(progress),
       };
       updateProfileChip();
     }
@@ -860,28 +1135,8 @@ function getLeaderColorId(stateLike) {
     })[0]?.id;
 }
 
-let hatchPulseTimer = null;
 let _scoreBumpTimer = null;
 let _prevScore = 0;
-// One-shot pop on the egg meter when a match hatches a fresh reroll charge.
-function pulseHatch() {
-  const meter = elements.rerollRun;
-  if (!meter) {
-    return;
-  }
-  meter.classList.remove("is-hatched");
-  void meter.offsetWidth; // restart the animation if it fires twice in a row
-  meter.classList.add("is-hatched");
-  sfx("hatch");
-  buzz(30);
-  if (hatchPulseTimer) {
-    clearTimeout(hatchPulseTimer);
-  }
-  hatchPulseTimer = setTimeout(() => {
-    meter.classList.remove("is-hatched");
-    hatchPulseTimer = null;
-  }, 700);
-}
 
 function renderTopBar(stateLike) {
   elements.movesValue.textContent = String(stateLike.movesLeft);
@@ -913,36 +1168,27 @@ function renderTopBar(stateLike) {
     movesPill.classList.toggle("is-danger", movesRemaining <= 3);
     movesPill.classList.toggle("is-warning", movesRemaining > 3 && movesRemaining <= 6);
   }
+}
 
-  const charges = stateLike.rerollCharges ?? 0;
-  const rerollDisabled =
-    isAnimating ||
-    stateLike.pendingEvolutionQueue.length > 0 ||
-    stateLike.victory ||
-    movesRemaining <= 0 ||
-    charges <= 0;
-  elements.rerollRun.disabled = rerollDisabled;
-
-  if (elements.rerollHud) {
-    elements.rerollHud.disabled = rerollDisabled;
-  }
-  if (elements.rerollHudBadge) {
-    elements.rerollHudBadge.textContent = String(charges);
-    // Binary economy (max 1 charge): the lit button colour signals readiness,
-    // so the numeric badge is only useful when there's actually a charge.
-    elements.rerollHudBadge.hidden = charges <= 0;
-  }
-
-  if (elements.rerollPips?.length) {
-    elements.rerollPips.forEach((pip, i) => pip.classList.toggle("is-active", i < charges));
-    const pipsEl = elements.rerollPips[0]?.parentElement;
-    if (pipsEl) pipsEl.dataset.charges = String(charges);
-  }
-  // No progress fill anymore — the button simply lights up (Enter-Run gradient)
-  // once a charge is ready, and is neutral while the meter is still filling.
-  elements.rerollRun.classList.toggle("has-charge", charges > 0);
-  if (elements.rerollHud) {
-    elements.rerollHud.classList.toggle("has-charge", charges > 0);
+// Desktop COMBO card: shows the SCORE multiplier this swap earned — the same
+// cascade-depth value from game.js comboMultiplier (×1 per single match, +1 per
+// cascade step, capped at ×4) that the score is actually multiplied by, and the
+// same number the "Combo ×N" popup escalates to. ×1 reads as a dash. Resets on
+// the next swap. Hidden on mobile via CSS, so this is a no-op there.
+function setComboDisplay(level) {
+  const el = elements.comboValue;
+  if (!el) return;
+  const pill = el.closest(".stat-pill--combo");
+  if (level && level >= 2) {
+    el.textContent = "×" + level;
+    if (pill) {
+      pill.classList.remove("is-active");
+      void pill.offsetWidth; // restart the flash animation
+      pill.classList.add("is-active");
+    }
+  } else {
+    el.textContent = "—";
+    if (pill) pill.classList.remove("is-active");
   }
 }
 
@@ -1135,7 +1381,7 @@ function updateProfileChip() {
     elements.profileChip.classList.toggle("is-signed-in", Boolean(authState.user));
   }
   if (elements.profileChipCount) {
-    elements.profileChipCount.textContent = `${unlockedBadgeCount(progress)}/${TOTAL_BADGES}`;
+    elements.profileChipCount.textContent = `${collectionTileCount(progress)}/${TOTAL_INVENTORY_FORMS}`;
   }
 }
 
@@ -1282,42 +1528,63 @@ function renderProfile() {
   }
 
   const signedIn = Boolean(authState.user);
+  const section =
+    profileTab === "quests" ? "quests" :
+    profileTab === "account" ? "account" :
+    profileTab === "capsules" ? "capsules" :
+    "collection";
+  elements.profileScreen.dataset.section = section;
   if (elements.profileAvatar) {
     elements.profileAvatar.style.backgroundImage = safeCssUrl(authState.avatarUrl);
+    elements.profileAvatar.hidden = section !== "account";
   }
   if (elements.profileName) {
-    elements.profileName.textContent = signedIn ? shortAuthLabel(authState.label) : "Guest";
+    elements.profileName.textContent =
+      section === "collection" ? "Collection" :
+      section === "capsules" ? "Capsules" :
+      section === "quests" ? "Quests" :
+      signedIn ? shortAuthLabel(authState.label) : "Guest";
   }
   if (elements.profileStatus) {
-    // Status line under the nickname removed — the old copy was misleading now
-    // that cloud sync works, and the nickname alone reads cleaner.
-    elements.profileStatus.hidden = true;
-    elements.profileStatus.textContent = "";
+    elements.profileStatus.hidden = false;
+    elements.profileStatus.textContent =
+      section === "collection"
+        ? `${collectionTileCount(progress)}/${TOTAL_INVENTORY_FORMS} Blupets opened`
+        : section === "capsules"
+          ? `${Math.max(0, Math.floor(Number(progress.capsules) || 0))} ready, ${Math.max(0, Math.floor(Number(progress.shards) || 0))}/${SHARDS_PER_CAPSULE} shards`
+        : section === "quests"
+          ? `${getMilestoneBadges(progress).filter((badge) => badge.unlocked).length}/${getMilestoneBadges(progress).length} quests complete`
+          : signedIn ? "Cloud profile connected" : "Local guest profile";
   }
   if (elements.profileLogoutBtn) {
-    elements.profileLogoutBtn.hidden = !signedIn;
+    elements.profileLogoutBtn.hidden = section !== "account" || !signedIn;
     elements.profileLogoutBtn.disabled = authState.loading || !authState.configured || !signedIn;
   }
   if (elements.profileSignInBtn) {
-    elements.profileSignInBtn.hidden = signedIn;
+    elements.profileSignInBtn.hidden = section !== "account" || signedIn;
     elements.profileSignInBtn.disabled = authState.loading || !authState.configured;
   }
   if (elements.profileContent) {
-    elements.profileContent.innerHTML = renderCollectionGrid();
+    elements.profileContent.innerHTML =
+      section === "quests" ? renderQuestsSection() :
+      section === "account" ? renderAccountSection() :
+      section === "capsules" ? renderCapsulesSection() :
+      renderCollectionGrid();
   }
   if (elements.profileScreen) {
     const stats = elements.profileScreen.querySelector(".profile-section-head");
     if (stats) {
-      const summary = renderStatsHeader();
       let statsBlock = elements.profileScreen.querySelector(".profile-stats");
       if (!statsBlock) {
         statsBlock = document.createElement("div");
         statsBlock.className = "profile-stats";
         stats.after(statsBlock);
       }
-      statsBlock.innerHTML = summary;
+      statsBlock.hidden = section !== "quests";
+      statsBlock.innerHTML = section === "quests" ? renderQuestStatsHeader() : "";
     }
   }
+  renderMetaNav(elements.profileMetaNav, section);
 }
 
 async function initializeAuth() {
@@ -1467,7 +1734,7 @@ async function shareVictory() {
   const data = victoryShareData ?? buildShareDataFromState(state);
   const form = data?.formName ?? "an apex form";
   const score = data?.score ?? 0;
-  const text = `I evolved ${form} for ${score} pts in Blupets Match-3! ✦ ${data?.forms ?? ""} forms collected.`;
+  const text = `I evolved ${form} for ${score} pts in Blupets Match-3! ✦ ${data?.forms ?? ""} Blupets collected.`;
   const url = window.location.href;
 
   let blob = null;
@@ -1658,7 +1925,7 @@ async function renderShareCard(data) {
 
   const stats = [
     ["SCORE", String(data.score)],
-    ["FORMS", data.forms],
+    ["BLUPETS", data.forms],
   ];
   const colW = cardW / stats.length;
   stats.forEach(([label, value], i) => {
@@ -1804,8 +2071,8 @@ function renderBoard(stateLike) {
           const powerOverlay = tile.special
             ? `<span class="tile-power tile-power--${tile.special}" data-dir="${tile.dir ?? ""}" aria-hidden="true"></span>`
             : "";
-          const powerLabel = tile.special === "rocket"
-            ? " (rocket power-up)"
+          const powerLabel = tile.special === "cross"
+            ? " (cross power-up)"
             : tile.special === "bomb"
               ? " (bomb power-up)"
               : "";
@@ -1904,7 +2171,7 @@ function renderStatus(stateLike) {
   if (stateLike.pendingEvolutionQueue.length > 0) {
     message = getQueuePrompt(stateLike);
   } else if (stateLike.gameOver) {
-    message = `${getBestProgressSummary(stateLike)} Start a new run or reroll to try again.`;
+    message = `${getBestProgressSummary(stateLike)} Start a new run to try again.`;
   } else if (stateLike._lastResolution?.cleared) {
     message = `Last clear: ${stateLike._lastResolution.cleared} tiles in ${stateLike._lastResolution.cascades} cascade${stateLike._lastResolution.cascades === 1 ? "" : "s"}.`;
   } else {
@@ -2093,6 +2360,176 @@ function renderModals(stateLike) {
 // The run-summary captured when the last endless run ended, rendered by the
 // run-summary (gameover) screen. Null until a run ends this session.
 let lastRunSummary = null;
+let gameoverRevealResult = null;
+let gameoverRevealBatch = [];
+let gameoverRevealSeq = 0;
+let capsuleRevealRequest = null;
+let capsuleRevealTimer = null;
+
+function capsuleResultRank(result) {
+  const tierRank = { base: 1, advanced: 2, ascended: 3 };
+  return (tierRank[result?.tier] ?? 0) * 10 + (result?.duplicate ? 0 : 1);
+}
+
+function bestCapsuleResult(results) {
+  return [...results].sort((a, b) => capsuleResultRank(b) - capsuleResultRank(a))[0] ?? null;
+}
+
+function openCapsuleBatch(count) {
+  const available = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+  const target = Math.min(Math.max(1, Math.floor(Number(count) || 1)), available);
+  const results = [];
+  for (let i = 0; i < target; i += 1) {
+    const result = openCapsule(progress);
+    if (result.opened) results.push(result);
+  }
+  return results;
+}
+
+function capsuleRevealCount(requested) {
+  const available = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+  if (requested === "all") return available;
+  return Math.min(Math.max(1, Math.floor(Number(requested) || 1)), available);
+}
+
+function renderCapsuleRevealOutput(results) {
+  const items = results.filter((result) => result?.opened);
+  if (!items.length) return "";
+  const tierLabel = (result) => escapeHtml(COLLECTION_TIER_LABEL[result.tier] ?? result.tier);
+  const card = (result) => `
+    <div class="capsule-reveal-card ${result.duplicate ? "is-duplicate" : "is-new"}" data-tier="${escapeHtml(result.tier)}">
+      <div class="capsule-reveal-art">
+        <img src="${escapeHtml(result.tile.asset)}" alt="${escapeHtml(result.tile.name)}" />
+      </div>
+      <strong>${escapeHtml(result.tile.name)}</strong>
+      <span>${tierLabel(result)}${result.duplicate ? ` &middot; +${result.shards} shards` : ""}</span>
+    </div>`;
+  if (items.length === 1) {
+    const result = items[0];
+    return `
+      <div class="capsule-reveal-single" data-tier="${escapeHtml(result.tier)}">
+        <div class="capsule-reveal-rings" aria-hidden="true"></div>
+        <div class="capsule-reveal-single-art">
+          <img src="${escapeHtml(result.tile.asset)}" alt="${escapeHtml(result.tile.name)}" />
+        </div>
+        <h2>${escapeHtml(result.tile.name)}</h2>
+        <span class="capsule-reveal-tier">${tierLabel(result)}</span>
+        ${result.duplicate ? `<p>Already owned &middot; +${result.shards} shards</p>` : `<p>New form collected</p>`}
+      </div>`;
+  }
+  return `
+    <div class="capsule-reveal-grid" style="--reveal-count:${items.length}">
+      ${items.map(card).join("")}
+    </div>`;
+}
+
+function openCapsuleRevealModal({ count = 1, source = "profile" } = {}) {
+  const target = capsuleRevealCount(count);
+  if (target <= 0) {
+    showToast("No capsules to open");
+    return;
+  }
+  if (!elements.capsuleRevealModal || !elements.capsuleRevealCube || !elements.capsuleRevealOutput) {
+    const results = openCapsuleBatch(target);
+    if (!results.length) return;
+    recentCapsuleResults = [...results.reverse(), ...recentCapsuleResults].slice(0, 16);
+    updateProfileChip();
+    if (source === "gameover") {
+      gameoverRevealBatch = results;
+      gameoverRevealResult = bestCapsuleResult(results);
+      gameoverRevealSeq += 1;
+      renderGameoverScreen(state);
+    } else {
+      renderProfile();
+    }
+    return;
+  }
+
+  capsuleRevealRequest = { count, source };
+  if (capsuleRevealTimer) {
+    clearTimeout(capsuleRevealTimer);
+    capsuleRevealTimer = null;
+  }
+  elements.capsuleRevealModal.hidden = false;
+  elements.capsuleRevealModal.setAttribute("aria-hidden", "false");
+  elements.capsuleRevealModal.dataset.phase = "ready";
+  elements.capsuleRevealModal.dataset.count = target > 1 ? "multi" : "single";
+  elements.capsuleRevealCube.disabled = false;
+  elements.capsuleRevealOutput.innerHTML = "";
+  if (elements.capsuleRevealClose) elements.capsuleRevealClose.hidden = true;
+  document.body.classList.add("modal-open");
+  requestAnimationFrame(() => elements.capsuleRevealCube?.focus({ preventScroll: true }));
+}
+
+function updateAfterCapsuleReveal(results, source) {
+  if (!results.length) return;
+  const ordered = [...results].reverse();
+  recentCapsuleResults = [...ordered, ...recentCapsuleResults].slice(0, 16);
+  updateProfileChip();
+  if (source === "gameover") {
+    gameoverRevealBatch = results;
+    gameoverRevealResult = bestCapsuleResult(results);
+    gameoverRevealSeq += 1;
+    renderGameoverScreen(state);
+  } else {
+    renderProfile();
+    renderMetaOverlay();
+  }
+}
+
+function performCapsuleReveal() {
+  if (!capsuleRevealRequest || !elements.capsuleRevealModal || elements.capsuleRevealModal.dataset.phase !== "ready") {
+    return;
+  }
+  const target = capsuleRevealCount(capsuleRevealRequest.count);
+  if (target <= 0) {
+    closeCapsuleRevealModal();
+    showToast("No capsules to open");
+    return;
+  }
+  elements.capsuleRevealModal.dataset.phase = "opening";
+  elements.capsuleRevealCube.disabled = true;
+  elements.capsuleRevealOutput.innerHTML = "";
+  if (elements.capsuleRevealClose) elements.capsuleRevealClose.hidden = true;
+  sfx("ui");
+
+  capsuleRevealTimer = setTimeout(() => {
+    const request = capsuleRevealRequest;
+    const results = openCapsuleBatch(target);
+    capsuleRevealTimer = null;
+    if (!results.length) {
+      closeCapsuleRevealModal();
+      showToast("No capsules to open");
+      return;
+    }
+    updateAfterCapsuleReveal(results, request?.source ?? "profile");
+    elements.capsuleRevealModal.dataset.phase = "result";
+    elements.capsuleRevealModal.dataset.count = results.length > 1 ? "multi" : "single";
+    elements.capsuleRevealOutput.innerHTML = renderCapsuleRevealOutput(results);
+    if (elements.capsuleRevealClose) {
+      elements.capsuleRevealClose.hidden = false;
+      elements.capsuleRevealClose.focus({ preventScroll: true });
+    }
+    sfx(results.some((result) => !result.duplicate) ? "evolve" : "ui");
+  }, 1850);
+}
+
+function closeCapsuleRevealModal() {
+  if (capsuleRevealTimer) {
+    clearTimeout(capsuleRevealTimer);
+    capsuleRevealTimer = null;
+  }
+  capsuleRevealRequest = null;
+  if (!elements.capsuleRevealModal) return;
+  elements.capsuleRevealModal.hidden = true;
+  elements.capsuleRevealModal.setAttribute("aria-hidden", "true");
+  elements.capsuleRevealModal.dataset.phase = "closed";
+  delete elements.capsuleRevealModal.dataset.count;
+  if (elements.capsuleRevealOutput) elements.capsuleRevealOutput.innerHTML = "";
+  if (elements.capsuleRevealClose) elements.capsuleRevealClose.hidden = true;
+  if (elements.capsuleRevealCube) elements.capsuleRevealCube.disabled = false;
+  document.body.classList.remove("modal-open");
+}
 
 function renderGameoverScreen(stateLike) {
   if (currentScreen !== "gameover" || !stateLike?.gameOver) {
@@ -2101,32 +2538,119 @@ function renderGameoverScreen(stateLike) {
 
   const summary = lastRunSummary ?? {
     score: stateLike.score,
+    movesUsed: stateLike.movesUsed ?? 0,
+    maxCombo: stateLike.runMaxCombo ?? 0,
+    specials: stateLike.runSpecials ?? { cross: 0, bomb: 0 },
     newBadges: [],
-    unlockedTotal: unlockedBadgeCount(progress),
+    capsulesEarned: 0,
+    bonusCapsules: 0,
+    ascendedCount: ascendedLineageCount(progress),
+    blupetsCount: collectionTileCount(progress),
   };
 
   elements.gameoverScore.textContent = `${summary.score}`;
 
-  const newCount = summary.newBadges.length;
-  const strip =
-    newCount === 0
-      ? `<span class="run-summary-empty">No new badges this run</span>`
-      : summary.newBadges
-          .slice(0, 12)
-          .map(
-            (badge) =>
-              `<span class="run-summary-badge" title="${escapeHtml(badge.name)}">` +
-              (badge.asset
-                ? `<img src="${escapeHtml(badge.asset)}" alt="" />`
-                : "") +
-              `</span>`,
-          )
-          .join("");
+  const totalCapsules = (Number(summary.capsulesEarned) || 0) + (Number(summary.bonusCapsules) || 0);
+  const bestForm = getBestRunForm(stateLike);
+  if (elements.gameoverFormArt) {
+    elements.gameoverFormArt.src = bestForm.asset;
+    elements.gameoverFormArt.alt = bestForm.name;
+  }
+  if (elements.gameoverFormName) {
+    elements.gameoverFormName.textContent = bestForm.name;
+  }
+
+  const balance = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+  const ctaCount = balance > 0 ? (totalCapsules > 0 ? Math.min(totalCapsules, balance) : balance) : 0;
+  const ctaTitle = balance > 0
+    ? (ctaCount === 1 ? "Capsule earned!" : `${ctaCount} capsules earned!`)
+    : "No capsules ready";
+  const ctaSub = balance > 0
+    ? (balance > 1 ? "Tap to open all capsules" : "Tap to open your capsule")
+    : "Play again to earn capsules";
 
   elements.gameoverDetail.innerHTML =
-    `<div class="run-summary-line">New badges: <strong>${newCount}</strong></div>` +
-    `<div class="run-summary-strip">${strip}</div>` +
-    `<div class="run-summary-line">Collection: <strong>${summary.unlockedTotal}/${TOTAL_BADGES}</strong></div>`;
+    `<button class="run-capsule-summary" type="button" data-gameover-capsule-cta ${balance <= 0 ? "disabled" : ""}>` +
+      `<span class="run-capsule-icon"><img src="./assets/blocks/origin.svg" alt="" /></span>` +
+      `<span class="run-capsule-copy"><strong>${escapeHtml(ctaTitle)}</strong><small>${escapeHtml(ctaSub)}</small></span>` +
+      (balance > 0 ? `<span class="run-capsule-arrow" aria-hidden="true">→</span>` : `<span></span>`) +
+    `</button>`;
+}
+
+function getBestRunForm(stateLike) {
+  let best = null;
+  for (const color of COLORS) {
+    const tier = stateLike.evolutionTiers?.[color.id] ?? 1;
+    const form = tier > 1 ? getChosenEvolutionForm(stateLike, color.id, tier) : null;
+    const progressValue = stateLike.colorMatchCounts?.[color.id] ?? 0;
+    const candidate = {
+      tier,
+      progressValue,
+      name: form?.name ?? `${color.label} Blupet`,
+      asset: form?.asset ?? getBaseBlockAsset(color.id),
+    };
+    if (
+      !best ||
+      candidate.tier > best.tier ||
+      (candidate.tier === best.tier && candidate.progressValue > best.progressValue)
+    ) {
+      best = candidate;
+    }
+  }
+  return best ?? {
+    tier: 1,
+    progressValue: 0,
+    name: "Blupet",
+    asset: "./assets/hero-block.svg",
+  };
+}
+
+async function shareRunSummary() {
+  const summary = lastRunSummary ?? (state?.gameOver ? {
+    score: state.score,
+    movesUsed: state.movesUsed ?? 0,
+    maxCombo: state.runMaxCombo ?? 0,
+    specials: state.runSpecials ?? { cross: 0, bomb: 0 },
+    capsulesEarned: 0,
+    bonusCapsules: 0,
+    blupetsCount: collectionTileCount(progress),
+  } : null);
+  if (!summary) {
+    return;
+  }
+  const totalCapsules = (Number(summary.capsulesEarned) || 0) + (Number(summary.bonusCapsules) || 0);
+  const totalSpecials =
+    (Number(summary.specials?.cross) || 0) + (Number(summary.specials?.bomb) || 0);
+  const text = [
+    `I scored ${summary.score} in Blupets Match`,
+    `${summary.movesUsed ?? 0} moves`,
+    `max combo x${summary.maxCombo || 1}`,
+    `${totalSpecials} specials`,
+    `${totalCapsules} capsules`,
+  ].join(" · ");
+  const url = `${window.location.origin}${window.location.pathname}`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "Blupets Match", text, url });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    showToast("Run result copied");
+  } catch {
+    showToast(text);
+  }
+}
+
+function handleGameoverCapsuleCta(event) {
+  if (!event.target.closest?.("[data-gameover-capsule-cta]")) return;
+  const balance = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+  openCapsuleRevealModal({ count: balance > 1 ? "all" : 1, source: "gameover" });
 }
 
 // Discovered-forms count for the victory/share card. Prefers the cloud number
@@ -2177,11 +2701,8 @@ function colorLabel(id) {
   return getColor(id)?.label ?? "Unknown";
 }
 
-function renderLeaderboard() {
-  if (currentScreen !== "leaderboard") {
-    return;
-  }
-
+function renderLeaderboardContent({ tabsHost, content }) {
+  if (!content) return;
   const entries = remoteLeaderboard;
 
   const toRow = (entry, index, value, title) => ({
@@ -2214,7 +2735,7 @@ function renderLeaderboard() {
     .map((entry, index) => toRow(
       entry, index,
       `${entry.movesUsed} moves`,
-      `${colorLabel(entry.t4Color)} sprint`,
+      `${colorLabel(entry.t4Color)} + ${colorLabel(entry.t4Partner)}`,
     ));
 
   const emptyMsg =
@@ -2251,15 +2772,11 @@ function renderLeaderboard() {
           })
           .join("");
 
-  // Tabs are visible only on mobile (CSS), where the two columns collapse into a
-  // switcher; on desktop both columns show side-by-side and the tabs are hidden.
   const tab = (id, label) =>
     `<button class="leaderboard-tab${leaderboardTab === id ? " is-active" : ""}" type="button" role="tab" data-tab="${id}" aria-selected="${leaderboardTab === id ? "true" : "false"}">${label}</button>`;
 
-  // Tabs render into their own host above the scroll container; the columns of
-  // record cards render into the scrolling content below.
-  if (elements.leaderboardTabsHost) {
-    elements.leaderboardTabsHost.innerHTML = `
+  if (tabsHost) {
+    tabsHost.innerHTML = `
       <div class="leaderboard-tabs" role="tablist" aria-label="Leaderboard category">
         ${tab("score", "All Time")}
         ${tab("speed", "Speed Run")}
@@ -2267,40 +2784,42 @@ function renderLeaderboard() {
     `;
   }
 
-  elements.leaderboardContent.innerHTML = `
-    <div class="leaderboard-columns" data-active="${leaderboardTab}">
-      <section class="leaderboard-column" data-col="score">
-        <div class="leaderboard-column-head">
-          <h3>All Time</h3>
-        </div>
-        <div class="leaderboard-list">
-          ${renderRows(sortByScore)}
-        </div>
-      </section>
-      <section class="leaderboard-column" data-col="speed">
-        <div class="leaderboard-column-head">
-          <h3>Speed Run</h3>
-        </div>
-        <div class="leaderboard-list">
-          ${renderRows(sortBySpeed)}
-        </div>
-      </section>
-    </div>
+  const activeRows = leaderboardTab === "speed" ? sortBySpeed : sortByScore;
+  const activeLabel = leaderboardTab === "speed" ? "Speed Run" : "All Time";
+
+  content.innerHTML = `
+    <section class="leaderboard-column leaderboard-column--active" data-col="${leaderboardTab}">
+      <div class="leaderboard-column-head">
+        <h3>${activeLabel}</h3>
+      </div>
+      <div class="leaderboard-list">
+        ${renderRows(activeRows)}
+      </div>
+    </section>
   `;
 }
 
-// Holographic collection-completion hero. Shared by own + public profile so the
-// "journey to 36" reads the same everywhere. `discovered`/`total` are plain ints.
-function renderCollectionProgress(discovered, total) {
+function renderLeaderboard() {
+  if (currentScreen !== "leaderboard") {
+    return;
+  }
+  renderMetaNav(elements.leaderboardMetaNav, "rank");
+  renderLeaderboardContent({
+    tabsHost: elements.leaderboardTabsHost,
+    content: elements.leaderboardContent,
+  });
+}
+
+function renderCollectionProgress(discovered, total, label = "Collection", ariaLabel = "Collection Blupets opened") {
   const pct = total > 0 ? Math.max(0, Math.min(100, Math.round((discovered / total) * 100))) : 0;
   const complete = total > 0 && discovered >= total;
   return `
     <div class="collection-progress${complete ? " is-complete" : ""}">
       <div class="cp-head">
-        <span class="cp-label">Form Collection</span>
+        <span class="cp-label">${escapeHtml(label)}</span>
         <span class="cp-count"><strong>${discovered}</strong><span class="cp-total">/ ${total}</span></span>
       </div>
-      <div class="cp-track" role="progressbar" aria-valuenow="${discovered}" aria-valuemin="0" aria-valuemax="${total}" aria-label="Forms discovered">
+      <div class="cp-track" role="progressbar" aria-valuenow="${discovered}" aria-valuemin="0" aria-valuemax="${total}" aria-label="${escapeHtml(ariaLabel)}">
         <div class="cp-fill" style="width:${pct}%"></div>
       </div>
     </div>
@@ -2309,79 +2828,576 @@ function renderCollectionProgress(discovered, total) {
 
 // Lifetime meta-progression banner shown on profile and leaderboard surfaces.
 function renderStatsHeader() {
-  const fewest = progress.fewestMovesWin;
   const stat = (label, value) =>
     `<div class="lifetime-stat"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`;
   return `
     <div class="lifetime-stats">
       ${stat("Best", String(progress.bestScore ?? 0))}
-      ${stat("Wins", String(progress.wins ?? 0))}
-      ${stat("Runs", String(progress.runs ?? 0))}
-      ${fewest != null ? stat("Fastest", `${fewest} mv`) : ""}
     </div>
-    ${renderCollectionProgress(unlockedBadgeCount(progress), TOTAL_BADGES)}
+    ${renderCollectionProgress(collectionTileCount(progress), TOTAL_INVENTORY_FORMS)}
   `;
 }
 
-// Compact 36-card apex gallery for the own profile. One card per family apex
-// (T4); tapping a card opens that family's evolution tree, where the individual
-// T2-T4 badge tiles unlock as they're collected. The denominator/counter on the
-// stats header stays X/324 (badges) — these cards just gate the trees.
+function renderQuestStatsHeader() {
+  const badges = getMilestoneBadges(progress);
+  const unlocked = badges.filter((badge) => badge.unlocked).length;
+  const stat = (label, value) =>
+    `<div class="lifetime-stat"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`;
+  return `
+    <div class="lifetime-stats">
+      ${stat("Done", `${unlocked}/${badges.length}`)}
+      ${stat("Capsules", String(Math.max(0, Math.floor(Number(progress.capsules) || 0))))}
+    </div>
+    ${renderCollectionProgress(unlocked, badges.length, "Quest Progress", "Quests completed")}
+  `;
+}
+
+function leaderboardRanksForUser(userId) {
+  if (!userId) return { score: null, speed: null };
+  const entries = Array.isArray(remoteLeaderboard) ? remoteLeaderboard : [];
+  const dedup = (arr, better) => [...arr.reduce((m, e) => {
+    if (!e?.userId) return m;
+    if (!m.has(e.userId) || better(e, m.get(e.userId))) m.set(e.userId, e);
+    return m;
+  }, new Map()).values()];
+  const scoreRows = dedup(entries, (a, b) => a.score > b.score || (a.score === b.score && a.movesUsed < b.movesUsed))
+    .sort((left, right) => right.score - left.score || left.movesUsed - right.movesUsed);
+  const speedRows = dedup(entries, (a, b) => a.movesUsed < b.movesUsed || (a.movesUsed === b.movesUsed && a.score > b.score))
+    .sort((left, right) => left.movesUsed - right.movesUsed || right.score - left.score);
+  return {
+    score: scoreRows.findIndex((entry) => entry.userId === userId) + 1 || null,
+    speed: speedRows.findIndex((entry) => entry.userId === userId) + 1 || null,
+  };
+}
+
+function rankText(rank) {
+  return rank ? `#${rank}` : "-";
+}
+
+function renderProfileStatsPanel({
+  bestScore,
+  gamesPlayed,
+  scoreRank,
+  speedRank,
+  blupets,
+  progressValue,
+  progressTotal,
+}) {
+  const stat = (label, value, tone = "") => `
+    <div class="profile-metric${tone ? ` profile-metric--${tone}` : ""}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+    </div>`;
+  return `
+    <div class="profile-metrics">
+      ${stat("Best Score", bestScore ?? 0, "gold")}
+      ${stat("Games Played", gamesPlayed ?? 0, "violet")}
+      ${stat("All Time Rank", rankText(scoreRank), "blue")}
+      ${stat("Speed Rank", rankText(speedRank), "pink")}
+      ${stat("Blupets", blupets ?? `${progressValue}/${progressTotal}`, "cyan")}
+    </div>
+  `;
+}
+
+function renderCollectionCard(entry, { apex = false } = {}) {
+  const apexKey = apex ? entry.key : getAscendedKeyByFormKey(entry.key) ?? entry.key;
+  return `
+    <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-tier="${escapeHtml(entry.tier ?? "ascended")}" data-form-key="${escapeHtml(entry.key)}" data-apex-key="${escapeHtml(apexKey)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered Blupet")}">
+      <div class="collection-art">
+        ${
+          entry.discovered
+            ? `<img src="${escapeHtml(entry.asset)}" alt="${escapeHtml(entry.name)}" />`
+            : `<img class="collection-art-blurred" src="${escapeHtml(entry.asset)}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
+        }
+      </div>
+      <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
+    </div>
+  `;
+}
+
+function renderOwnBlupetsCollection() {
+  const entries = getCollectionTileEntries(progress);
+  const sections = COLLECTION_TIERS.map((tier) => {
+    const tierEntries = entries.filter((entry) => entry.tier === tier);
+    const discovered = tierEntries.filter((entry) => entry.discovered).length;
+    return `
+      <section class="collection-tier" data-tier="${escapeHtml(tier)}">
+        <div class="collection-tier-head">
+          <h3>${escapeHtml(COLLECTION_TIER_LABEL[tier] ?? tier)}</h3>
+          <span>${discovered}/${tierEntries.length}</span>
+        </div>
+        <div class="collection-grid">${tierEntries.map((entry) => renderCollectionCard(entry)).join("")}</div>
+      </section>`;
+  }).join("");
+  return `<section class="profile-blupets" aria-label="Blupets collection">${sections}</section>`;
+}
+
+function renderPublicBlupetsCollection(collectionTiles) {
+  const entries = getCollectionTileEntries({ collectionTiles });
+  const sections = COLLECTION_TIERS.map((tier) => {
+    const tierEntries = entries.filter((entry) => entry.tier === tier);
+    const discovered = tierEntries.filter((entry) => entry.discovered).length;
+    return `
+      <section class="collection-tier" data-tier="${escapeHtml(tier)}">
+        <div class="collection-tier-head">
+          <h3>${escapeHtml(COLLECTION_TIER_LABEL[tier] ?? tier)}</h3>
+          <span>${discovered}/${tierEntries.length}</span>
+        </div>
+        <div class="collection-grid">${tierEntries.map((entry) => renderCollectionCard(entry)).join("")}</div>
+      </section>`;
+  }).join("");
+  return `<section class="profile-blupets" aria-label="Blupets collection">${sections}</section>`;
+}
+
+function renderAccountSection() {
+  const signedIn = Boolean(authState.user);
+  const avatar = safeImgSrc(authState.avatarUrl) || "./assets/blu-logo.png";
+  const name = signedIn ? shortAuthLabel(authState.label) : "Guest";
+  const ranks = leaderboardRanksForUser(authState.user?.id ?? "");
+  const blupetsCount = collectionTileCount(progress);
+  return `
+    <section class="account-panel" aria-label="Account">
+      <div class="account-profile">
+        <img class="account-avatar" src="${escapeHtml(avatar)}" alt="" aria-hidden="true" />
+        <strong>${escapeHtml(name)}</strong>
+      </div>
+      ${renderProfileStatsPanel({
+        bestScore: progress.bestScore ?? 0,
+        gamesPlayed: Number(progress.runs) || 0,
+        scoreRank: ranks.score,
+        speedRank: ranks.speed,
+        blupets: `${blupetsCount}/${TOTAL_INVENTORY_FORMS}`,
+        progressValue: blupetsCount,
+        progressTotal: TOTAL_INVENTORY_FORMS,
+      })}
+      ${renderOwnBlupetsCollection()}
+    </section>`;
+}
+
+function metaTitle(section) {
+  return {
+    account: "Profile",
+    capsules: "Capsules",
+    collection: "Collection",
+    guide: "Guide",
+    "public-profile": metaPublicProfile?.accountName || "Player",
+    quests: "Quests",
+    rank: "Leaderboard",
+  }[section] ?? "Collection";
+}
+
+function metaStatus(section) {
+  if (section === "collection") return "";
+  if (section === "capsules") return `${Math.max(0, Math.floor(Number(progress.capsules) || 0))} ready, ${Math.max(0, Math.floor(Number(progress.shards) || 0))}/${SHARDS_PER_CAPSULE} shards`;
+  if (section === "quests") {
+    return "";
+  }
+  if (section === "rank") return "";
+  if (section === "guide") return "";
+  if (section === "public-profile") {
+    if (metaPublicProfile?.loading) return "Loading profile";
+    if (metaPublicProfile?.error) return "Could not load profile";
+    return "Public profile";
+  }
+  if (section === "account") return "";
+  return authState.user ? "Cloud profile connected" : "Local guest profile";
+}
+
+function renderMetaOverlay() {
+  const section = activeMetaOverlay;
+  if (elements.globalMetaNav) {
+    elements.globalMetaNav.hidden = true;
+  }
+  renderStartMetaTabs(section);
+  if (!section || !elements.metaPopup || elements.metaPopup.hidden) return;
+  elements.metaPopup.dataset.section = section;
+
+  if (elements.metaPopupTitle) elements.metaPopupTitle.textContent = metaTitle(section);
+  if (elements.metaPopupStatus) elements.metaPopupStatus.textContent = metaStatus(section);
+  if (elements.metaPopupActions) {
+    const signedIn = Boolean(authState.user);
+    elements.metaPopupActions.innerHTML = section === "account"
+      ? `<button class="btn btn--ghost" type="button" data-account-action="${signedIn ? "signout" : "signin"}">${signedIn ? "Sign out" : "Sign in"}</button>`
+      : "";
+  }
+  if (elements.metaPopupStats) {
+    const publicHtml = section === "public-profile" && metaPublicProfile?.entries
+      ? renderPublicProfileHtml(
+          metaPublicProfile.entries,
+          Boolean(authState.user && metaPublicProfile.userId === authState.user.id),
+          metaPublicProfile.userId,
+        )
+      : null;
+    elements.metaPopupStats.hidden = section !== "quests" && !publicHtml;
+    elements.metaPopupStats.innerHTML =
+      section === "quests" ? renderQuestStatsHeader() :
+      publicHtml ? publicHtml.stats :
+      "";
+  }
+  if (elements.metaPopupTabsHost) {
+    elements.metaPopupTabsHost.innerHTML = "";
+  }
+  if (!elements.metaPopupContent) return;
+  elements.metaPopupContent.innerHTML =
+    section === "quests" ? renderQuestsSection() :
+    section === "account" ? renderAccountSection() :
+    section === "capsules" ? renderCapsulesSection() :
+    section === "guide" ? renderGuideSection() :
+    section === "public-profile" ? renderMetaPublicProfileContent() :
+    section === "rank" ? "" :
+    renderCollectionGrid();
+  if (section === "rank") {
+    renderLeaderboardContent({
+      tabsHost: elements.metaPopupTabsHost,
+      content: elements.metaPopupContent,
+    });
+  }
+}
+
+function renderCapsulePanel() {
+  const capsules = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+  const shards = Math.max(0, Math.floor(Number(progress.shards) || 0));
+  const canExchange = shards >= SHARDS_PER_CAPSULE;
+  const ctaTitle = capsules > 0 ? `${capsules} capsule${capsules === 1 ? "" : "s"} ready` : "No capsules ready";
+  const ctaSub = capsules > 0
+    ? (capsules > 1 ? "Tap to open all capsules" : "Tap to open your capsule")
+    : "Earn capsules from runs and badges";
+  return `
+    <section class="capsule-panel" aria-label="Capsules">
+      <button class="run-capsule-summary capsule-inventory-cta" type="button" data-capsule-action="open" data-count="${capsules > 1 ? "all" : "1"}" ${capsules <= 0 ? "disabled" : ""}>
+        <span class="run-capsule-icon"><img src="./assets/blocks/origin.svg" alt="" /></span>
+        <span class="run-capsule-copy"><strong>${escapeHtml(ctaTitle)}</strong><small>${escapeHtml(ctaSub)}</small></span>
+        ${capsules > 0 ? `<span class="run-capsule-arrow" aria-hidden="true">→</span>` : `<span></span>`}
+      </button>
+      <div class="capsule-secondary">
+        <div class="capsule-shards">
+          <span>Shards</span>
+          <strong>${shards}<small>/${SHARDS_PER_CAPSULE}</small></strong>
+        </div>
+        <button class="capsule-btn" type="button" data-capsule-action="exchange" ${canExchange ? "" : "disabled"}>Exchange Shards</button>
+      </div>
+    </section>`;
+}
+
+function renderCapsulesSection() {
+  const capsules = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+  const shards = Math.max(0, Math.floor(Number(progress.shards) || 0));
+  return `
+    <section class="capsules-section" aria-label="Capsules">
+      ${renderCapsulePanel()}
+      <div class="capsule-info-grid">
+        <div class="capsule-info-card">
+          <strong>${capsules}</strong>
+          <span>Capsules ready</span>
+        </div>
+        <div class="capsule-info-card">
+          <strong>${shards}<small>/${SHARDS_PER_CAPSULE}</small></strong>
+          <span>Duplicate shards</span>
+        </div>
+        <div class="capsule-info-card">
+          <strong>${Math.max(0, SHARDS_PER_CAPSULE - shards)}</strong>
+          <span>Shards to exchange</span>
+        </div>
+      </div>
+    </section>`;
+}
+
+function renderGuideSection() {
+  const section = (title, items) => `
+    <section class="guide-section">
+      <h3>${escapeHtml(title)}</h3>
+      <ul>
+        ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+      </ul>
+    </section>`;
+  return `
+    <div class="guide-panel" aria-label="Game guide">
+      ${section("Goal", [
+        "Match tiles, build score, and evolve Blupets through their lineage",
+        "A strong run reaches Ascended forms and earns leaderboard-ready results",
+        "Every run can still add lifetime progress, quests, capsules, or shards",
+      ])}
+      ${section("How To Play", [
+        "Swap adjacent tiles to make matches of 3 or more",
+        "Valid swaps consume moves and resolve cascades automatically",
+        "Larger matches and cascades increase score and can create special tiles",
+      ])}
+      ${section("Evolution", [
+        "Matching a color fills essence for that color",
+        "When essence reaches the threshold, choose a partner color or form",
+        "Chosen forms can sync across colors and help push a lineage toward Ascended",
+      ])}
+      ${section("Special Tiles", [
+        "Four-in-a-row can create a cross clear",
+        "Five-in-a-row and L or T shapes can create bombs",
+        "Special clears count toward quests and make high-score runs easier",
+      ])}
+      ${section("Rewards", [
+        "Score thresholds and milestone quests award capsules",
+        "Opening capsules unlocks collection Blupets",
+        "Duplicate capsule drops become shards, and shards can be exchanged for capsules",
+      ])}
+      ${section("Quests And Leaderboard", [
+        "Quests track collection, colors, specials, combos, score, and endurance",
+        "Completed quests move to the bottom so active goals stay visible",
+        "Leaderboard has All Time score and Speed Run move-count rankings",
+      ])}
+    </div>`;
+}
+
+function renderCollectionCapsuleShelf() {
+  const capsules = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+  const shards = Math.max(0, Math.floor(Number(progress.shards) || 0));
+  const canExchange = shards >= SHARDS_PER_CAPSULE;
+  const readyLabel = capsules > 0 ? `${capsules} ready` : "No capsules";
+  const openLabel = capsules > 1 ? "Open All" : "Open";
+  return `
+    <section class="collection-capsule-shelf${capsules > 0 ? " has-capsules" : ""}" aria-label="Collection capsules">
+      <div class="collection-capsule-copy">
+        <span class="collection-capsule-icon" aria-hidden="true"><img src="./assets/blocks/origin.svg" alt="" /></span>
+        <div>
+          <strong>Capsules</strong>
+          <small>${escapeHtml(readyLabel)} · ${shards}/${SHARDS_PER_CAPSULE} shards</small>
+        </div>
+      </div>
+      <div class="collection-capsule-actions">
+        <button class="capsule-btn" type="button" data-capsule-action="open" data-count="${capsules > 1 ? "all" : "1"}" ${capsules <= 0 ? "disabled" : ""}>${openLabel}</button>
+        <button class="capsule-btn capsule-btn--ghost" type="button" data-capsule-action="exchange" ${canExchange ? "" : "disabled"}>Exchange</button>
+      </div>
+    </section>`;
+}
+
 function renderCollectionGrid() {
-  const entries = getCollectionEntries(progress);
-  const cards = entries
-    .map((entry) => {
-      // Per-family tile-unlock count (N/total). Own profile only — the public
-      // grid (renderPublicProfile) never renders this pill, since badges are
-      // local-only. A family may show a non-zero count even while its apex is
-      // still locked, because tiles unlock from merges, not wins.
-      const fam = familyBadgeProgress(progress, entry.key);
-      const isComplete = fam.total > 0 && fam.unlocked === fam.total;
-      const pillClass = `collection-badge-count${fam.unlocked === 0 ? " is-empty" : ""}${isComplete ? " is-complete" : ""}`;
-      const pillText = `${isComplete ? "✦" : ""}${fam.unlocked}/${fam.total}`;
-      return `
-      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-form-key="${escapeHtml(entry.key)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered apex form")}">
+  const entries = getCollectionTileEntries(progress);
+  const card = (entry) => {
+    const apexKey = getAscendedKeyByFormKey(entry.key) ?? entry.key;
+    return `
+      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-tier="${escapeHtml(entry.tier)}" data-form-key="${escapeHtml(entry.key)}" data-apex-key="${escapeHtml(apexKey)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered form")}">
         <div class="collection-art">
           ${
             entry.discovered
               ? `<img src="${escapeHtml(entry.asset)}" alt="${escapeHtml(entry.name)}" />`
               : `<img class="collection-art-blurred" src="${escapeHtml(entry.asset)}" alt="" aria-hidden="true" /><span class="collection-lock" aria-hidden="true">🔒</span>`
           }
-          <span class="${pillClass}">${pillText}</span>
         </div>
         <span class="collection-name">${entry.discovered ? escapeHtml(entry.name) : "Locked"}</span>
       </div>
     `;
-    })
-    .join("");
-  return `<div class="collection-grid">${cards}</div>`;
+  };
+  const sections = COLLECTION_TIERS.map((tier) => {
+    const tierEntries = entries.filter((entry) => entry.tier === tier);
+    const discovered = tierEntries.filter((entry) => entry.discovered).length;
+    return `
+      <section class="collection-tier" data-tier="${escapeHtml(tier)}">
+        <div class="collection-tier-head">
+          <h3>${escapeHtml(COLLECTION_TIER_LABEL[tier] ?? tier)}</h3>
+          <span>${discovered}/${tierEntries.length}</span>
+        </div>
+        <div class="collection-grid">${tierEntries.map(card).join("")}</div>
+      </section>`;
+  }).join("");
+  return `
+    <div class="collection-tiers">
+      ${renderCollectionCapsuleShelf()}
+      ${renderCollectionProgress(collectionTileCount(progress), TOTAL_INVENTORY_FORMS, "Blupets", "Blupets opened")}
+      ${sections}
+    </div>`;
+}
+
+function renderProfileTabs() {
+  const badges = getMilestoneBadges(progress);
+  const unlockedBadges = badges.filter((badge) => badge.unlocked).length;
+  const signedIn = authState.user ? "On" : "Off";
+  const tabs = [
+    ["collection", "Collection", `${collectionTileCount(progress)}/${TOTAL_INVENTORY_FORMS}`],
+    ["capsules", "Capsules", String(Math.max(0, Math.floor(Number(progress.capsules) || 0)))],
+    ["quests", "Quests", `${unlockedBadges}/${badges.length}`],
+    ["account", "Account", signedIn],
+  ];
+  const tabButton = ([id, label, meta]) => `
+    <button
+      class="profile-tab${profileTab === id ? " is-active" : ""}"
+      type="button"
+      role="tab"
+      data-profile-tab="${id}"
+      aria-selected="${profileTab === id ? "true" : "false"}"
+    ><span>${escapeHtml(label)}</span><small>${escapeHtml(meta)}</small></button>`;
+  return `
+    <div class="profile-tabs" role="tablist" aria-label="Profile sections">
+      ${tabs.map(tabButton).join("")}
+    </div>
+    <div class="profile-tab-panel" role="tabpanel">
+      ${profileTab === "quests" ? renderQuestsSection() : profileTab === "account" ? renderAccountSection() : profileTab === "capsules" ? renderCapsulesSection() : renderCollectionGrid()}
+    </div>`;
+}
+
+const QUEST_TYPES = [
+  ["collection", "Collection"],
+  ["color", "Colors"],
+  ["special", "Specials"],
+  ["combo", "Combos"],
+  ["score", "Score"],
+  ["endurance", "Endurance"],
+];
+const QUEST_TYPE_LABEL = Object.fromEntries(QUEST_TYPES);
+const QUEST_DIFFICULTY = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 };
+
+function questProgressParts(quest) {
+  const raw = typeof quest.hint === "string" ? quest.hint : "";
+  const match = raw.match(/([\d,]+)\s*\/\s*([\d,]+)/);
+  if (match) {
+    const current = Number(match[1].replace(/,/g, "")) || 0;
+    const target = Math.max(1, Number(match[2].replace(/,/g, "")) || 1);
+    return { current: Math.min(current, target), target, text: `${Math.min(current, target).toLocaleString("en-US")}/${target.toLocaleString("en-US")}` };
+  }
+  return quest.unlocked
+    ? { current: 1, target: 1, text: "Done" }
+    : { current: 0, target: 1, text: "In progress" };
+}
+
+function questDifficultyTarget(quest) {
+  const parts = questProgressParts(quest);
+  return parts.target;
+}
+
+function firstNumberFromText(text) {
+  const match = String(text || "").match(/[\d,]+/);
+  return match ? Number(match[0].replace(/,/g, "")) || 0 : 0;
+}
+
+function questSentenceText(quest) {
+  const rawLabel = String(quest.label || "");
+  const label = rawLabel.toLowerCase();
+  const progressParts = questProgressParts(quest);
+  const target = progressParts.target;
+  if (quest.category === "collection") {
+    if (label.includes("complete")) return "Unlock all Blupets";
+    if (label.includes("inventory")) {
+      return target === 1
+        ? "Open your first Blupet from capsules"
+        : `Open ${target.toLocaleString("en-US")} Blupets from capsules`;
+    }
+    const tier =
+      label.includes("base evolved") ? "Base Evolved" :
+      label.includes("advanced") ? "Advanced" :
+      label.includes("ascended") ? "Ascended" :
+      "";
+    return target === 1
+      ? `Unlock your first ${tier ? `${tier} ` : ""}Blupet`
+      : `Unlock ${target.toLocaleString("en-US")} ${tier ? `${tier} ` : ""}Blupets`;
+  }
+  if (quest.category === "color") {
+    const color = rawLabel.replace(/\s+(Adept|Specialist|Master)$/i, "");
+    return `Clear ${target.toLocaleString("en-US")} ${color} tiles`;
+  }
+  if (quest.category === "special") {
+    if (label.includes("bomb")) return `Create ${target.toLocaleString("en-US")} Bombs`;
+    if (label.includes("cross")) return `Create ${target.toLocaleString("en-US")} Crosses`;
+    return "Use special tiles during runs";
+  }
+  if (quest.category === "combo") {
+    const combo = rawLabel.match(/x\d+/i)?.[0] ?? "this combo";
+    const runs = firstNumberFromText(rawLabel);
+    return label.includes("runs") && runs > 0
+      ? `Reach ${combo} in ${runs.toLocaleString("en-US")} runs`
+      : `Reach ${combo} in a run`;
+  }
+  if (quest.category === "score") {
+    if (label.includes("advanced")) return "Create two Advanced Blupets in one run";
+    if (label.includes("ascended")) return "Create three Ascended Blupets in one run";
+    const score = firstNumberFromText(rawLabel);
+    return score > 0 ? `Score ${score.toLocaleString("en-US")} in one run` : "Score high in one run";
+  }
+  if (quest.category === "endurance") {
+    if (label.includes("lifetime")) {
+      const score = firstNumberFromText(rawLabel);
+      return score > 0 ? `Reach ${score.toLocaleString("en-US")} lifetime score` : "Build lifetime score";
+    }
+    return target === 1 ? "Finish your first run" : `Finish ${target.toLocaleString("en-US")} runs`;
+  }
+  return "Make progress through normal play";
+}
+
+function renderQuestTabs(badges) {
+  return `
+    <div class="quest-type-tabs" role="tablist" aria-label="Quest types">
+      ${QUEST_TYPES.map(([id, label]) => {
+        const total = badges.filter((badge) => badge.category === id).length;
+        const done = badges.filter((badge) => badge.category === id && badge.unlocked).length;
+        return `
+          <button
+            class="quest-type-tab${questTab === id ? " is-active" : ""}"
+            type="button"
+            role="tab"
+            data-quest-tab="${id}"
+            aria-selected="${questTab === id ? "true" : "false"}"
+          >
+            <span>${escapeHtml(label)}</span>
+            <small>${done}/${total}</small>
+          </button>`;
+      }).join("")}
+    </div>`;
+}
+
+function renderQuestRow(quest) {
+  const progressParts = questProgressParts(quest);
+  const pct = Math.max(0, Math.min(100, Math.round((progressParts.current / progressParts.target) * 100)));
+  const sentence = questSentenceText(quest);
+  return `
+    <div class="quest-row${quest.unlocked ? " is-complete" : ""}" data-category="${escapeHtml(quest.category)}">
+      <span class="quest-status" aria-hidden="true">${quest.unlocked ? "✓" : ""}</span>
+      <div class="quest-copy">
+        <div class="quest-row-head">
+          <strong>${escapeHtml(sentence)}</strong>
+          <span>${escapeHtml(progressParts.text)}</span>
+        </div>
+        <div class="quest-progress" role="progressbar" aria-valuenow="${progressParts.current}" aria-valuemin="0" aria-valuemax="${progressParts.target}" aria-label="${escapeHtml(quest.label)} progress">
+          <div class="quest-progress-fill" style="width:${pct}%"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderQuestsSection() {
+  const badges = getMilestoneBadges(progress).map((badge, index) => ({ ...badge, order: index }));
+  const active = QUEST_TYPE_LABEL[questTab] ? questTab : "collection";
+  questTab = active;
+  const quests = badges
+    .filter((badge) => badge.category === active)
+    .sort((a, b) =>
+      Number(a.unlocked) - Number(b.unlocked) ||
+      (QUEST_DIFFICULTY[a.tier] ?? 99) - (QUEST_DIFFICULTY[b.tier] ?? 99) ||
+      questDifficultyTarget(a) - questDifficultyTarget(b) ||
+      a.order - b.order,
+    );
+  const unlocked = quests.filter((quest) => quest.unlocked).length;
+  return `
+    <div class="quests-section">
+      ${renderQuestTabs(badges)}
+      <div class="quest-list-head">
+        <h3>${escapeHtml(QUEST_TYPE_LABEL[active])}</h3>
+        <span>${unlocked}/${quests.length}</span>
+      </div>
+      <div class="quest-list">
+        ${quests.map(renderQuestRow).join("")}
+      </div>
+    </div>`;
 }
 
 // ── Evolution-tree popup ──────────────────────────────────────────────────
-// Tapping a form card (own or public profile) opens its full canon evolution
-// line: T1 base color pair → T2 (5) → T3 (3) → T4 apex. Each of the 9 badge
-// tiles (5 T2, 3 T3, 1 T4) "opens up" as it's collected: unlocked tiles show
-// their full art, locked tiles show a blurred silhouette plus the lifetime
-// merge progress (count/threshold) toward unlocking. The T1 base pair carries
-// no badge, so it always renders in full as the line's origin.
+// Tapping a form card (own or public profile) opens its full evolution
+// line: T1 base color pair -> T2 (5) -> T3 (3) -> T4 apex. Own-profile trees
+// unlock by the deepest lineage stage reached; public-profile trees only gate the
+// apex by discovery. The T1 base pair always renders in full.
 const EVO_COLOR_BY_ID = Object.fromEntries(COLORS.map((c) => [c.id, c]));
 
-// `badge` is null for non-badge nodes (T1 base colors) and for the public
-// profile (another player's badge counts aren't available client-side — badges
-// are local-only). With a badge, a locked tile shows blurred art + a
-// count/threshold pill. Without one, `locked` falls back to the explicit flag
-// and a locked tile shows the classic lock icon (used for the public apex).
-function evoNode({ tier, asset, name, locked = false, badge = null, blockColor = null }) {
-  const isLocked = badge ? !badge.unlocked : locked;
-  const progressLabel =
-    isLocked && badge && badge.threshold != null
-      ? `<span class="badge-progress">${badge.count}/${badge.threshold}</span>`
-      : "";
-  const lockIcon = isLocked && !progressLabel
+function evoNode({ tier, asset, name, locked = false, blockColor = null }) {
+  const isLocked = locked;
+  const lockIcon = isLocked
     ? `<span class="collection-lock" aria-hidden="true">🔒</span>`
     : "";
   const art = isLocked
-    ? `<img class="collection-art-blurred" src="${escapeHtml(asset)}" alt="" aria-hidden="true" />${progressLabel}${lockIcon}`
+    ? `<img class="collection-art-blurred" src="${escapeHtml(asset)}" alt="" aria-hidden="true" />${lockIcon}`
     : `<img src="${escapeHtml(asset)}" alt="${escapeHtml(name)}" />`;
   return `
     <div class="evo-node${isLocked ? " is-locked" : ""}${blockColor ? " evo-node--base" : ""}">
@@ -2391,24 +3407,22 @@ function evoNode({ tier, asset, name, locked = false, badge = null, blockColor =
     </div>`;
 }
 
-// `ownBadges` is true only for the signed-in player's own profile: then the 9
-// badge tiles reflect this player's lifetime merge progress. For the public
-// profile it's false — tiles render full as a reference line and only the apex
-// is gated, by whether that player discovered it.
-function buildEvoTree(family, apexDiscovered, ownBadges = false) {
+// `reachedTier` is the player's deepest tier in this family (0|2|3|4), or 0 for
+// the public profile. T1 base pair always renders full. The apex additionally
+// respects apexDiscovered so a public profile still gates the apex by discovery.
+function buildEvoTree(family, apexDiscovered, reachedTier = 0) {
   const apex = (family.forms?.[4] ?? [])[0];
   const t3 = family.forms?.[3] ?? [];
   const t2 = family.forms?.[2] ?? [];
   const pair = family.pair ?? [];
 
-  const badgeFor = (form) =>
-    ownBadges ? badgeProgressFor(progress, form.key ?? form.name) : null;
+  const lockedAt = (tier) => reachedTier < tier;
 
   const apexHtml = apex
-    ? evoNode({ tier: "T4", asset: apex.asset, name: apex.name, locked: !apexDiscovered, badge: badgeFor(apex) })
+    ? evoNode({ tier: "T4", asset: apex.asset, name: apex.name, locked: !apexDiscovered && lockedAt(4) })
     : "";
-  const t3Html = t3.map((f) => evoNode({ tier: "T3", asset: f.asset, name: f.name, badge: badgeFor(f) })).join("");
-  const t2Html = t2.map((f) => evoNode({ tier: "T2", asset: f.asset, name: f.name, badge: badgeFor(f) })).join("");
+  const t3Html = t3.map((f) => evoNode({ tier: "T3", asset: f.asset, name: f.name, locked: lockedAt(3) })).join("");
+  const t2Html = t2.map((f) => evoNode({ tier: "T2", asset: f.asset, name: f.name, locked: lockedAt(2) })).join("");
   const t1Html = pair
     .map((colorId) => {
       const c = EVO_COLOR_BY_ID[colorId];
@@ -2436,10 +3450,13 @@ function buildEvoTree(family, apexDiscovered, ownBadges = false) {
 }
 
 let _evoKeyHandler = null;
-function openEvoTree(apexKey, discovered, ownBadges = false) {
-  const family = getFamilyByApexKey(apexKey);
+function openEvoTree(apexKey, discovered, ownProfile = false) {
+  const family = getLineageByAscendedKey(apexKey);
   if (!family || !elements.evoTreeModal || !elements.evoTreeContent) return;
-  elements.evoTreeContent.innerHTML = buildEvoTree(family, discovered, ownBadges);
+  const reachedTier = ownProfile
+    ? Math.max(lineageStageLevel(progress, apexKey), collectionLineageStageLevel(progress, apexKey))
+    : 0;
+  elements.evoTreeContent.innerHTML = buildEvoTree(family, discovered, reachedTier);
   elements.evoTreeModal.hidden = false;
   elements.evoTreeModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
@@ -2472,10 +3489,77 @@ function handleCollectionActivate(event) {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
   }
-  // Own profile shows this player's badge progress in the tree; the public
-  // profile (other listener target) must not — badges are local-only.
-  const ownBadges = event.currentTarget === elements.profileContent;
-  openEvoTree(card.dataset.formKey, card.dataset.discovered === "1", ownBadges);
+  const ownProfile =
+    event.currentTarget === elements.profileContent ||
+    (event.currentTarget === elements.metaPopupContent && activeMetaOverlay !== "public-profile");
+  const apexDiscovered = card.hasAttribute("data-apex-discovered")
+    ? card.dataset.apexDiscovered === "1"
+    : card.dataset.discovered === "1";
+  openEvoTree(card.dataset.apexKey || card.dataset.formKey, apexDiscovered, ownProfile);
+}
+
+function handleCapsuleAction(event) {
+  const button = event.target.closest?.("[data-capsule-action]");
+  const inProfile = elements.profileContent?.contains(button);
+  const inMetaPopup = elements.metaPopupContent?.contains(button);
+  if (!button || (!inProfile && !inMetaPopup)) return;
+  const action = button.dataset.capsuleAction;
+  if (action === "open") {
+    const available = Math.max(0, Math.floor(Number(progress.capsules) || 0));
+    const requested = button.dataset.count === "all" ? "all" : Math.max(1, Math.floor(Number(button.dataset.count) || 1));
+    const count = requested === "all" ? available : Math.min(requested, available);
+    if (count <= 0) {
+      showToast("No capsules to open");
+      return;
+    }
+    openCapsuleRevealModal({ count: requested, source: "profile" });
+    return;
+  }
+  if (action === "exchange") {
+    const result = exchangeShardsForCapsules(progress);
+    if (result.capsules <= 0) {
+      showToast("Not enough shards");
+      return;
+    }
+    updateProfileChip();
+    renderProfile();
+    sfx("ui");
+    if (inMetaPopup) renderMetaOverlay();
+  }
+}
+
+function handleProfileTabActivate(event) {
+  const button = event.target.closest?.("[data-profile-tab]");
+  if (!button || !elements.profileContent?.contains(button)) return;
+  if (event.type === "keydown") {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+  }
+  const allowed = new Set(["collection", "capsules", "quests", "account"]);
+  const nextTab = allowed.has(button.dataset.profileTab) ? button.dataset.profileTab : "collection";
+  if (profileTab === nextTab) return;
+  profileTab = nextTab;
+  renderProfile();
+  sfx("ui");
+}
+
+function handleQuestTabActivate(event) {
+  const button = event.target.closest?.("[data-quest-tab]");
+  const inProfile = elements.profileContent?.contains(button);
+  const inMetaPopup = elements.metaPopupContent?.contains(button);
+  if (!button || (!inProfile && !inMetaPopup)) return;
+  if (event.type === "keydown") {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+  }
+  if (!QUEST_TYPE_LABEL[button.dataset.questTab] || questTab === button.dataset.questTab) return;
+  questTab = button.dataset.questTab;
+  if (inMetaPopup) {
+    renderMetaOverlay();
+  } else {
+    renderProfile();
+  }
+  sfx("ui");
 }
 
 function render() {
@@ -2488,6 +3572,7 @@ function render() {
   renderAuth();
   renderLeaderboard();
   renderProfile();
+  renderMetaOverlay();
 
   if (!state) {
     return;
@@ -2561,6 +3646,8 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
 
   await delay(SWAP_ANIMATION_MS);
 
+  setComboDisplay(null); // reset the COMBO card at the start of each swap
+
   for (let stepIndex = 0; stepIndex < resolution.cascadeSteps.length; stepIndex += 1) {
     const step = resolution.cascadeSteps[stepIndex];
     const clearingCells = getCellSet(step.clearedTiles);
@@ -2581,7 +3668,8 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
     sfx(stepIndex === 0 ? "match" : "cascade", stepIndex);
     buzz(Math.min(45, 12 + stepIndex * 8));
     if (stepIndex >= 1) {
-      spawnComboPopup(`Combo ×${stepIndex + 1}`, stepIndex);
+      // Same number the COMBO card lands on: cascade depth, capped at ×4.
+      spawnComboPopup(`Combo ×${Math.min(4, stepIndex + 1)}`, stepIndex);
     }
 
     await delay(CLEAR_ANIMATION_MS);
@@ -2602,6 +3690,8 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
     });
     render();
 
+    await showTutorialForResolutionStep(step, stepIndex);
+
     await delay(CASCADE_SETTLE_MS);
   }
 
@@ -2609,6 +3699,9 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
   if (gained > 0) {
     spawnScoreFloater(gained, resolution.cascadeSteps.length);
   }
+
+  // COMBO card reflects the cascade-depth multiplier this swap actually applied.
+  setComboDisplay(resolution.comboMultiplier);
 
   if (resolution.shuffled && resolution.boardAfterShuffle) {
     setBoardAnimation({
@@ -2683,6 +3776,7 @@ async function performSwap(first, second) {
     resetBoardAnimation();
     isAnimating = false;
     applyState(nextState);
+    await showTutorialForStateTransition(currentState, nextState);
   }
 }
 
@@ -2797,8 +3891,10 @@ elements.board.addEventListener("pointermove", handleBoardPointerMove);
 elements.board.addEventListener("pointerup", handleBoardPointerUp);
 elements.board.addEventListener("pointercancel", handleBoardPointerCancel);
 bindClick(elements.startRun, () => startRun());
-bindClick(elements.startGuide, () => startRun({ guided: true }));
-bindClick(elements.startLeaderboard, () => openLeaderboard("start"));
+bindClick(elements.startCollection, () => openMetaSection("collection", "start"));
+bindClick(elements.startQuests, () => openMetaSection("quests", "start"));
+bindClick(elements.startGuide, () => openMetaSection("guide", "start"));
+bindClick(elements.startLeaderboard, () => openMetaSection("rank", "start"));
 bindClick(elements.authGoogleBtn, () => handleAuthProvider("google"));
 bindClick(elements.authTwitterBtn, () => handleAuthProvider("x"));
 bindClick(elements.authLogoutBtn, handleAuthLogout);
@@ -2807,19 +3903,14 @@ bindClick(elements.backToStart, goToStart);
 bindClick(elements.leaderboardBackBtn, closeLeaderboard);
 bindClick(elements.profileBackBtn, closeProfile);
 bindClick(elements.publicProfileBackBtn, closePublicProfile);
+bindClick(elements.metaPopupClose, handleMetaPopupClose);
 // Tabs now live in their own host above the scroll container, so switching
 // categories doesn't scroll with (or get hidden by) the list of record cards.
 elements.leaderboardTabsHost?.addEventListener("click", (e) => {
   const tabBtn = e.target.closest(".leaderboard-tab");
   if (!tabBtn?.dataset.tab) return;
   leaderboardTab = tabBtn.dataset.tab;
-  const cols = elements.leaderboardContent.querySelector(".leaderboard-columns");
-  if (cols) cols.dataset.active = leaderboardTab;
-  elements.leaderboardTabsHost.querySelectorAll(".leaderboard-tab").forEach((t) => {
-    const on = t.dataset.tab === leaderboardTab;
-    t.classList.toggle("is-active", on);
-    t.setAttribute("aria-selected", on ? "true" : "false");
-  });
+  renderLeaderboard();
   sfx("ui");
 });
 elements.leaderboardContent?.addEventListener("click", (e) => {
@@ -2828,8 +3919,68 @@ elements.leaderboardContent?.addEventListener("click", (e) => {
     openPublicProfile(btn.dataset.userId, btn.dataset.account, btn.dataset.avatar);
   }
 });
+elements.leaderboardMetaNav?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-meta-nav]");
+  if (!btn?.dataset.metaNav) return;
+  sfx("ui");
+  openMetaSection(btn.dataset.metaNav, "leaderboard");
+});
+elements.profileMetaNav?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-meta-nav]");
+  if (!btn?.dataset.metaNav) return;
+  sfx("ui");
+  openMetaSection(btn.dataset.metaNav, "profile");
+});
+elements.globalMetaNav?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-meta-nav]");
+  if (!btn?.dataset.metaNav) return;
+  sfx("ui");
+  openMetaSection(btn.dataset.metaNav, "global");
+});
+elements.metaPopupTabsHost?.addEventListener("click", (e) => {
+  const tabBtn = e.target.closest(".leaderboard-tab");
+  if (!tabBtn?.dataset.tab) return;
+  leaderboardTab = tabBtn.dataset.tab;
+  renderMetaOverlay();
+  sfx("ui");
+});
+elements.metaPopupContent?.addEventListener("click", handleQuestTabActivate);
+elements.metaPopupContent?.addEventListener("keydown", handleQuestTabActivate);
+elements.metaPopupContent?.addEventListener("click", handleCapsuleAction);
+elements.metaPopupContent?.addEventListener("click", handleCollectionActivate);
+elements.metaPopupContent?.addEventListener("keydown", handleCollectionActivate);
+elements.metaPopupContent?.addEventListener("click", (e) => {
+  const userBtn = e.target.closest(".leaderboard-user-btn");
+  if (userBtn?.dataset.userId) {
+    openPublicProfile(userBtn.dataset.userId, userBtn.dataset.account, userBtn.dataset.avatar);
+    return;
+  }
+  const action = e.target.closest("[data-account-action]")?.dataset.accountAction;
+  if (!action) return;
+  if (action === "signin") openAuthModal({ force: true });
+  if (action === "signout") handleAuthLogout();
+  if (action === "guide") startRun({ guided: true });
+});
+elements.metaPopupActions?.addEventListener("click", (e) => {
+  const action = e.target.closest("[data-account-action]")?.dataset.accountAction;
+  if (!action) return;
+  if (action === "signin") openAuthModal({ force: true });
+  if (action === "signout") handleAuthLogout();
+});
+elements.profileContent?.addEventListener("click", handleProfileTabActivate);
+elements.profileContent?.addEventListener("keydown", handleProfileTabActivate);
+elements.profileContent?.addEventListener("click", handleQuestTabActivate);
+elements.profileContent?.addEventListener("keydown", handleQuestTabActivate);
+elements.profileContent?.addEventListener("click", handleCapsuleAction);
 elements.profileContent?.addEventListener("click", handleCollectionActivate);
 elements.profileContent?.addEventListener("keydown", handleCollectionActivate);
+elements.profileContent?.addEventListener("click", (e) => {
+  const action = e.target.closest("[data-account-action]")?.dataset.accountAction;
+  if (!action) return;
+  if (action === "signin") openAuthModal({ force: true });
+  if (action === "signout") handleAuthLogout();
+  if (action === "guide") startRun({ guided: true });
+});
 elements.publicProfileContent?.addEventListener("click", handleCollectionActivate);
 elements.publicProfileContent?.addEventListener("keydown", handleCollectionActivate);
 bindClick(elements.evoTreeClose, closeEvoTree);
@@ -2839,23 +3990,19 @@ bindClick(elements.profileLogoutBtn, handleAuthLogout);
 bindClick(elements.victoryLeaderboardBtn, () => openLeaderboard("victory"));
 bindClick(elements.victoryBtn, () => startRun());
 bindClick(elements.gameoverBtn, () => startRun());
+bindClick(elements.gameoverHomeBtn, goToStart);
+bindClick(elements.gameoverShareBtn, shareRunSummary);
+bindClick(elements.capsuleRevealClose, closeCapsuleRevealModal);
+bindClick(elements.capsuleRevealCube, performCapsuleReveal);
+elements.gameoverDetail?.addEventListener("click", handleGameoverCapsuleCta);
 bindClick(elements.vibeIntroBtn, () => dismissVibeIntro());
 bindClick(elements.victoryShareBtn, () => shareVictory());
 bindClick(elements.muteBtn, handleMuteToggle);
 bindClick(elements.muteBtnGame, handleMuteToggle);
 bindClick(elements.startMuteBtn, handleMuteToggle);
-bindClick(elements.rerollHud, () => {
-  if (!state) return;
-  resetInteractionState();
-  const nextState = rerollBoard(state, runRng);
-  // Only log when a charge was actually spent — a no-charge click returns a
-  // status-only state that must not pollute the run action log / replay budget.
-  if ((nextState.rerollCharges ?? 0) < (state.rerollCharges ?? 0)) logRunAction({ type: "reroll" });
-  applyState(nextState);
-});
 bindClick(elements.profileChip, () => {
   if (authState.user) {
-    openProfile("start");
+    openMetaSection("account", "start");
   } else {
     openAuthModal({ force: true });
   }
@@ -2877,17 +4024,6 @@ function primeAudioOnGesture() {
   }
 }
 window.addEventListener("pointerdown", primeAudioOnGesture);
-bindClick(elements.rerollRun, () => {
-  if (!state) {
-    return;
-  }
-
-  resetInteractionState();
-  const nextState = rerollBoard(state, runRng);
-  // Only log when a charge was actually spent (see HUD reroll handler above).
-  if ((nextState.rerollCharges ?? 0) < (state.rerollCharges ?? 0)) logRunAction({ type: "reroll" });
-  applyState(nextState);
-});
 elements.partnerOptions.addEventListener("click", (event) => {
   const button = event.target.closest("[data-color-id][data-partner-id]");
   if (!button || !state) {
