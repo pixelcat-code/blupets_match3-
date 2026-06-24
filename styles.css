@@ -3780,18 +3780,30 @@ h2 {
 }
 
 #publicProfileScreen .profile-summary {
-  grid-template-columns: auto 56px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   min-height: 76px;
+}
+
+#publicProfileScreen .profile-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 #publicProfileScreen .profile-avatar {
   width: 56px;
   height: 56px;
+  flex: 0 0 auto;
 }
 
 #publicProfileScreen .profile-name {
   font-size: clamp(1.25rem, 4vw, 1.8rem);
   line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta-popup-public-avatar {
