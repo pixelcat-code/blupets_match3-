@@ -54,6 +54,7 @@ import {
   startTrustedRun,
   submitTrustedRun,
 } from "./sync.js?v=20260622-15";
+import { createComboFeedback } from "./combo-feedback.js?v=20260624-1";
 
 // TEMP TESTING KNOB: global slow-motion multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
@@ -214,6 +215,16 @@ const elements = {
   victoryScreen: document.querySelector("#victoryScreen"),
   victoryTitle: document.querySelector("#victoryTitle"),
 };
+
+// ── Combo feedback system — on-board praise (replaces static COMBO pill) ────
+const _colorHexMap = Object.fromEntries(COLORS.map((c) => [c.id, c.hex]));
+const feedback = createComboFeedback(
+  elements.fxLayer,
+  elements.board,
+  elements.boardShell,
+  { playSfx: sfx, colorHexMap: _colorHexMap },
+);
+// ─────────────────────────────────────────────────────────────────────────────
 
 let state = null;
 let currentScreen = "start";
@@ -3842,10 +3853,7 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
     // Audio + combo feedback rise with cascade depth.
     sfx(stepIndex === 0 ? "match" : "cascade", stepIndex);
     buzz(Math.min(45, 12 + stepIndex * 8));
-    if (stepIndex >= 1) {
-      // Same number the COMBO card lands on: cascade depth, capped at ×4.
-      spawnComboPopup(`Combo ×${Math.min(4, stepIndex + 1)}`, stepIndex);
-    }
+    feedback.onCascadeStep(step, stepIndex);
 
     await delay(CLEAR_ANIMATION_MS);
 
@@ -3945,6 +3953,15 @@ async function performSwap(first, second) {
   const swappedBoard = previewSwap(currentState.board, first, second);
   try {
     await playResolutionAnimation(resolution, swappedBoard, first, second);
+    // Evolution praise fires right as the animation finishes, before state applies.
+    if (nextState.pendingEvolutionQueue.length > currentState.pendingEvolutionQueue.length) {
+      const newItem = nextState.pendingEvolutionQueue.find(
+        (item) => !currentState.pendingEvolutionQueue.some(
+          (p) => p.colorId === item.colorId && p.tier === item.tier,
+        ),
+      );
+      feedback.onEvolutionTrigger(newItem ? (_colorHexMap[newItem.colorId] ?? null) : null);
+    }
   } catch (error) {
     console.error("Match animation failed", error);
   } finally {
