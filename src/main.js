@@ -17,7 +17,7 @@ import {
   selectFusionPartner,
 } from "./game.js?v=20260622-gameplay-20";
 import { runTour } from "./coachmarks.js?v=20260618-1";
-import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260622-9";
+import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260624-buttons-1";
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
@@ -44,7 +44,8 @@ import {
   openCapsule,
   exchangeShardsForCapsules,
   getMilestoneBadges,
-} from "./progress.js?v=20260623-tutorial-1";
+  milestoneCapsuleReward,
+} from "./progress.js?v=20260624-quest-rewards-1";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
@@ -400,6 +401,7 @@ function setScreen(screen) {
   }
   elements.startScreen.hidden = screen !== "start" && screen !== "gameover";
   elements.startScreen.classList.toggle("is-end-backdrop", screen === "gameover");
+  document.body.classList.toggle("is-gameover-backdrop", screen === "gameover");
   elements.gameScreen.hidden = screen !== "game";
   elements.victoryScreen.hidden = screen !== "victory";
   elements.gameoverScreen.hidden = screen !== "gameover";
@@ -825,6 +827,7 @@ function openPublicProfile(userId, accountName, avatarUrl) {
   if (!elements.publicProfileScreen) return;
   if (elements.publicProfileAvatarEl) {
     elements.publicProfileAvatarEl.style.backgroundImage = safeCssUrl(avatarUrl || "");
+    elements.publicProfileAvatarEl.hidden = false;
   }
   if (elements.publicProfileNameEl) {
     elements.publicProfileNameEl.textContent = accountName;
@@ -1553,7 +1556,7 @@ function renderProfile() {
         : section === "capsules"
           ? `${Math.max(0, Math.floor(Number(progress.capsules) || 0))} ready, ${Math.max(0, Math.floor(Number(progress.shards) || 0))}/${SHARDS_PER_CAPSULE} shards`
         : section === "quests"
-          ? `${getMilestoneBadges(progress).filter((badge) => badge.unlocked).length}/${getMilestoneBadges(progress).length} quests complete`
+          ? `${questCompletionSummary().label} quests complete`
           : signedIn ? "Cloud profile connected" : "Local guest profile";
   }
   if (elements.profileLogoutBtn) {
@@ -2395,31 +2398,39 @@ function capsuleRevealCount(requested) {
 function renderCapsuleRevealOutput(results) {
   const items = results.filter((result) => result?.opened);
   if (!items.length) return "";
-  const tierLabel = (result) => escapeHtml(COLLECTION_TIER_LABEL[result.tier] ?? result.tier);
+  const confetti = `
+    <div class="capsule-reveal-confetti" aria-hidden="true">
+      ${Array.from({ length: 24 }, (_, index) => `<i style="--i:${index}"></i>`).join("")}
+    </div>`;
   const card = (result) => `
     <div class="capsule-reveal-card ${result.duplicate ? "is-duplicate" : "is-new"}" data-tier="${escapeHtml(result.tier)}">
       <div class="capsule-reveal-art">
         <img src="${escapeHtml(result.tile.asset)}" alt="${escapeHtml(result.tile.name)}" />
       </div>
       <strong>${escapeHtml(result.tile.name)}</strong>
-      <span>${tierLabel(result)}${result.duplicate ? ` &middot; +${result.shards} shards` : ""}</span>
     </div>`;
   if (items.length === 1) {
     const result = items[0];
     return `
-      <div class="capsule-reveal-single" data-tier="${escapeHtml(result.tier)}">
-        <div class="capsule-reveal-rings" aria-hidden="true"></div>
-        <div class="capsule-reveal-single-art">
-          <img src="${escapeHtml(result.tile.asset)}" alt="${escapeHtml(result.tile.name)}" />
+      <div class="capsule-reveal-results">
+        <div class="capsule-reveal-color-glow" aria-hidden="true"></div>
+        ${confetti}
+        <div class="capsule-reveal-single" data-tier="${escapeHtml(result.tier)}">
+          <div class="capsule-reveal-rings" aria-hidden="true"></div>
+          <div class="capsule-reveal-single-art">
+            <img src="${escapeHtml(result.tile.asset)}" alt="${escapeHtml(result.tile.name)}" />
+          </div>
+          <h2>${escapeHtml(result.tile.name)}</h2>
         </div>
-        <h2>${escapeHtml(result.tile.name)}</h2>
-        <span class="capsule-reveal-tier">${tierLabel(result)}</span>
-        ${result.duplicate ? `<p>Already owned &middot; +${result.shards} shards</p>` : `<p>New form collected</p>`}
       </div>`;
   }
   return `
-    <div class="capsule-reveal-grid" style="--reveal-count:${items.length}">
-      ${items.map(card).join("")}
+    <div class="capsule-reveal-results">
+      <div class="capsule-reveal-color-glow" aria-hidden="true"></div>
+      ${confetti}
+      <div class="capsule-reveal-grid" style="--reveal-count:${items.length}">
+        ${items.map(card).join("")}
+      </div>
     </div>`;
 }
 
@@ -2840,15 +2851,15 @@ function renderStatsHeader() {
 
 function renderQuestStatsHeader() {
   const badges = getMilestoneBadges(progress);
-  const unlocked = badges.filter((badge) => badge.unlocked).length;
+  const { done, total } = questCompletionSummary(badges);
   const stat = (label, value) =>
     `<div class="lifetime-stat"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`;
   return `
     <div class="lifetime-stats">
-      ${stat("Done", `${unlocked}/${badges.length}`)}
+      ${stat("Done", `${done}/${total}`)}
       ${stat("Capsules", String(Math.max(0, Math.floor(Number(progress.capsules) || 0))))}
     </div>
-    ${renderCollectionProgress(unlocked, badges.length, "Quest Progress", "Quests completed")}
+    ${renderCollectionProgress(done, total, "Quest Progress", "Quests completed")}
   `;
 }
 
@@ -2997,7 +3008,7 @@ function metaStatus(section) {
   if (section === "public-profile") {
     if (metaPublicProfile?.loading) return "Loading profile";
     if (metaPublicProfile?.error) return "Could not load profile";
-    return "Public profile";
+    return "";
   }
   if (section === "account") return "";
   return authState.user ? "Cloud profile connected" : "Local guest profile";
@@ -3016,8 +3027,11 @@ function renderMetaOverlay() {
   if (elements.metaPopupStatus) elements.metaPopupStatus.textContent = metaStatus(section);
   if (elements.metaPopupActions) {
     const signedIn = Boolean(authState.user);
-    elements.metaPopupActions.innerHTML = section === "account"
-      ? `<button class="btn btn--ghost" type="button" data-account-action="${signedIn ? "signout" : "signin"}">${signedIn ? "Sign out" : "Sign in"}</button>`
+    elements.metaPopupActions.innerHTML =
+      section === "account"
+        ? `<button class="btn btn--ghost" type="button" data-account-action="${signedIn ? "signout" : "signin"}">${signedIn ? "Sign out" : "Sign in"}</button>`
+      : section === "public-profile"
+        ? `<span class="meta-popup-public-avatar" style="background-image:${escapeHtml(safeCssUrl(metaPublicProfile?.avatarUrl || ""))}" aria-hidden="true"></span>`
       : "";
   }
   if (elements.metaPopupStats) {
@@ -3103,45 +3117,85 @@ function renderCapsulesSection() {
 }
 
 function renderGuideSection() {
-  const section = (title, items) => `
+  const section = (title, icon, items) => `
     <section class="guide-section">
-      <h3>${escapeHtml(title)}</h3>
+      <div class="guide-section-head">
+        <span class="guide-section-icon" aria-hidden="true">${icon}</span>
+        <h3>${escapeHtml(title)}</h3>
+      </div>
       <ul>
         ${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
       </ul>
     </section>`;
+  const matchChip = (count, label, asset = "./assets/blocks/cyan.svg") => `
+    <div class="guide-match-chip">
+      <span class="guide-match-row" aria-hidden="true">
+        ${Array.from({ length: count }, () => `<img src="${asset}" alt="" />`).join("")}
+      </span>
+      <strong>${escapeHtml(label)}</strong>
+    </div>`;
   return `
     <div class="guide-panel" aria-label="Game guide">
-      ${section("Goal", [
+      <section class="guide-hero">
+        <div class="guide-hero-art" aria-hidden="true">
+          <span class="guide-hero-glow"></span>
+          <img class="guide-hero-capsule" src="./assets/blocks/origin.svg" alt="" />
+          <img class="guide-hero-block guide-hero-block--one" src="./assets/blocks/blue.svg" alt="" />
+          <img class="guide-hero-block guide-hero-block--two" src="./assets/blocks/yellow.svg" alt="" />
+          <img class="guide-hero-block guide-hero-block--three" src="./assets/blocks/purple.svg" alt="" />
+        </div>
+        <div class="guide-hero-copy">
+          <strong>Match, evolve, collect</strong>
+          <span>Build strong runs, unlock Blupets, and turn capsules into collection progress.</span>
+        </div>
+      </section>
+
+      <section class="guide-match-panel" aria-label="Match patterns">
+        ${matchChip(3, "Match 3")}
+        ${matchChip(4, "Cross", "./assets/blocks/green.svg")}
+        ${matchChip(5, "Bomb", "./assets/blocks/red.svg")}
+      </section>
+
+      <div class="guide-grid">
+        ${section("Goal", "★", [
         "Match tiles, build score, and evolve Blupets through their lineage",
         "A strong run reaches Ascended forms and earns leaderboard-ready results",
         "Every run can still add lifetime progress, quests, capsules, or shards",
-      ])}
-      ${section("How To Play", [
+        ])}
+        ${section("How To Play", "↔", [
         "Swap adjacent tiles to make matches of 3 or more",
         "Valid swaps consume moves and resolve cascades automatically",
         "Larger matches and cascades increase score and can create special tiles",
-      ])}
-      ${section("Evolution", [
+        ])}
+        ${section("Evolution", "◆", [
         "Matching a color fills essence for that color",
         "When essence reaches the threshold, choose a partner color or form",
-        "Chosen forms can sync across colors and help push a lineage toward Ascended",
-      ])}
-      ${section("Special Tiles", [
+        "Different starting colors can evolve into the same form, and those matching forms can be matched together",
+        ])}
+        ${section("Special Tiles", "✦", [
         "Four-in-a-row can create a cross clear",
         "Five-in-a-row and L or T shapes can create bombs",
         "Special clears count toward quests and make high-score runs easier",
-      ])}
-      ${section("Rewards", [
+        ])}
+        ${section("Rewards", "●", [
         "Score thresholds and milestone quests award capsules",
         "Opening capsules unlocks collection Blupets",
         "Duplicate capsule drops become shards, and shards can be exchanged for capsules",
-      ])}
-      ${section("Quests And Leaderboard", [
+        ])}
+        ${section("Quests And Leaderboard", "#", [
         "Quests track collection, colors, specials, combos, score, and endurance",
         "Completed quests move to the bottom so active goals stay visible",
         "Leaderboard has All Time score and Speed Run move-count rankings",
-      ])}
+        ])}
+      </div>
+
+      <section class="guide-reward-strip">
+        <span class="guide-reward-icon" aria-hidden="true"><img src="./assets/blocks/origin.svg" alt="" /></span>
+        <div>
+          <strong>Capsules become Blupets</strong>
+          <small>Duplicates become shards, shards exchange back into capsules.</small>
+        </div>
+      </section>
     </div>`;
 }
 
@@ -3206,12 +3260,12 @@ function renderCollectionGrid() {
 
 function renderProfileTabs() {
   const badges = getMilestoneBadges(progress);
-  const unlockedBadges = badges.filter((badge) => badge.unlocked).length;
+  const questSummary = questCompletionSummary(badges);
   const signedIn = authState.user ? "On" : "Off";
   const tabs = [
     ["collection", "Collection", `${collectionTileCount(progress)}/${TOTAL_INVENTORY_FORMS}`],
     ["capsules", "Capsules", String(Math.max(0, Math.floor(Number(progress.capsules) || 0)))],
-    ["quests", "Quests", `${unlockedBadges}/${badges.length}`],
+    ["quests", "Quests", questSummary.label],
     ["account", "Account", signedIn],
   ];
   const tabButton = ([id, label, meta]) => `
@@ -3232,15 +3286,24 @@ function renderProfileTabs() {
 }
 
 const QUEST_TYPES = [
-  ["collection", "Collection"],
-  ["color", "Colors"],
-  ["special", "Specials"],
-  ["combo", "Combos"],
-  ["score", "Score"],
-  ["endurance", "Endurance"],
+  ["collection", "Collection", ["collection"]],
+  ["color", "Colors", ["color"]],
+  ["technique", "Technique", ["special", "combo"]],
+  ["run_goals", "Run Goals", ["score", "endurance"]],
 ];
-const QUEST_TYPE_LABEL = Object.fromEntries(QUEST_TYPES);
+const QUEST_TYPE_LABEL = Object.fromEntries(QUEST_TYPES.map(([id, label]) => [id, label]));
+const QUEST_TYPE_CATEGORIES = Object.fromEntries(QUEST_TYPES.map(([id, , categories]) => [id, categories]));
 const QUEST_DIFFICULTY = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5 };
+
+function normalizeQuestTab(tab) {
+  if (tab === "special" || tab === "combo") return "technique";
+  if (tab === "score" || tab === "endurance") return "run_goals";
+  return QUEST_TYPE_LABEL[tab] ? tab : "collection";
+}
+
+function questInType(quest, type) {
+  return (QUEST_TYPE_CATEGORIES[type] ?? ["collection"]).includes(quest.category);
+}
 
 function questProgressParts(quest) {
   const raw = typeof quest.hint === "string" ? quest.hint : "";
@@ -3258,6 +3321,18 @@ function questProgressParts(quest) {
 function questDifficultyTarget(quest) {
   const parts = questProgressParts(quest);
   return parts.target;
+}
+
+function questIsComplete(quest) {
+  if (quest.unlocked) return true;
+  const parts = questProgressParts(quest);
+  return parts.current >= parts.target;
+}
+
+function questCompletionSummary(badges = getMilestoneBadges(progress)) {
+  const done = badges.filter(questIsComplete).length;
+  const total = badges.length;
+  return { done, total, label: `${done}/${total}` };
 }
 
 function firstNumberFromText(text) {
@@ -3322,8 +3397,8 @@ function renderQuestTabs(badges) {
   return `
     <div class="quest-type-tabs" role="tablist" aria-label="Quest types">
       ${QUEST_TYPES.map(([id, label]) => {
-        const total = badges.filter((badge) => badge.category === id).length;
-        const done = badges.filter((badge) => badge.category === id && badge.unlocked).length;
+        const total = badges.filter((badge) => questInType(badge, id)).length;
+        const done = badges.filter((badge) => questInType(badge, id) && questIsComplete(badge)).length;
         return `
           <button
             class="quest-type-tab${questTab === id ? " is-active" : ""}"
@@ -3343,9 +3418,14 @@ function renderQuestRow(quest) {
   const progressParts = questProgressParts(quest);
   const pct = Math.max(0, Math.min(100, Math.round((progressParts.current / progressParts.target) * 100)));
   const sentence = questSentenceText(quest);
+  const reward = milestoneCapsuleReward(quest.tier);
+  const complete = questIsComplete(quest);
   return `
-    <div class="quest-row${quest.unlocked ? " is-complete" : ""}" data-category="${escapeHtml(quest.category)}">
-      <span class="quest-status" aria-hidden="true">${quest.unlocked ? "✓" : ""}</span>
+    <div class="quest-row${complete ? " is-complete" : ""}" data-category="${escapeHtml(quest.category)}">
+      <span class="quest-status" aria-label="${reward} capsule${reward === 1 ? "" : "s"} reward">
+        <img src="./assets/blocks/origin.svg" alt="" aria-hidden="true" />
+        <b>${reward}</b>
+      </span>
       <div class="quest-copy">
         <div class="quest-row-head">
           <strong>${escapeHtml(sentence)}</strong>
@@ -3360,17 +3440,17 @@ function renderQuestRow(quest) {
 
 function renderQuestsSection() {
   const badges = getMilestoneBadges(progress).map((badge, index) => ({ ...badge, order: index }));
-  const active = QUEST_TYPE_LABEL[questTab] ? questTab : "collection";
+  const active = normalizeQuestTab(questTab);
   questTab = active;
   const quests = badges
-    .filter((badge) => badge.category === active)
+    .filter((badge) => questInType(badge, active))
     .sort((a, b) =>
-      Number(a.unlocked) - Number(b.unlocked) ||
+      Number(questIsComplete(a)) - Number(questIsComplete(b)) ||
       (QUEST_DIFFICULTY[a.tier] ?? 99) - (QUEST_DIFFICULTY[b.tier] ?? 99) ||
       questDifficultyTarget(a) - questDifficultyTarget(b) ||
       a.order - b.order,
     );
-  const unlocked = quests.filter((quest) => quest.unlocked).length;
+  const unlocked = quests.filter(questIsComplete).length;
   return `
     <div class="quests-section">
       ${renderQuestTabs(badges)}
@@ -3552,8 +3632,9 @@ function handleQuestTabActivate(event) {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
   }
-  if (!QUEST_TYPE_LABEL[button.dataset.questTab] || questTab === button.dataset.questTab) return;
-  questTab = button.dataset.questTab;
+  const nextTab = normalizeQuestTab(button.dataset.questTab);
+  if (questTab === nextTab) return;
+  questTab = nextTab;
   if (inMetaPopup) {
     renderMetaOverlay();
   } else {
@@ -3883,13 +3964,34 @@ function handleBoardPointerCancel() {
 }
 
 function bindClick(element, listener) {
-  element?.addEventListener("click", listener);
+  element?.addEventListener("click", (event) => {
+    if (!element.disabled && !element.getAttribute("aria-disabled")) {
+      unlockAudio();
+      sfx("ui");
+    }
+    listener(event);
+  });
+}
+
+function handleGlobalInteractiveClick(event) {
+  const target = event.target.closest?.(
+    "button:not(:disabled), [role='button'], a[href], input[type='button'], input[type='submit']",
+  );
+  if (!target || target.getAttribute("aria-disabled") === "true") {
+    return;
+  }
+  if (target.closest("#board")) {
+    return;
+  }
+  unlockAudio();
+  sfx("ui");
 }
 
 elements.board.addEventListener("pointerdown", handleBoardPointerDown);
 elements.board.addEventListener("pointermove", handleBoardPointerMove);
 elements.board.addEventListener("pointerup", handleBoardPointerUp);
 elements.board.addEventListener("pointercancel", handleBoardPointerCancel);
+document.addEventListener("click", handleGlobalInteractiveClick);
 bindClick(elements.startRun, () => startRun());
 bindClick(elements.startCollection, () => openMetaSection("collection", "start"));
 bindClick(elements.startQuests, () => openMetaSection("quests", "start"));

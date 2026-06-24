@@ -43,6 +43,7 @@ try {
 let unlocked = false;
 const rotators = {};
 const basePool = {}; // one preloaded Audio per file, cloned on play
+let lastSfxAt = 0;
 
 // ── Web Audio API — background music ────────────────────────────────────────
 let audioCtx = null;
@@ -155,6 +156,11 @@ export function sfx(name) {
   if (!files || files.length === 0) {
     return;
   }
+  const now = performance.now();
+  if (name === "ui" && now - lastSfxAt < 90) {
+    return;
+  }
+  lastSfxAt = now;
   // Rotate through variants for this event.
   const idx = (rotators[name] = (rotators[name] ?? -1) + 1) % files.length;
   const file = files[idx];

@@ -180,7 +180,7 @@ function badge(id, label, category, tier, test, hint = null) {
   return { id, label, category, tier, test, hint };
 }
 
-function milestoneCapsuleReward(tier) {
+export function milestoneCapsuleReward(tier) {
   return { common: 1, uncommon: 2, rare: 3, epic: 5, legendary: 10 }[tier] ?? 1;
 }
 
