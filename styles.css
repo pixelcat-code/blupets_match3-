@@ -3784,21 +3784,13 @@ h2 {
 }
 
 #publicProfileScreen .profile-summary {
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto 56px minmax(0, 1fr);
   min-height: 76px;
-}
-
-#publicProfileScreen .profile-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
 }
 
 #publicProfileScreen .profile-avatar {
   width: 56px;
   height: 56px;
-  flex: 0 0 auto;
 }
 
 #publicProfileScreen .profile-name {
@@ -4056,11 +4048,13 @@ h2 {
 
 .meta-popup-head:has(.meta-popup-public-avatar) .meta-popup-actions {
   grid-column: 2;
+  grid-row: 1;
   justify-content: start;
 }
 
 .meta-popup-head:has(.meta-popup-public-avatar) .meta-popup-title-wrap {
   grid-column: 3;
+  grid-row: 1;
 }
 
 .meta-popup-stats {
