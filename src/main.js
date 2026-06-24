@@ -145,6 +145,17 @@ const elements = {
   metaPopupStatus: document.querySelector("#metaPopupStatus"),
   metaPopupTabsHost: document.querySelector("#metaPopupTabsHost"),
   metaPopupTitle: document.querySelector("#metaPopupTitle"),
+  collectionScreen: document.querySelector("#collectionScreen"),
+  questsScreen: document.querySelector("#questsScreen"),
+  guideScreen: document.querySelector("#guideScreen"),
+  collectionContent: document.querySelector("#collectionContent"),
+  questsStats: document.querySelector("#questsStats"),
+  questsContent: document.querySelector("#questsContent"),
+  guideContent: document.querySelector("#guideContent"),
+  collectionBackBtn: document.querySelector("#collectionBackBtn"),
+  questsBackBtn: document.querySelector("#questsBackBtn"),
+  guideBackBtn: document.querySelector("#guideBackBtn"),
+  mobileNav: document.querySelector("#mobileNav"),
   publicProfileScreen: document.querySelector("#publicProfileScreen"),
   publicProfileBackBtn: document.querySelector("#publicProfileBackBtn"),
   publicProfileAvatarEl: document.querySelector("#publicProfileAvatarEl"),
@@ -393,7 +404,7 @@ function setScreen(screen) {
   // audio layer on a real screen change — render() calls setScreen() every
   // frame, and the first-gesture pointerdown handler already kicks off ambience.
   if (changed) {
-    if (screen === "start" || screen === "game" || screen === "leaderboard" || screen === "profile" || screen === "public-profile") {
+    if (screen === "start" || screen === "game" || screen === "leaderboard" || screen === "profile" || screen === "public-profile" || screen === "collection" || screen === "quests" || screen === "guide") {
       startMusic();
     } else {
       stopMusic();
@@ -411,6 +422,26 @@ function setScreen(screen) {
   }
   if (elements.publicProfileScreen) {
     elements.publicProfileScreen.hidden = screen !== "public-profile";
+  }
+  if (elements.collectionScreen) {
+    elements.collectionScreen.hidden = screen !== "collection";
+  }
+  if (elements.questsScreen) {
+    elements.questsScreen.hidden = screen !== "quests";
+  }
+  if (elements.guideScreen) {
+    elements.guideScreen.hidden = screen !== "guide";
+  }
+  // Mobile nav: show on non-gameplay screens, highlight active item
+  const _mobileNavScreens = new Set(["start", "collection", "quests", "leaderboard", "profile", "guide", "public-profile"]);
+  if (elements.mobileNav) {
+    elements.mobileNav.hidden = !_mobileNavScreens.has(screen);
+    const _navActive = screen === "public-profile" ? "leaderboard" : screen;
+    elements.mobileNav.querySelectorAll("[data-mobile-nav]").forEach((btn) => {
+      const active = btn.dataset.mobileNav === _navActive;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-current", active ? "page" : "false");
+    });
   }
 }
 
@@ -674,6 +705,28 @@ function openMetaSection(section, fromScreen = currentScreen) {
     closeMetaOverlay();
     return;
   }
+  // On mobile, route to full screens instead of meta-popup
+  if (isMobileViewport()) {
+    switch (section) {
+      case "collection":
+      case "capsules":
+        setScreen("collection");
+        return;
+      case "quests":
+        setScreen("quests");
+        return;
+      case "guide":
+        setScreen("guide");
+        return;
+      case "rank":
+        openLeaderboard(fromScreen);
+        return;
+      case "account":
+        openProfile(fromScreen, "account");
+        return;
+    }
+  }
+  // Desktop: use meta-popup as before
   profileTab =
     section === "account" ? "account" :
     section === "rank" ? "rank" :
@@ -733,6 +786,10 @@ async function openMetaOverlay(section) {
     }
   }
   renderMetaOverlay();
+}
+
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 699px)").matches;
 }
 
 function goToStart() {
@@ -3014,6 +3071,31 @@ function metaStatus(section) {
   return authState.user ? "Cloud profile connected" : "Local guest profile";
 }
 
+function renderCollectionScreen() {
+  if (!elements.collectionScreen || elements.collectionScreen.hidden) return;
+  if (elements.collectionContent) {
+    elements.collectionContent.innerHTML = renderCollectionGrid();
+  }
+}
+
+function renderQuestsScreen() {
+  if (!elements.questsScreen || elements.questsScreen.hidden) return;
+  if (elements.questsStats) {
+    elements.questsStats.innerHTML = renderQuestStatsHeader();
+    elements.questsStats.hidden = false;
+  }
+  if (elements.questsContent) {
+    elements.questsContent.innerHTML = renderQuestsSection();
+  }
+}
+
+function renderGuideScreen() {
+  if (!elements.guideScreen || elements.guideScreen.hidden) return;
+  if (elements.guideContent) {
+    elements.guideContent.innerHTML = renderGuideSection();
+  }
+}
+
 function renderMetaOverlay() {
   const section = activeMetaOverlay;
   if (elements.globalMetaNav) {
@@ -3571,6 +3653,7 @@ function handleCollectionActivate(event) {
   }
   const ownProfile =
     event.currentTarget === elements.profileContent ||
+    event.currentTarget === elements.collectionContent ||
     (event.currentTarget === elements.metaPopupContent && activeMetaOverlay !== "public-profile");
   const apexDiscovered = card.hasAttribute("data-apex-discovered")
     ? card.dataset.apexDiscovered === "1"
@@ -3582,7 +3665,8 @@ function handleCapsuleAction(event) {
   const button = event.target.closest?.("[data-capsule-action]");
   const inProfile = elements.profileContent?.contains(button);
   const inMetaPopup = elements.metaPopupContent?.contains(button);
-  if (!button || (!inProfile && !inMetaPopup)) return;
+  const inCollectionScreen = elements.collectionContent?.contains(button);
+  if (!button || (!inProfile && !inMetaPopup && !inCollectionScreen)) return;
   const action = button.dataset.capsuleAction;
   if (action === "open") {
     const available = Math.max(0, Math.floor(Number(progress.capsules) || 0));
@@ -3605,6 +3689,7 @@ function handleCapsuleAction(event) {
     renderProfile();
     sfx("ui");
     if (inMetaPopup) renderMetaOverlay();
+    if (inCollectionScreen) renderCollectionScreen();
   }
 }
 
@@ -3627,7 +3712,8 @@ function handleQuestTabActivate(event) {
   const button = event.target.closest?.("[data-quest-tab]");
   const inProfile = elements.profileContent?.contains(button);
   const inMetaPopup = elements.metaPopupContent?.contains(button);
-  if (!button || (!inProfile && !inMetaPopup)) return;
+  const inQuestsScreen = elements.questsContent?.contains(button);
+  if (!button || (!inProfile && !inMetaPopup && !inQuestsScreen)) return;
   if (event.type === "keydown") {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
@@ -3637,6 +3723,8 @@ function handleQuestTabActivate(event) {
   questTab = nextTab;
   if (inMetaPopup) {
     renderMetaOverlay();
+  } else if (inQuestsScreen) {
+    renderQuestsScreen();
   } else {
     renderProfile();
   }
@@ -3654,6 +3742,9 @@ function render() {
   renderLeaderboard();
   renderProfile();
   renderMetaOverlay();
+  renderCollectionScreen();
+  renderQuestsScreen();
+  renderGuideScreen();
 
   if (!state) {
     return;
@@ -4005,6 +4096,9 @@ bindClick(elements.backToStart, goToStart);
 bindClick(elements.leaderboardBackBtn, closeLeaderboard);
 bindClick(elements.profileBackBtn, closeProfile);
 bindClick(elements.publicProfileBackBtn, closePublicProfile);
+bindClick(elements.collectionBackBtn, () => { if (_historyDepth > 0) history.back(); else setScreen("start"); });
+bindClick(elements.questsBackBtn, () => { if (_historyDepth > 0) history.back(); else setScreen("start"); });
+bindClick(elements.guideBackBtn, () => { if (_historyDepth > 0) history.back(); else setScreen("start"); });
 bindClick(elements.metaPopupClose, handleMetaPopupClose);
 // Tabs now live in their own host above the scroll container, so switching
 // categories doesn't scroll with (or get hidden by) the list of record cards.
@@ -4039,6 +4133,17 @@ elements.globalMetaNav?.addEventListener("click", (e) => {
   sfx("ui");
   openMetaSection(btn.dataset.metaNav, "global");
 });
+elements.mobileNav?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-mobile-nav]");
+  if (!btn?.dataset.mobileNav) return;
+  sfx("ui");
+  const target = btn.dataset.mobileNav;
+  if (target === "start") {
+    goToStart();
+  } else {
+    openMetaSection(target === "leaderboard" ? "rank" : target, currentScreen);
+  }
+});
 elements.metaPopupTabsHost?.addEventListener("click", (e) => {
   const tabBtn = e.target.closest(".leaderboard-tab");
   if (!tabBtn?.dataset.tab) return;
@@ -4051,6 +4156,13 @@ elements.metaPopupContent?.addEventListener("keydown", handleQuestTabActivate);
 elements.metaPopupContent?.addEventListener("click", handleCapsuleAction);
 elements.metaPopupContent?.addEventListener("click", handleCollectionActivate);
 elements.metaPopupContent?.addEventListener("keydown", handleCollectionActivate);
+// Collection screen event delegation
+elements.collectionContent?.addEventListener("click", handleCollectionActivate);
+elements.collectionContent?.addEventListener("keydown", handleCollectionActivate);
+elements.collectionContent?.addEventListener("click", handleCapsuleAction);
+// Quests screen event delegation
+elements.questsContent?.addEventListener("click", handleQuestTabActivate);
+elements.questsContent?.addEventListener("keydown", handleQuestTabActivate);
 elements.metaPopupContent?.addEventListener("click", (e) => {
   const userBtn = e.target.closest(".leaderboard-user-btn");
   if (userBtn?.dataset.userId) {
