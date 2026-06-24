@@ -266,6 +266,12 @@ button {
   backdrop-filter: blur(20px);
 }
 
+/* On mobile, existing screen cards need bottom padding to clear fixed mobile nav */
+.start-card,
+.leaderboard-card {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+
 .start-card,
 .game-frame,
 .leaderboard-card,
@@ -762,6 +768,64 @@ button {
 .entry-sparks i:nth-child(5) { --spark-x: 77%; --spark-y: 30%; --spark-size: 6px; --spark-color: #ffffff; --spark-rot: 16deg; --spark-duration: 3.7s; --spark-delay: -.9s; }
 .entry-sparks i:nth-child(6) { --spark-x: 86%; --spark-y: 58%; --spark-size: 5px; --spark-color: #7df7ff; --spark-rot: -14deg; --spark-duration: 4.2s; --spark-delay: -3.1s; }
 
+/* ── Background sparks inside start-card (paint between card bg and card content) ── */
+.bg-sparks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: -1;
+}
+
+@keyframes bg-spark-float {
+  0%   { opacity: 0; transform: translateY(0) translateX(0) rotate(var(--sk-rot)); }
+  12%  { opacity: var(--sk-op); }
+  88%  { opacity: var(--sk-op); }
+  100% { opacity: 0; transform: translateY(var(--sk-rise)) translateX(var(--sk-drift)) rotate(calc(var(--sk-rot) + 28deg)); }
+}
+
+.bg-sparks i {
+  position: absolute;
+  display: block;
+  left: var(--sk-x);
+  top: var(--sk-y);
+  width: var(--sk-size);
+  height: var(--sk-size);
+  background: rgba(255, 255, 255, 1);
+  border-radius: 1.5px;
+  animation: bg-spark-float var(--sk-dur) ease-in-out var(--sk-delay) infinite;
+}
+
+/* 28 sparks spread across the card area */
+.bg-sparks i:nth-child(1)  { --sk-x: 4%;  --sk-y: 82%; --sk-size: 5px; --sk-op: .42; --sk-rot: -18deg; --sk-rise: -130px; --sk-drift:  14px; --sk-dur: 10.2s; --sk-delay:    0s; }
+.bg-sparks i:nth-child(2)  { --sk-x: 13%; --sk-y: 58%; --sk-size: 4px; --sk-op: .37; --sk-rot:  14deg; --sk-rise: -110px; --sk-drift: -18px; --sk-dur:  9.6s; --sk-delay: -2.4s; }
+.bg-sparks i:nth-child(3)  { --sk-x: 22%; --sk-y: 74%; --sk-size: 6px; --sk-op: .40; --sk-rot:  -8deg; --sk-rise: -145px; --sk-drift:  22px; --sk-dur: 11.0s; --sk-delay: -5.1s; }
+.bg-sparks i:nth-child(4)  { --sk-x: 7%;  --sk-y: 35%; --sk-size: 4px; --sk-op: .34; --sk-rot:  20deg; --sk-rise: -100px; --sk-drift: -12px; --sk-dur:  8.8s; --sk-delay: -1.2s; }
+.bg-sparks i:nth-child(5)  { --sk-x: 31%; --sk-y: 88%; --sk-size: 5px; --sk-op: .44; --sk-rot: -10deg; --sk-rise: -125px; --sk-drift:  -8px; --sk-dur: 10.6s; --sk-delay: -3.8s; }
+.bg-sparks i:nth-child(6)  { --sk-x: 41%; --sk-y: 64%; --sk-size: 4px; --sk-op: .32; --sk-rot:   6deg; --sk-rise:  -95px; --sk-drift:  16px; --sk-dur:  9.0s; --sk-delay: -6.4s; }
+.bg-sparks i:nth-child(7)  { --sk-x: 52%; --sk-y: 79%; --sk-size: 6px; --sk-op: .40; --sk-rot: -22deg; --sk-rise: -140px; --sk-drift: -20px; --sk-dur: 11.4s; --sk-delay:  -.7s; }
+.bg-sparks i:nth-child(8)  { --sk-x: 62%; --sk-y: 52%; --sk-size: 5px; --sk-op: .36; --sk-rot:  16deg; --sk-rise: -115px; --sk-drift:  10px; --sk-dur:  9.8s; --sk-delay: -4.2s; }
+.bg-sparks i:nth-child(9)  { --sk-x: 73%; --sk-y: 85%; --sk-size: 4px; --sk-op: .42; --sk-rot:  -6deg; --sk-rise: -105px; --sk-drift: -14px; --sk-dur: 10.0s; --sk-delay: -7.3s; }
+.bg-sparks i:nth-child(10) { --sk-x: 84%; --sk-y: 68%; --sk-size: 6px; --sk-op: .38; --sk-rot:  12deg; --sk-rise: -130px; --sk-drift:  18px; --sk-dur: 11.2s; --sk-delay: -2.9s; }
+.bg-sparks i:nth-child(11) { --sk-x: 93%; --sk-y: 80%; --sk-size: 5px; --sk-op: .40; --sk-rot: -16deg; --sk-rise: -120px; --sk-drift:  -6px; --sk-dur:  9.4s; --sk-delay: -5.6s; }
+.bg-sparks i:nth-child(12) { --sk-x: 18%; --sk-y: 45%; --sk-size: 4px; --sk-op: .34; --sk-rot:   8deg; --sk-rise: -100px; --sk-drift:  20px; --sk-dur:  8.6s; --sk-delay: -1.8s; }
+.bg-sparks i:nth-child(13) { --sk-x: 36%; --sk-y: 32%; --sk-size: 5px; --sk-op: .36; --sk-rot: -14deg; --sk-rise: -110px; --sk-drift: -16px; --sk-dur: 10.8s; --sk-delay: -4.5s; }
+.bg-sparks i:nth-child(14) { --sk-x: 47%; --sk-y: 20%; --sk-size: 4px; --sk-op: .32; --sk-rot:  18deg; --sk-rise:  -90px; --sk-drift:  12px; --sk-dur:  9.2s; --sk-delay: -8.1s; }
+.bg-sparks i:nth-child(15) { --sk-x: 58%; --sk-y: 38%; --sk-size: 6px; --sk-op: .38; --sk-rot:  -4deg; --sk-rise: -135px; --sk-drift: -10px; --sk-dur: 11.6s; --sk-delay: -3.3s; }
+.bg-sparks i:nth-child(16) { --sk-x: 69%; --sk-y: 25%; --sk-size: 5px; --sk-op: .34; --sk-rot:  10deg; --sk-rise: -105px; --sk-drift:  24px; --sk-dur:  8.4s; --sk-delay: -6.0s; }
+.bg-sparks i:nth-child(17) { --sk-x: 80%; --sk-y: 42%; --sk-size: 4px; --sk-op: .40; --sk-rot: -20deg; --sk-rise:  -95px; --sk-drift: -22px; --sk-dur: 10.4s; --sk-delay: -1.6s; }
+.bg-sparks i:nth-child(18) { --sk-x: 90%; --sk-y: 14%; --sk-size: 5px; --sk-op: .36; --sk-rot:   4deg; --sk-rise: -115px; --sk-drift:   8px; --sk-dur:  9.8s; --sk-delay: -7.8s; }
+.bg-sparks i:nth-child(19) { --sk-x: 9%;  --sk-y: 12%; --sk-size: 4px; --sk-op: .32; --sk-rot: -12deg; --sk-rise:  -85px; --sk-drift: -18px; --sk-dur:  8.2s; --sk-delay: -2.7s; }
+.bg-sparks i:nth-child(20) { --sk-x: 26%; --sk-y: 18%; --sk-size: 5px; --sk-op: .34; --sk-rot:  16deg; --sk-rise: -100px; --sk-drift:  14px; --sk-dur: 10.0s; --sk-delay: -9.2s; }
+.bg-sparks i:nth-child(21) { --sk-x: 44%; --sk-y: 7%;  --sk-size: 4px; --sk-op: .30; --sk-rot:  -8deg; --sk-rise:  -88px; --sk-drift: -12px; --sk-dur:  9.4s; --sk-delay: -4.9s; }
+.bg-sparks i:nth-child(22) { --sk-x: 55%; --sk-y: 92%; --sk-size: 6px; --sk-op: .42; --sk-rot:  14deg; --sk-rise: -150px; --sk-drift:  20px; --sk-dur: 12.0s; --sk-delay: -0.4s; }
+.bg-sparks i:nth-child(23) { --sk-x: 66%; --sk-y: 10%; --sk-size: 4px; --sk-op: .32; --sk-rot: -18deg; --sk-rise:  -82px; --sk-drift:  -8px; --sk-dur:  8.8s; --sk-delay: -6.6s; }
+.bg-sparks i:nth-child(24) { --sk-x: 77%; --sk-y: 56%; --sk-size: 5px; --sk-op: .38; --sk-rot:   6deg; --sk-rise: -120px; --sk-drift: -16px; --sk-dur: 10.6s; --sk-delay: -3.1s; }
+.bg-sparks i:nth-child(25) { --sk-x: 88%; --sk-y: 28%; --sk-size: 4px; --sk-op: .34; --sk-rot:  20deg; --sk-rise:  -98px; --sk-drift:  10px; --sk-dur:  9.0s; --sk-delay: -8.4s; }
+.bg-sparks i:nth-child(26) { --sk-x: 33%; --sk-y: 50%; --sk-size: 5px; --sk-op: .36; --sk-rot: -10deg; --sk-rise: -118px; --sk-drift:  18px; --sk-dur: 11.2s; --sk-delay: -5.5s; }
+.bg-sparks i:nth-child(27) { --sk-x: 49%; --sk-y: 44%; --sk-size: 4px; --sk-op: .32; --sk-rot:  12deg; --sk-rise:  -92px; --sk-drift: -20px; --sk-dur:  8.6s; --sk-delay: -1.9s; }
+.bg-sparks i:nth-child(28) { --sk-x: 97%; --sk-y: 60%; --sk-size: 5px; --sk-op: .40; --sk-rot:  -6deg; --sk-rise: -108px; --sk-drift:   6px; --sk-dur: 10.2s; --sk-delay: -7.0s; }
+
 .entry-art {
   position: relative;
   z-index: 2;
@@ -947,6 +1011,11 @@ h2 {
     inset 0 0 0 1px rgba(255, 255, 255, 0.3),
     0 8px 18px rgba(8, 46, 92, 0.16);
   backdrop-filter: blur(10px);
+}
+
+/* Mobile: secondary start buttons duplicate the mobile nav — hide them */
+.start-actions--secondary {
+  display: none;
 }
 
 .btn,
@@ -3869,6 +3938,11 @@ h2 {
   backdrop-filter: blur(14px);
 }
 
+/* Mobile: in-screen meta-nav replaced by bottom mobile-nav */
+.meta-nav {
+  display: none;
+}
+
 .meta-nav-btn {
   min-width: 0;
   min-height: 40px;
@@ -3909,6 +3983,104 @@ h2 {
 .meta-nav-btn:focus-visible {
   outline: 2px solid rgba(92, 232, 255, 0.7);
   outline-offset: 2px;
+}
+
+/* =====================================================================
+   Mobile bottom nav
+   Visible on mobile by default; desktop hides via @media min-width:700px
+   ===================================================================== */
+.mobile-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: rgba(248, 253, 255, 0.94);
+  border-top: 1px solid rgba(92, 173, 255, 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.mobile-nav[hidden] {
+  display: none !important;
+}
+
+.mobile-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mobile-nav-btn.is-active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* =====================================================================
+   Mobile full-screen pages (collection, quests, guide)
+   Visible on mobile by default; desktop hides via @media min-width:700px
+   ===================================================================== */
+.mobile-screen {
+  /* Override base .screen width/height constraints to fill viewport */
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  /* Layout: header row + scrollable content */
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  overflow: hidden;
+  /* Space for fixed mobile nav at bottom */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-icy, #ebf9ff);
+}
+
+.mobile-screen-head {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding:
+    max(16px, env(safe-area-inset-top, 16px))
+    16px
+    12px
+    max(4px, env(safe-area-inset-left, 4px));
+  border-bottom: 1px solid rgba(92, 173, 255, 0.12);
+}
+
+.mobile-screen-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.mobile-screen-stats {
+  padding: 8px 16px 4px;
+  flex-shrink: 0;
+}
+
+.mobile-screen-content {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px 8px;
+  overscroll-behavior: contain;
 }
 
 .global-meta-nav {
@@ -6129,6 +6301,10 @@ h2 {
 .capsule-reveal-modal[data-phase="opening"]::after {
   animation: capsule-screen-flash 1850ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+.capsule-reveal-modal .bg-sparks {
+  z-index: 0;
+}
+
 .capsule-reveal-stage {
   position: relative;
   z-index: 1;
@@ -7500,6 +7676,31 @@ button,
   .tile.clearing .tile-art,
   .tile-burst i {
     animation-duration: 210ms;
+  }
+
+  /* Restore secondary start actions on desktop */
+  .start-actions--secondary {
+    display: flex;
+  }
+
+  /* Restore in-screen meta-nav on desktop */
+  .meta-nav {
+    display: flex;
+  }
+
+  /* Hide mobile-only elements on desktop */
+  .mobile-nav {
+    display: none !important;
+  }
+
+  .mobile-screen {
+    display: none !important;
+  }
+
+  /* Remove mobile nav clearance on desktop */
+  .start-card,
+  .leaderboard-card {
+    padding-bottom: 0;
   }
 
 }
