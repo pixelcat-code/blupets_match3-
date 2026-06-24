@@ -7678,9 +7678,9 @@ button,
     animation-duration: 210ms;
   }
 
-  /* Restore secondary start actions on desktop */
+  /* Restore secondary start actions on desktop (original layout: 4-col grid) */
   .start-actions--secondary {
-    display: flex;
+    display: grid;
   }
 
   /* Restore in-screen meta-nav on desktop */
