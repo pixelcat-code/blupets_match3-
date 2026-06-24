@@ -3990,20 +3990,23 @@ h2 {
    Visible on mobile by default; desktop hides via @media min-width:700px
    ===================================================================== */
 .mobile-nav {
+  --mobile-nav-h: 64px;
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 90;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: center;
-  justify-content: space-around;
-  height: calc(56px + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: rgba(248, 253, 255, 0.94);
-  border-top: 1px solid rgba(92, 173, 255, 0.18);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  gap: 4px;
+  height: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
+  padding: 8px max(10px, env(safe-area-inset-left, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-right, 0px));
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .mobile-nav[hidden] {
@@ -4011,24 +4014,64 @@ h2 {
 }
 
 .mobile-nav-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
+  width: 100%;
+  min-width: 0;
   height: 44px;
-  border-radius: 50%;
-  border: none;
+  padding: 0 2px 10px;
+  border: 0;
   background: transparent;
-  color: var(--ink-faint);
+  color: #2f6688;
+  box-shadow: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition:
+    color 0.16s ease,
+    text-shadow 0.16s ease,
+    transform 0.16s ease;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
 .mobile-nav-btn.is-active {
-  background: var(--color-accent);
-  color: #fff;
+  color: #0067c7;
+  transform: translateY(-2px);
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.88),
+    0 0 18px rgba(92, 232, 255, 0.42);
+}
+
+.mobile-nav-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  right: auto;
+  bottom: 3px;
+  width: 24px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(47, 102, 136, 0.34);
+  box-shadow:
+    0 0 12px rgba(255, 255, 255, 0.32),
+    0 4px 14px rgba(44, 154, 240, 0.18);
+  transform: translateX(-50%);
+}
+
+.mobile-nav-btn.is-active::after {
+  width: 34px;
+  background: #2f80ff;
+  box-shadow:
+    0 0 18px rgba(92, 232, 255, 0.74),
+    0 5px 18px rgba(62, 172, 255, 0.36);
 }
 
 /* =====================================================================
@@ -4036,18 +4079,54 @@ h2 {
    Visible on mobile by default; desktop hides via @media min-width:700px
    ===================================================================== */
 .mobile-screen {
-  /* Override base .screen width/height constraints to fill viewport */
-  width: 100%;
+  /* Escape the padded .app-shell card flow: these are true mobile pages. */
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  width: 100vw;
   max-width: none;
   height: 100dvh;
   max-height: none;
+  margin: 0;
   /* Layout: header row + scrollable content */
   display: grid;
   grid-template-rows: auto auto 1fr;
   overflow: hidden;
   /* Space for fixed mobile nav at bottom */
-  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-  background: var(--surface-icy, #ebf9ff);
+  padding-bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.16) 42%, transparent 62%),
+    linear-gradient(180deg, #109de8 0%, #42c4ee 38%, #d9f6ff 62%, #ffffff 82%, #ffffff 100%);
+}
+
+.mobile-screen::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(42% - 76px);
+  width: min(188vw, 1260px);
+  height: min(118vw, 820px);
+  background:
+    radial-gradient(ellipse at 50% 76%, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0.15) 18%, transparent 40%),
+    repeating-conic-gradient(
+      from -22deg at 50% 76%,
+      transparent 0deg 4.4deg,
+      rgba(255, 255, 255, 0.14) 5.4deg 8.2deg,
+      rgba(255, 255, 255, 0.42) 8.2deg 11.8deg,
+      rgba(255, 255, 255, 0.12) 11.8deg 14.4deg,
+      transparent 14.4deg 24deg
+    );
+  opacity: 0.72;
+  transform: translate(-50%, -45%) scale(0.96, 0.92);
+  transform-origin: 50% 76%;
+  animation: entry-rays-breathe 4.2s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse at 50% 76%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
+  pointer-events: none;
+}
+
+.mobile-screen > * {
+  position: relative;
+  z-index: 1;
 }
 
 .mobile-screen-head {
@@ -4081,6 +4160,78 @@ h2 {
   -webkit-overflow-scrolling: touch;
   padding: 12px 16px 8px;
   overscroll-behavior: contain;
+}
+
+@media (max-width: 699px) {
+  .app-shell {
+    padding: 0;
+  }
+
+  .screen {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+  }
+
+  .start-card,
+  .game-frame,
+  .leaderboard-card {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .start-screen .entry-platform {
+    display: none;
+  }
+
+  .start-screen .entry-hero {
+    --start-art-lift: -225px;
+  }
+
+  .start-screen .start-actions--primary {
+    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .start-screen .hud-btn.start-mute-btn {
+    --hud-h: 48px;
+    width: 88px;
+    left: calc(16px + env(safe-area-inset-left, 0px));
+    top: calc(22px + env(safe-area-inset-top, 0px));
+  }
+
+  .start-screen .profile-chip {
+    min-width: 132px;
+    height: 48px;
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    top: calc(22px + env(safe-area-inset-top, 0px));
+    padding: 0 12px 0 8px;
+    gap: 7px;
+    font-size: 12px;
+  }
+
+  .start-screen .profile-chip .profile-chip-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .start-screen .profile-chip-label {
+    font-size: 12px;
+  }
+
+  .leaderboard-screen {
+    width: 100vw;
+    height: 100dvh;
+  }
+
+  .leaderboard-screen .leaderboard-card {
+    padding:
+      max(16px, env(safe-area-inset-top, 16px))
+      16px
+      calc(82px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .global-meta-nav {
@@ -4614,7 +4765,21 @@ h2 {
   .guide-match-chip {
     min-height: 68px;
     grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
     justify-items: start;
+    column-gap: 16px;
+  }
+
+  .guide-match-row {
+    width: 184px;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .guide-match-chip strong {
+    align-self: center;
+    font-size: 18px;
+    line-height: 1.05;
   }
 }
 
@@ -4674,6 +4839,10 @@ h2 {
   min-width: 0;
 }
 
+.collection-capsule-copy > div {
+  min-width: 0;
+}
+
 .collection-capsule-icon {
   width: 48px;
   height: 48px;
@@ -4727,7 +4896,9 @@ h2 {
 .collection-capsule-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
 }
 
 .collection-capsule-actions .capsule-btn {
@@ -4742,6 +4913,46 @@ h2 {
   background: rgba(255, 255, 255, 0.54);
   border-color: rgba(53, 102, 132, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+@media (max-width: 520px) {
+  .collection-capsule-shelf {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 8px;
+    min-height: 70px;
+    padding: 10px;
+  }
+
+  .collection-capsule-copy {
+    gap: 9px;
+  }
+
+  .collection-capsule-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+
+  .collection-capsule-copy strong,
+  .collection-capsule-copy small {
+    max-width: 100%;
+  }
+
+  .collection-capsule-copy small {
+    white-space: normal;
+    line-height: 1.1;
+  }
+
+  .collection-capsule-actions {
+    gap: 6px;
+  }
+
+  .collection-capsule-actions .capsule-btn {
+    min-width: 64px;
+    min-height: 36px;
+    padding: 7px 10px;
+    font-size: 10px;
+  }
 }
 
 .meta-popup .quest-list,
@@ -4982,12 +5193,17 @@ h2 {
 }
 .collection-card {
   position: relative;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 3px;
-  min-height: 92px;
-  padding: 6px 4px;
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
   border-radius: 12px;
   border: 1px solid var(--hairline);
   background:
@@ -5012,19 +5228,6 @@ h2 {
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     inset 0 0 14px rgba(92, 232, 255, 0.24);
 }
-.collection-card.is-owned:hover {
-  transform: translateY(-2px) scale(1.06);
-  z-index: 2;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    inset 0 0 20px rgba(92, 232, 255, 0.4),
-    0 0 0 2px rgba(92, 232, 255, 0.55),
-    0 6px 16px rgba(40, 92, 150, 0.18);
-}
-.collection-card.is-owned:active {
-  transform: translateY(0) scale(1.0);
-  transition-duration: 90ms;
-}
 /* Locked forms recede: muted, desaturated, low contrast — so each discovery is
    a visible jump up the holographic ladder. */
 .collection-card.is-locked {
@@ -5033,7 +5236,8 @@ h2 {
 }
 .collection-art {
   position: relative;
-  width: 100%;
+  width: 82%;
+  max-width: 74px;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -5088,29 +5292,19 @@ h2 {
 }
 .collection-name {
   display: none;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
   font-size: 11px;
   font-weight: 700;
   text-align: center;
   line-height: 1.15;
   color: var(--color-text);
+  overflow-wrap: anywhere;
 }
 .collection-card.is-locked .collection-name {
   color: var(--color-text-soft);
 }
-.collection-card[data-form-key] {
-  cursor: pointer;
-}
-.collection-card[data-form-key]:focus-visible {
-  outline: 2px solid rgba(92, 232, 255, 0.7);
-  outline-offset: 2px;
-}
-/* Even locked cards are tappable (they open the tree with a spoiler-safe apex),
-   so give them the same lift-on-hover affordance as owned cards. */
-.collection-card.is-locked:hover {
-  transform: translateY(-2px) scale(1.04);
-  opacity: 0.85;
-}
-
 .profile-tabs {
   position: sticky;
   top: 0;
@@ -7298,26 +7492,33 @@ button,
   }
 
   .profile-content .collection-grid {
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
     gap: 6px;
+    align-items: start;
   }
 
   .profile-content .collection-card {
-    min-height: 104px;
-    padding: 6px 4px;
-    border-radius: 16px;
+    min-height: 0;
+    padding: 8px;
+    border-radius: 14px;
     gap: 4px;
   }
 
   .profile-content .collection-art {
-    width: 68px;
-    height: 68px;
+    width: 74%;
+    max-width: 68px;
+    height: auto;
+    aspect-ratio: 1;
     border-radius: 14px;
   }
 
   .profile-content .collection-name {
-    display: block;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    min-height: 22px;
     font-size: 10px;
+    line-height: 1.1;
   }
 
   .start-screen .start-actions--secondary {

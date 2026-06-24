@@ -711,12 +711,15 @@ function openMetaSection(section, fromScreen = currentScreen) {
       case "collection":
       case "capsules":
         setScreen("collection");
+        render();
         return;
       case "quests":
         setScreen("quests");
+        render();
         return;
       case "guide":
         setScreen("guide");
+        render();
         return;
       case "rank":
         openLeaderboard(fromScreen);
@@ -2970,7 +2973,7 @@ function renderProfileStatsPanel({
 function renderCollectionCard(entry, { apex = false } = {}) {
   const apexKey = apex ? entry.key : getAscendedKeyByFormKey(entry.key) ?? entry.key;
   return `
-    <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-tier="${escapeHtml(entry.tier ?? "ascended")}" data-form-key="${escapeHtml(entry.key)}" data-apex-key="${escapeHtml(apexKey)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered Blupet")}">
+    <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-tier="${escapeHtml(entry.tier ?? "ascended")}" data-form-key="${escapeHtml(entry.key)}" data-apex-key="${escapeHtml(apexKey)}" data-discovered="${entry.discovered ? "1" : ""}" aria-label="${escapeHtml(entry.discovered ? entry.name : "Undiscovered Blupet")}">
       <div class="collection-art">
         ${
           entry.discovered
@@ -3308,7 +3311,7 @@ function renderCollectionGrid() {
   const card = (entry) => {
     const apexKey = getAscendedKeyByFormKey(entry.key) ?? entry.key;
     return `
-      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-tier="${escapeHtml(entry.tier)}" data-form-key="${escapeHtml(entry.key)}" data-apex-key="${escapeHtml(apexKey)}" data-discovered="${entry.discovered ? "1" : ""}" role="button" tabindex="0" title="${escapeHtml(entry.discovered ? entry.name : "Undiscovered form")}">
+      <div class="collection-card ${entry.discovered ? "is-owned" : "is-locked"}" data-tier="${escapeHtml(entry.tier)}" data-form-key="${escapeHtml(entry.key)}" data-apex-key="${escapeHtml(apexKey)}" data-discovered="${entry.discovered ? "1" : ""}" aria-label="${escapeHtml(entry.discovered ? entry.name : "Undiscovered form")}">
         <div class="collection-art">
           ${
             entry.discovered
@@ -4154,11 +4157,7 @@ elements.metaPopupTabsHost?.addEventListener("click", (e) => {
 elements.metaPopupContent?.addEventListener("click", handleQuestTabActivate);
 elements.metaPopupContent?.addEventListener("keydown", handleQuestTabActivate);
 elements.metaPopupContent?.addEventListener("click", handleCapsuleAction);
-elements.metaPopupContent?.addEventListener("click", handleCollectionActivate);
-elements.metaPopupContent?.addEventListener("keydown", handleCollectionActivate);
 // Collection screen event delegation
-elements.collectionContent?.addEventListener("click", handleCollectionActivate);
-elements.collectionContent?.addEventListener("keydown", handleCollectionActivate);
 elements.collectionContent?.addEventListener("click", handleCapsuleAction);
 // Quests screen event delegation
 elements.questsContent?.addEventListener("click", handleQuestTabActivate);
@@ -4186,8 +4185,6 @@ elements.profileContent?.addEventListener("keydown", handleProfileTabActivate);
 elements.profileContent?.addEventListener("click", handleQuestTabActivate);
 elements.profileContent?.addEventListener("keydown", handleQuestTabActivate);
 elements.profileContent?.addEventListener("click", handleCapsuleAction);
-elements.profileContent?.addEventListener("click", handleCollectionActivate);
-elements.profileContent?.addEventListener("keydown", handleCollectionActivate);
 elements.profileContent?.addEventListener("click", (e) => {
   const action = e.target.closest("[data-account-action]")?.dataset.accountAction;
   if (!action) return;
@@ -4195,8 +4192,6 @@ elements.profileContent?.addEventListener("click", (e) => {
   if (action === "signout") handleAuthLogout();
   if (action === "guide") startRun({ guided: true });
 });
-elements.publicProfileContent?.addEventListener("click", handleCollectionActivate);
-elements.publicProfileContent?.addEventListener("keydown", handleCollectionActivate);
 bindClick(elements.evoTreeClose, closeEvoTree);
 bindClick(elements.evoTreeBackdrop, closeEvoTree);
 bindClick(elements.profileSignInBtn, () => openAuthModal({ force: true }));
