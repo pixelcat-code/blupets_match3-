@@ -18,6 +18,11 @@ const SFX = {
   cascade: ["block-stone-lift.wav"],
   evolve: ["modal-open.wav"],
   victory: ["reveal-transition.wav"],
+  // Combo feedback — reuse existing assets mapped to praise tiers
+  praise1: ["nav-click-01.wav"],
+  praise2: ["inventory-select-01.wav", "inventory-select-02.wav"],
+  praise3: ["block-stone-lift.wav"],
+  praise4: ["modal-open.wav"],
 };
 
 const GAIN = {
@@ -28,6 +33,10 @@ const GAIN = {
   cascade: 0.5,
   evolve: 0.7,
   victory: 0.9,
+  praise1: 0.30,
+  praise2: 0.45,
+  praise3: 0.55,
+  praise4: 0.70,
 };
 
 const MUSIC_FILE = "site-background.mp3";
