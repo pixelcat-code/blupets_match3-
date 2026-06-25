@@ -111,6 +111,17 @@ const SUBMIT_WINDOW_MS = 60 * 60 * 1000;
 const MAX_SUBMITS_PER_WINDOW = 20;
 const MIN_RUN_DURATION_MS = 3000;
 
+function sanitizeProgressSnapshot(raw: unknown, fallback: any) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return fallback;
+  try {
+    const jsonText = JSON.stringify(raw);
+    if (jsonText.length > 200_000) return fallback;
+    return JSON.parse(jsonText);
+  } catch {
+    return fallback;
+  }
+}
+
 Deno.serve(async (req) => {
   const cors = corsHeaders(req);
   if (req.method === "OPTIONS") {
@@ -143,6 +154,7 @@ Deno.serve(async (req) => {
           Number.isFinite(n) ? Math.max(0, Math.min(9, n)) : 0;
       }
     }
+    const blupetsCount = Object.values(familyBadges).reduce((sum, value) => sum + value, 0);
 
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
@@ -207,13 +219,15 @@ Deno.serve(async (req) => {
       t4_form_key: result.formKey,
       vibe: result.vibe,
       family_badges: familyBadges,
+      blupets_count: blupetsCount,
     };
 
     const { data: progressRow } = await supabase
       .from("user_progress")
-      .select("wins, runs, best_score, fewest_moves_win, forms")
+      .select("wins, runs, best_score, fewest_moves_win, forms, progress")
       .eq("user_id", user.id)
       .maybeSingle();
+    const clientProgress = sanitizeProgressSnapshot(body.progress, progressRow?.progress ?? {});
     const progress = mergeWin({
       wins: progressRow?.wins,
       runs: progressRow?.runs,
@@ -221,6 +235,18 @@ Deno.serve(async (req) => {
       fewestMovesWin: progressRow?.fewest_moves_win,
       forms: progressRow?.forms,
     }, result);
+    const clientRuns = Number(clientProgress?.runs);
+    if (Number.isFinite(clientRuns) && clientRuns > Number(progressRow?.runs ?? 0)) {
+      progress.runs = Math.max(0, Math.floor(clientRuns));
+    }
+    const progressSnapshot = {
+      ...clientProgress,
+      wins: progress.wins,
+      runs: progress.runs,
+      bestScore: progress.bestScore,
+      fewestMovesWin: progress.fewestMovesWin,
+      forms: progress.forms,
+    };
 
     const { error: progressError } = await supabase.from("user_progress").upsert(
       {
@@ -230,6 +256,7 @@ Deno.serve(async (req) => {
         best_score: progress.bestScore,
         fewest_moves_win: progress.fewestMovesWin,
         forms: progress.forms,
+        progress: progressSnapshot,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },
@@ -246,7 +273,7 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id);
     if (runUpdateError) throw runUpdateError;
 
-    return json({ ok: true, entry, progress }, 200, cors);
+    return json({ ok: true, entry, progress: progressSnapshot }, 200, cors);
   } catch (error) {
     console.error("submit-run failed:", error);
     return json({ error: "submit_run_failed" }, 500, cors);

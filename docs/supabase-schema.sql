@@ -15,8 +15,12 @@ create table if not exists public.user_progress (
   best_score       integer     not null default 0,
   fewest_moves_win integer,
   forms            jsonb       not null default '{}',
+  progress         jsonb       not null default '{}',
   updated_at       timestamptz not null default now()
 );
+
+alter table public.user_progress
+  add column if not exists progress jsonb not null default '{}';
 
 alter table public.user_progress enable row level security;
 
@@ -57,6 +61,7 @@ create table if not exists public.leaderboard_entries (
   avatar_url   text,
   score        integer     not null,
   moves_used   integer     not null,
+  blupets_count integer    not null default 0,
   t4_color     text,
   t4_partner   text,
   t4_form_key  text,
@@ -68,6 +73,8 @@ create table if not exists public.leaderboard_entries (
 -- For existing deployments: add the per-family unlocked-tile snapshot column.
 alter table public.leaderboard_entries
   add column if not exists family_badges jsonb not null default '{}';
+alter table public.leaderboard_entries
+  add column if not exists blupets_count integer not null default 0;
 
 alter table public.leaderboard_entries enable row level security;
 
@@ -80,7 +87,9 @@ create policy "leaderboard_entries: global read"
   using (true);
 
 
--- ─── Optional: speed-run index ───────────────────────────────────────────────
--- Speeds up the "Speed Run" sort (moves_used ASC).
-create index if not exists leaderboard_entries_moves_idx
-  on public.leaderboard_entries (moves_used asc);
+-- ─── Optional: leaderboard sort indexes ──────────────────────────────────────
+create index if not exists leaderboard_entries_score_idx
+  on public.leaderboard_entries (score desc);
+
+create index if not exists leaderboard_entries_blupets_idx
+  on public.leaderboard_entries (blupets_count desc, score desc);

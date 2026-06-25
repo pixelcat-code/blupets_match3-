@@ -4,14 +4,8 @@
 
 import { BLUPETS_FAMILIES } from "./blupets-canon-data.js";
 
-let _progressUserId = null;
-
 export function setProgressUser(userId) {
-  _progressUserId = userId || null;
-}
-
-function progressKey() {
-  return _progressUserId ? `blupets-progress-v1-${_progressUserId}` : "blupets-progress-v1";
+  void userId;
 }
 
 // Total distinct apex forms that can ever be discovered — the "X / TOTAL"
@@ -615,51 +609,14 @@ function normalizeProgress(parsed) {
   };
 }
 
-const LEGACY_KEY = "blupets-progress-v1";
-
 export function loadProgress() {
-  const key = progressKey();
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object") {
-        return normalizeProgress(parsed);
-      }
-    }
-  } catch {
-    // Unreadable/legacy storage — start fresh.
-  }
-  // One-time migration: if a signed-in user has no per-user record yet,
-  // adopt the legacy shared record and remove it so the next sign-in
-  // (different account) starts clean.
-  if (_progressUserId && key !== LEGACY_KEY) {
-    try {
-      const legacy = window.localStorage.getItem(LEGACY_KEY);
-      if (legacy) {
-        const parsed = JSON.parse(legacy);
-        if (parsed && typeof parsed === "object") {
-          window.localStorage.setItem(key, legacy);
-          window.localStorage.removeItem(LEGACY_KEY);
-          return normalizeProgress(parsed);
-        }
-      }
-    } catch {
-      // Ignore migration errors.
-    }
-  }
   return emptyProgress();
 }
 
 function save(progress) {
-  try {
-    window.localStorage.setItem(progressKey(), JSON.stringify(progress));
-  } catch {
-    // Storage unavailable — keep the in-memory copy for this session.
-  }
+  return progress;
 }
 
-// Cache remote progress to localStorage so it's available offline.
 export function saveProgress(progress) {
   save(progress);
 }

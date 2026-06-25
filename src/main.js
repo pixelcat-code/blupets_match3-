@@ -21,7 +21,6 @@ import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isM
 import { initAuth, signInWithProvider, signOut } from "./auth.js?v=20260617-3";
 import {
   loadProgress,
-  saveProgress,
   setProgressUser,
   recordRunStart,
   recordWin,
@@ -45,37 +44,38 @@ import {
   exchangeShardsForCapsules,
   getMilestoneBadges,
   milestoneCapsuleReward,
-} from "./progress.js?v=20260624-quest-rewards-1";
+} from "./progress.js?v=20260625-supabase-progress-1";
 import { createSeededRng, randomSeed } from "./rng.js";
 import {
   fetchGlobalLeaderboard,
   fetchPublicUserEntries,
   fetchUserProgress,
   startTrustedRun,
+  syncCollectionSnapshot,
+  syncProgressSnapshot,
   submitTrustedRun,
-} from "./sync.js?v=20260622-15";
-import { createComboFeedback } from "./combo-feedback.js?v=20260624-1";
+} from "./sync.js?v=20260625-supabase-progress-1";
+import { createComboFeedback } from "./combo-feedback.js?v=20260625-pin-combo-popups-1";
 
-// TEMP TESTING KNOB: global slow-motion multiplier for the board-resolution
+// Global pacing multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
 // JS pacing below AND the CSS animation durations (via the --anim-scale custom
-// property, set at startup) so they stay in sync. Set back to 1 to restore
-// normal speed.
-const ANIM_SCALE = 1;
-// Dedicated, stronger multiplier for JUST the tile DISAPPEARANCE animation (the
-// clear/pop/dissolve), so you can watch exactly which tiles vanish. Independent
-// of ANIM_SCALE. Set to 1 for normal speed.
-const CLEAR_SCALE = 1;
+// property, set at startup) so they stay in sync.
+const ANIM_SCALE = 0.72;
+// Dedicated, stronger multiplier for JUST the tile disappearance animation. It
+// is intentionally faster than the board motion so combo praise carries the
+// moment instead of the player watching every tile dissolve.
+const CLEAR_SCALE = 0.55;
 const SWAP_ANIMATION_MS = 210 * ANIM_SCALE;
 // Quick reject shake when a swap makes no match, so an illegal move reads as
 // "tried, bounced back" instead of silently doing nothing.
 const REJECT_ANIMATION_MS = 300 * ANIM_SCALE;
 const CLEAR_ANIMATION_MS = 280 * CLEAR_SCALE;
 const DROP_ANIMATION_MS = 360 * ANIM_SCALE;
-// Falling tiles are staggered by --tile-delay (up to ~190ms for the bottom-right
-// cell). Hold the drop phase long enough that the last-staggered tile's
-// animation finishes instead of being cut off and snapping into place.
-const DROP_STAGGER_MS = 150 * ANIM_SCALE;
+// Falling tiles are lightly staggered by --tile-delay (up to ~80ms for the
+// bottom-right cell). Hold the drop phase long enough that the last-staggered
+// tile's animation finishes without making cascades feel slow.
+const DROP_STAGGER_MS = 90 * ANIM_SCALE;
 const CASCADE_SETTLE_MS = 80 * ANIM_SCALE;
 const RESHUFFLE_ANIMATION_MS = 320 * ANIM_SCALE;
 // Push the same multiplier into CSS so the keyframe durations scale in lockstep
@@ -89,6 +89,9 @@ const VICTORY_REWARD = 40;
 const HINT_JITTER_MS = 680; // how long the tile wobbles
 const HINT_GAP_MS = 10000; // pause between hints (~one nudge every 10s)
 const HINT_RECHECK_MS = 1000; // re-poll when hints are paused or unavailable
+const IDLE_MICRO_MS = 900;
+const IDLE_MIN_GAP_MS = 4200;
+const IDLE_JITTER_MS = 2600;
 const BASE_BLOCK_ASSETS = Object.freeze({
   black: "./assets/blocks/black.svg",
   blue: "./assets/blocks/blue.svg",
@@ -253,8 +256,9 @@ let cloudFormsCount = null;
 // so the user can tell apart fetching, an empty board, and a network failure.
 let leaderboardStatus = "loading";
 // Which leaderboard category is shown on mobile (where the two columns collapse
-// into a tab switcher). "score" = All Time, "speed" = Speed Run. Persists across
-// re-renders so a data refresh doesn't snap the user back to the first tab.
+// into a tab switcher). "score" = All Time, "blupets" = collection count.
+// Persists across re-renders so a data refresh doesn't snap the user back to the
+// first tab.
 let leaderboardTab = "score";
 let profileTab = "collection";
 let questTab = "collection";
@@ -275,6 +279,7 @@ let boardSizeFrame = null;
 let hintMoves = [];
 let hintCursor = 0;
 let hintTimer = null;
+let idleTimer = null;
 let vibeIntroOpen = false;
 let runRng = Math.random;
 let runProof = null;
@@ -293,36 +298,17 @@ function logRunAction(action) {
   runProof.actions.push(action);
 }
 
-// Merge authoritative Supabase data into local progress.
-// Keeps local `runs` (which counts non-winning runs too; server only counts wins).
-// Forms are unioned: local wins for conflicting keys (local has the asset path; server stores null).
 function applyRemoteProgress(remote) {
   if (!remote) return;
-  // Cloud-authoritative forms count — captured before the local union below so
-  // the victory/share card can show the true server number.
   cloudFormsCount = Object.keys(remote.forms ?? {}).length;
-  const localRuns = progress.runs;
-  // Take the better of local/remote for each record so a sign-in merge can
-  // never regress an unsynced local best (higher score, fewer moves).
-  const localBest = progress.bestScore ?? 0;
-  const localFewest = progress.fewestMovesWin;
-  const remoteFewest = remote.fewestMovesWin;
-  const mergedFewest =
-    localFewest == null
-      ? remoteFewest ?? null
-      : remoteFewest == null
-        ? localFewest
-        : Math.min(localFewest, remoteFewest);
-  progress = {
-    ...progress,
-    wins: Math.max(progress.wins ?? 0, remote.wins ?? 0),
-    runs: Math.max(localRuns, remote.runs ?? 0),
-    bestScore: Math.max(localBest, remote.bestScore ?? 0),
-    fewestMovesWin: mergedFewest,
-    tutorialSeen: Boolean(progress.tutorialSeen) || Number(remote.runs) > 0,
-    forms: { ...(remote.forms ?? {}), ...(progress.forms ?? {}) },
-  };
-  saveProgress(progress);
+  progress = { ...loadProgress(), ...remote };
+}
+
+function persistProgress() {
+  if (!authState.user) return;
+  syncProgressSnapshot(progress).catch((error) => {
+    console.error("[sync] progress snapshot failed:", error);
+  });
 }
 
 function clearRunProof() {
@@ -466,9 +452,10 @@ async function startRun({ guided = false } = {}) {
   const autoGuide = !guided && !progress.tutorialSeen;
   if (guided || autoGuide) {
     progress.tutorialSeen = true;
-    saveProgress(progress);
+    persistProgress();
   }
   recordRunStart(progress);
+  persistProgress();
   _prevScore = 0; // reset score-pop baseline for the new run
   runProof = null;
   gameoverRevealResult = null;
@@ -911,7 +898,7 @@ function openPublicProfile(userId, accountName, avatarUrl) {
 
   setScreen("public-profile");
 
-  // Viewing your own card? Reconcile against local progress so a freshly-won
+  // Viewing your own card? Reconcile against in-memory progress so a freshly-won
   // form shows immediately, before submit-run has propagated to
   // leaderboard_entries (read-after-write lag would otherwise hide it).
   const isSelf = Boolean(authState.user && userId === authState.user.id);
@@ -965,7 +952,7 @@ function renderPublicProfileHtml(entries, isSelf = false, userId = "") {
   let bestScore = entries.reduce((m, e) => Math.max(m, e.score || 0), 0);
   let gamesPlayed = entries.length;
 
-  // On your own card, union local progress so a just-won form / stat shows
+  // On your own card, union in-memory progress so a just-won form / stat shows
   // even before its leaderboard_entries row is readable.
   if (isSelf) {
     for (const key of Object.keys(progress.forms ?? {})) {
@@ -976,14 +963,17 @@ function renderPublicProfileHtml(entries, isSelf = false, userId = "") {
   }
 
   const publicCollectionTiles = publicCollectionTilesFromApexForms(forms);
-  const publicBlupetsCount = Object.keys(publicCollectionTiles).length;
+  const entryBlupetsCount = entries.reduce((max, e) => Math.max(max, Number(e.blupetsCount) || 0), 0);
+  const publicBlupetsCount = isSelf
+    ? Math.max(Object.keys(publicCollectionTiles).length, entryBlupetsCount, collectionTileCount(progress))
+    : Math.max(Object.keys(publicCollectionTiles).length, entryBlupetsCount);
   const ranks = leaderboardRanksForUser(userId);
   return {
     stats: renderProfileStatsPanel({
       bestScore,
       gamesPlayed,
       scoreRank: ranks.score,
-      speedRank: ranks.speed,
+      blupetsRank: ranks.blupets,
       blupets: `${publicBlupetsCount}/${TOTAL_INVENTORY_FORMS}`,
       progressValue: publicBlupetsCount,
       progressTotal: TOTAL_INVENTORY_FORMS,
@@ -1005,6 +995,15 @@ function publicCollectionTilesFromApexForms(forms) {
     }
   }
   return collectionTiles;
+}
+
+function collectionFamilySnapshot(progressLike = progress) {
+  const counts = {};
+  for (const entry of getCollectionTileEntries(progressLike)) {
+    if (!entry.discovered || !entry.familyId) continue;
+    counts[entry.familyId] = (counts[entry.familyId] ?? 0) + 1;
+  }
+  return counts;
 }
 
 function renderMetaPublicProfileContent() {
@@ -1051,8 +1050,13 @@ function recordVictory(nextState) {
       partnerColorId,
       vibe: nextState.vibe?.id ?? null,
     };
+    const familyBadges = collectionFamilySnapshot(progress);
     console.info("[sync] submitting run result:", proof.runId, result);
-    submitTrustedRun(proof.runId, result)
+    submitTrustedRun(proof.runId, result, {
+      familyBadges,
+      blupetsCount: collectionTileCount(progress),
+      progress,
+    })
       .then((data) => {
         console.info("[sync] submit-run accepted:", data);
         if (data?.progress) {
@@ -1070,8 +1074,8 @@ function recordVictory(nextState) {
       });
   } else if (authState.user && !runProof) {
     // Signed in but no trusted run was ever established (startTrustedRun failed
-    // or the run began before auth resolved). The win is recorded locally but
-    // never submitted — make that visible instead of silently dropping it.
+    // or the run began before auth resolved). The in-memory win is not submitted
+    // to the leaderboard — make that visible instead of silently dropping it.
     console.error(
       "[sync] victory NOT submitted: signed in but no runProof. " +
         "startTrustedRun likely failed at run start, or the run began before sign-in.",
@@ -1096,6 +1100,7 @@ function recordEndlessT4(nextState, colorId) {
     movesUsed: nextState.movesUsed,
   });
   updateProfileChip();
+  persistProgress();
   celebrateEndlessT4();
 }
 
@@ -1123,7 +1128,7 @@ function applyState(nextState) {
   const prevTiers = state?.evolutionTiers ?? {};
   state = nextState;
   // Soft-endless: each color that newly reaches T4 this step celebrates in place
-  // and is recorded into the local collection. No leaderboard submit (deferred to
+  // and is recorded into the profile collection. No leaderboard submit (deferred to
   // the badge rework).
   if (nextState?.endlessRun && !nextState.victory) {
     for (const color of COLORS) {
@@ -1153,7 +1158,7 @@ function applyState(nextState) {
     }
   } else if (nextState?.gameOver) {
     // Endless run ended (moves = 0). Fold this run into the lifetime badge store
-    // exactly once and capture the summary the end screen renders. Local only.
+    // exactly once and capture the summary the end screen renders.
     if (nextState.endlessRun) {
       const reachedForms = [];
       for (const color of COLORS) {
@@ -1185,6 +1190,7 @@ function applyState(nextState) {
         blupetsCount: collectionTileCount(progress),
       };
       updateProfileChip();
+      persistProgress();
     }
     setScreen("gameover");
   }
@@ -1400,25 +1406,6 @@ function spawnComboPopup(text, level) {
   el.style.setProperty("--fx-hue", String(Math.max(0, 46 - level * 9)));
   layer.appendChild(el);
   window.setTimeout(() => el.remove(), 950);
-}
-
-// Floating "+score" tally that drifts up after a resolution settles. Deeper
-// cascades spawn a slightly larger, hotter floater so big chains read bigger.
-function spawnScoreFloater(amount, cascadeDepth = 1) {
-  const layer = elements.fxLayer;
-  if (!layer) {
-    return;
-  }
-  const depth = Math.max(1, Math.min(cascadeDepth || 1, 6));
-  const el = document.createElement("div");
-  el.className = "fx-score";
-  el.textContent = `+${amount}`;
-  el.style.setProperty("--fx-x", "50%");
-  el.style.setProperty("--fx-y", "60%");
-  el.style.setProperty("--fx-scale", String(1 + (depth - 1) * 0.12));
-  if (depth >= 3) el.classList.add("is-big-cascade");
-  layer.appendChild(el);
-  window.setTimeout(() => el.remove(), 1000);
 }
 
 let toastTimer = null;
@@ -1754,7 +1741,7 @@ async function handleAuthLogout() {
       avatarUrl: "",
     };
     setProgressUser(null);
-    progress = loadProgress(); // restore local guest progress after sign-out
+    progress = loadProgress();
     authModalDismissed = true;  // don't pop auth modal immediately after sign-out
     setScreen("start");
     render();
@@ -2034,6 +2021,12 @@ function clearHintJitter() {
     .forEach((el) => el.classList.remove("hint-jitter"));
 }
 
+function clearIdleMicro() {
+  elements.board
+    ?.querySelectorAll(".tile.idle-blink, .tile.idle-bob")
+    .forEach((el) => el.classList.remove("idle-blink", "idle-bob"));
+}
+
 function canShowHints() {
   return canInteractWithBoard() && !selectedTile && !dragState;
 }
@@ -2098,6 +2091,47 @@ function syncHintLoop() {
   startHintLoop();
 }
 
+function scheduleIdleMicro(delay = IDLE_MIN_GAP_MS + Math.random() * IDLE_JITTER_MS) {
+  if (idleTimer !== null) return;
+  idleTimer = window.setTimeout(idleMicroTick, delay);
+}
+
+function idleMicroTick() {
+  idleTimer = null;
+  clearIdleMicro();
+
+  if (!canShowHints()) {
+    scheduleIdleMicro(1200);
+    return;
+  }
+
+  const tiles = [
+    ...elements.board.querySelectorAll(
+      ".tile:not(.tile--empty):not(.tile--ghost):not(.is-swapping):not(.is-falling):not(.clearing)",
+    ),
+  ];
+  if (tiles.length === 0) {
+    scheduleIdleMicro(1200);
+    return;
+  }
+
+  const count = Math.random() < 0.82 ? 1 : 2;
+  for (let i = 0; i < count && tiles.length > 0; i += 1) {
+    const index = Math.floor(Math.random() * tiles.length);
+    const tile = tiles.splice(index, 1)[0];
+    tile.classList.add(Math.random() < 0.58 ? "idle-blink" : "idle-bob");
+  }
+
+  window.setTimeout(() => {
+    clearIdleMicro();
+    scheduleIdleMicro();
+  }, IDLE_MICRO_MS);
+}
+
+function syncIdleLoop() {
+  scheduleIdleMicro();
+}
+
 function renderBoard(stateLike) {
   const boardState = boardAnimation.board ?? stateLike.board;
   const blocked =
@@ -2158,7 +2192,7 @@ function renderBoard(stateLike) {
               data-row="${rowIndex}"
               data-col="${colIndex}"
               ${tier > 1 ? `data-tier="T${tier}"` : ""}
-              style="grid-row:${rowIndex + 1}; grid-column:${colIndex + 1}; --tile-accent:${color.hex}; --tile-delay:${rowIndex * 18 + colIndex * 8}ms; color:${color.hex};${swapStyle}"
+              style="grid-row:${rowIndex + 1}; grid-column:${colIndex + 1}; --tile-accent:${color.hex}; --tile-delay:${rowIndex * 8 + colIndex * 3}ms; color:${color.hex};${swapStyle}"
               aria-label="${color.label} tile${powerLabel}"
               aria-selected="${isSelected ? "true" : "false"}"
             >
@@ -2516,6 +2550,7 @@ function openCapsuleRevealModal({ count = 1, source = "profile" } = {}) {
     if (!results.length) return;
     recentCapsuleResults = [...results.reverse(), ...recentCapsuleResults].slice(0, 16);
     updateProfileChip();
+    syncCollectionLeaderboard();
     if (source === "gameover") {
       gameoverRevealBatch = results;
       gameoverRevealResult = bestCapsuleResult(results);
@@ -2548,6 +2583,7 @@ function updateAfterCapsuleReveal(results, source) {
   const ordered = [...results].reverse();
   recentCapsuleResults = [...ordered, ...recentCapsuleResults].slice(0, 16);
   updateProfileChip();
+  syncCollectionLeaderboard();
   if (source === "gameover") {
     gameoverRevealBatch = results;
     gameoverRevealResult = bestCapsuleResult(results);
@@ -2557,6 +2593,25 @@ function updateAfterCapsuleReveal(results, source) {
     renderProfile();
     renderMetaOverlay();
   }
+}
+
+function syncCollectionLeaderboard() {
+  if (!authState.user) return;
+  const familyBadges = collectionFamilySnapshot(progress);
+  syncProgressSnapshot(progress)
+    .then(() => syncCollectionSnapshot({
+      familyBadges,
+      blupetsCount: collectionTileCount(progress),
+    }))
+    .then(() => fetchGlobalLeaderboard())
+    .then((entries) => {
+      remoteLeaderboard = entries;
+      renderLeaderboard();
+      renderMetaOverlay();
+    })
+    .catch((error) => {
+      console.error("[sync] collection snapshot failed:", error);
+    });
 }
 
 function performCapsuleReveal() {
@@ -2737,7 +2792,7 @@ function handleGameoverCapsuleCta(event) {
 
 // Discovered-forms count for the victory/share card. Prefers the cloud number
 // (`cloudFormsCount`) when signed in so a guest's local-only forms can't inflate
-// it; falls back to the local collection for guests / before the first fetch.
+// it; falls back to the in-memory collection for guests / before the first fetch.
 function collectedFormsCount() {
   if (authState.user && cloudFormsCount != null) return cloudFormsCount;
   return discoveredCount(progress);
@@ -2796,7 +2851,7 @@ function renderLeaderboardContent({ tabsHost, content }) {
     value,
   });
 
-  // Dedup independently per section so a fast run isn't hidden by a higher-score run.
+  // Dedup independently per section so a collection-heavy run isn't hidden by a higher-score run.
   const dedup = (arr, better) => [...arr.reduce((m, e) => {
     if (!m.has(e.userId) || better(e, m.get(e.userId))) m.set(e.userId, e);
     return m;
@@ -2811,13 +2866,19 @@ function renderLeaderboardContent({ tabsHost, content }) {
       `${colorLabel(entry.t4Color)} + ${colorLabel(entry.t4Partner)}`,
     ));
 
-  const sortBySpeed = dedup(entries, (a, b) => a.movesUsed < b.movesUsed || (a.movesUsed === b.movesUsed && a.score > b.score))
-    .sort((left, right) => left.movesUsed - right.movesUsed || right.score - left.score)
+  const sortByBlupets = dedup(
+    entries,
+    (a, b) => (Number(a.blupetsCount) || 0) > (Number(b.blupetsCount) || 0) ||
+      ((Number(a.blupetsCount) || 0) === (Number(b.blupetsCount) || 0) && a.score > b.score),
+  )
+    .sort((left, right) =>
+      (Number(right.blupetsCount) || 0) - (Number(left.blupetsCount) || 0) ||
+      right.score - left.score)
     .slice(0, 100)
     .map((entry, index) => toRow(
       entry, index,
-      `${entry.movesUsed} moves`,
-      `${colorLabel(entry.t4Color)} + ${colorLabel(entry.t4Partner)}`,
+      `${Number(entry.blupetsCount) || 0}/${TOTAL_INVENTORY_FORMS}`,
+      `Best score ${entry.score}`,
     ));
 
   const emptyMsg =
@@ -2861,13 +2922,13 @@ function renderLeaderboardContent({ tabsHost, content }) {
     tabsHost.innerHTML = `
       <div class="leaderboard-tabs" role="tablist" aria-label="Leaderboard category">
         ${tab("score", "All Time")}
-        ${tab("speed", "Speed Run")}
+        ${tab("blupets", "Blupets")}
       </div>
     `;
   }
 
-  const activeRows = leaderboardTab === "speed" ? sortBySpeed : sortByScore;
-  const activeLabel = leaderboardTab === "speed" ? "Speed Run" : "All Time";
+  const activeRows = leaderboardTab === "blupets" ? sortByBlupets : sortByScore;
+  const activeLabel = leaderboardTab === "blupets" ? "Blupets" : "All Time";
 
   content.innerHTML = `
     <section class="leaderboard-column leaderboard-column--active" data-col="${leaderboardTab}">
@@ -2935,7 +2996,7 @@ function renderQuestStatsHeader() {
 }
 
 function leaderboardRanksForUser(userId) {
-  if (!userId) return { score: null, speed: null };
+  if (!userId) return { score: null, blupets: null };
   const entries = Array.isArray(remoteLeaderboard) ? remoteLeaderboard : [];
   const dedup = (arr, better) => [...arr.reduce((m, e) => {
     if (!e?.userId) return m;
@@ -2944,11 +3005,17 @@ function leaderboardRanksForUser(userId) {
   }, new Map()).values()];
   const scoreRows = dedup(entries, (a, b) => a.score > b.score || (a.score === b.score && a.movesUsed < b.movesUsed))
     .sort((left, right) => right.score - left.score || left.movesUsed - right.movesUsed);
-  const speedRows = dedup(entries, (a, b) => a.movesUsed < b.movesUsed || (a.movesUsed === b.movesUsed && a.score > b.score))
-    .sort((left, right) => left.movesUsed - right.movesUsed || right.score - left.score);
+  const blupetsRows = dedup(
+    entries,
+    (a, b) => (Number(a.blupetsCount) || 0) > (Number(b.blupetsCount) || 0) ||
+      ((Number(a.blupetsCount) || 0) === (Number(b.blupetsCount) || 0) && a.score > b.score),
+  )
+    .sort((left, right) =>
+      (Number(right.blupetsCount) || 0) - (Number(left.blupetsCount) || 0) ||
+      right.score - left.score);
   return {
     score: scoreRows.findIndex((entry) => entry.userId === userId) + 1 || null,
-    speed: speedRows.findIndex((entry) => entry.userId === userId) + 1 || null,
+    blupets: blupetsRows.findIndex((entry) => entry.userId === userId) + 1 || null,
   };
 }
 
@@ -2960,7 +3027,7 @@ function renderProfileStatsPanel({
   bestScore,
   gamesPlayed,
   scoreRank,
-  speedRank,
+  blupetsRank,
   blupets,
   progressValue,
   progressTotal,
@@ -2975,7 +3042,7 @@ function renderProfileStatsPanel({
       ${stat("Best Score", bestScore ?? 0, "gold")}
       ${stat("Games Played", gamesPlayed ?? 0, "violet")}
       ${stat("All Time Rank", rankText(scoreRank), "blue")}
-      ${stat("Speed Rank", rankText(speedRank), "pink")}
+      ${stat("Blupets Rank", rankText(blupetsRank), "pink")}
       ${stat("Blupets", blupets ?? `${progressValue}/${progressTotal}`, "cyan")}
     </div>
   `;
@@ -3047,7 +3114,7 @@ function renderAccountSection() {
         bestScore: progress.bestScore ?? 0,
         gamesPlayed: Number(progress.runs) || 0,
         scoreRank: ranks.score,
-        speedRank: ranks.speed,
+        blupetsRank: ranks.blupets,
         blupets: `${blupetsCount}/${TOTAL_INVENTORY_FORMS}`,
         progressValue: blupetsCount,
         progressTotal: TOTAL_INVENTORY_FORMS,
@@ -3281,7 +3348,7 @@ function renderGuideSection() {
         ${section("Quests And Leaderboard", "#", [
         "Quests track collection, colors, specials, combos, score, and endurance",
         "Completed quests move to the bottom so active goals stay visible",
-        "Leaderboard has All Time score and Speed Run move-count rankings",
+        "Leaderboard has All Time score and Blupets collection rankings",
         ])}
       </div>
 
@@ -3704,6 +3771,7 @@ function handleCapsuleAction(event) {
     sfx("ui");
     if (inMetaPopup) renderMetaOverlay();
     if (inCollectionScreen) renderCollectionScreen();
+    persistProgress();
   }
 }
 
@@ -3789,6 +3857,7 @@ function render() {
     scheduleBoardSizeSync();
   }
   syncHintLoop();
+  syncIdleLoop();
 }
 
 function scheduleBoardSizeSync() {
@@ -3876,11 +3945,6 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
     await showTutorialForResolutionStep(step, stepIndex);
 
     await delay(CASCADE_SETTLE_MS);
-  }
-
-  const gained = resolution.scoreDelta ?? 0;
-  if (gained > 0) {
-    spawnScoreFloater(gained, resolution.cascadeSteps.length);
   }
 
   // COMBO card reflects the cascade-depth multiplier this swap actually applied.

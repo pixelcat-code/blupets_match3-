@@ -1572,7 +1572,7 @@ h2 {
 
 /* C6 — a quick flinch each time a match clears. */
 .board-shell.is-impact {
-  animation: board-platform-impact 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: board-platform-impact 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .board-shell.is-cascade-active {
@@ -1662,9 +1662,8 @@ h2 {
   z-index: 0;
 }
 
-/* The ::after ring is now invisible by default; .selected / .drag-target re-add
-   a coloured outline for the highlight (see below), and .tile--special::after
-   draws the power-up pulse ring. */
+/* Reserved overlay layer. It stays visually off so swaps, matches and special
+   tiles do not draw frame boxes around the artwork. */
 .tile::after {
   content: "";
   position: absolute;
@@ -1674,11 +1673,6 @@ h2 {
   opacity: 0;
   z-index: 1;
   pointer-events: none;
-}
-
-.tile.selected::after,
-.tile.drag-target::after {
-  opacity: 1;
 }
 
 .tile:hover {
@@ -1699,8 +1693,7 @@ h2 {
 
 .tile.is-falling {
   z-index: 3;
-  /* Gentle ease-out so tiles decelerate into place instead of slamming. */
-  animation: tile-fall-in calc(360ms * var(--anim-scale, 1)) cubic-bezier(0.25, 0.6, 0.3, 1) both;
+  animation: tile-fall-in calc(360ms * var(--anim-scale, 1)) cubic-bezier(0.12, 0.86, 0.16, 1) both;
   animation-delay: var(--tile-delay, 0ms);
 }
 
@@ -1710,9 +1703,8 @@ h2 {
 }
 
 .tile.is-settling {
-  /* No landing rebound — the scale dip-and-recover read as a jarring bounce
-     on every tile after it fell. Tiles now just rest where they land. */
   z-index: 3;
+  animation: tile-land-snap 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Idle hint — a small, quick wobble on the tiles of one available move. The JS
@@ -1720,6 +1712,14 @@ h2 {
 .tile.hint-jitter {
   z-index: 2;
   animation: tile-hint-jitter 680ms ease-in-out both;
+}
+
+.tile.idle-blink .tile-art {
+  animation: tile-idle-blink 900ms ease-in-out both;
+}
+
+.tile.idle-bob .tile-art {
+  animation: tile-idle-bob 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .tile--ghost {
@@ -1756,13 +1756,13 @@ h2 {
 }
 
 .tile-burst i:nth-child(1) { --crystal-angle: 8deg;   --crystal-distance: 26px; --crystal-color: var(--accent-cyan); }
-.tile-burst i:nth-child(2) { --crystal-angle: 52deg;  --crystal-distance: 30px; --crystal-color: var(--accent-cream); }
+.tile-burst i:nth-child(2) { --crystal-angle: 52deg;  --crystal-distance: 30px; --crystal-color: color-mix(in srgb, var(--tile-accent) 68%, white); }
 .tile-burst i:nth-child(3) { --crystal-angle: 96deg;  --crystal-distance: 24px; --crystal-color: #ffffff; }
-.tile-burst i:nth-child(4) { --crystal-angle: 140deg; --crystal-distance: 28px; --crystal-color: var(--accent-pink); }
-.tile-burst i:nth-child(5) { --crystal-angle: 188deg; --crystal-distance: 26px; --crystal-color: var(--accent-cyan); }
+.tile-burst i:nth-child(4) { --crystal-angle: 140deg; --crystal-distance: 28px; --crystal-color: color-mix(in srgb, var(--tile-accent) 58%, var(--accent-pink)); }
+.tile-burst i:nth-child(5) { --crystal-angle: 188deg; --crystal-distance: 26px; --crystal-color: color-mix(in srgb, var(--tile-accent) 76%, var(--accent-cyan)); }
 .tile-burst i:nth-child(6) { --crystal-angle: 232deg; --crystal-distance: 30px; --crystal-color: var(--accent-cream); }
 .tile-burst i:nth-child(7) { --crystal-angle: 278deg; --crystal-distance: 23px; --crystal-color: #ffffff; }
-.tile-burst i:nth-child(8) { --crystal-angle: 322deg; --crystal-distance: 28px; --crystal-color: var(--accent-pink); }
+.tile-burst i:nth-child(8) { --crystal-angle: 322deg; --crystal-distance: 28px; --crystal-color: var(--tile-accent); }
 
 .tile.selected,
 .tile.drag-target {
@@ -1771,17 +1771,8 @@ h2 {
   z-index: 2;
 }
 
-.tile.selected::after,
-.tile.drag-target::after {
-  border-color: color-mix(in srgb, var(--tile-accent, #1f7dff) 85%, white);
-  box-shadow:
-    inset 0 0 0 2.5px color-mix(in srgb, var(--tile-accent, #1f7dff) 70%, white),
-    inset 0 0 16px color-mix(in srgb, var(--tile-accent, #1f7dff) 52%, transparent);
-  opacity: 1;
-}
-
 .tile.evolved .tile-art {
-  filter:
+  --tile-art-shadow:
     drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14))
     drop-shadow(0 0 8px var(--tile-accent));
 }
@@ -1794,10 +1785,6 @@ h2 {
   animation: tile-clear-glass calc(280ms * var(--clear-scale, 1)) cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
 }
 
-.tile.clearing::after {
-  animation: tile-clear-outline calc(280ms * var(--clear-scale, 1)) cubic-bezier(0.18, 0.9, 0.22, 1) forwards;
-}
-
 .tile-art {
   position: absolute;
   inset: 5%;
@@ -1807,9 +1794,15 @@ h2 {
   image-rendering: pixelated;
   /* Light shadow hugging the artwork silhouette on every side (the 0 0 blur
      traces the image alpha all around) plus a faint downward drop for depth. */
-  filter:
+  --tile-art-shadow:
     drop-shadow(0 0 2.5px rgba(10, 33, 64, 0.45))
-    drop-shadow(0 3px 6px rgba(0, 0, 0, 0.20));
+    drop-shadow(0 3px 6px rgba(0, 0, 0, 0.20))
+    drop-shadow(0 0 4px color-mix(in srgb, var(--tile-accent, #5ce8ff) 20%, transparent));
+  filter:
+    var(--tile-art-shadow)
+    brightness(1.07)
+    contrast(1.04)
+    saturate(1.12);
   transform: scale(1.04);
   transform-origin: center;
   pointer-events: none;
@@ -1822,21 +1815,23 @@ h2 {
 
 /* --- Power-up tiles (cross / bomb) -------------------------------------- */
 .tile--special .tile-art {
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.18)) brightness(1.12) saturate(1.2);
+  --tile-art-shadow:
+    drop-shadow(0 3px 6px rgba(0, 0, 0, 0.18))
+    drop-shadow(0 0 9px var(--tile-accent))
+    drop-shadow(0 0 15px color-mix(in srgb, var(--tile-accent) 48%, white));
+  filter:
+    var(--tile-art-shadow)
+    brightness(1.14)
+    contrast(1.05)
+    saturate(1.22);
 }
 
-.tile--special::after {
-  content: "";
-  position: absolute;
-  inset: 7%;
-  border-radius: 30%;
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  box-shadow:
-    0 0 10px var(--tile-accent),
-    inset 0 0 9px rgba(255, 255, 255, 0.5);
-  animation: tile-power-pulse 1.4s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 3;
+.tile--special::before {
+  background:
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tile-accent) 32%, transparent), transparent 58%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--tile-accent) 42%, transparent);
+  opacity: 0.8;
+  animation: tile-special-aura 1.8s ease-in-out infinite;
 }
 
 .tile-power {
@@ -1854,8 +1849,9 @@ h2 {
   line-height: 1;
   color: #fff;
   text-shadow:
-    0 0 5px rgba(0, 0, 0, 0.6),
-    0 0 11px var(--tile-accent);
+    0 2px 0 rgba(0, 0, 0, 0.52),
+    0 0 8px #fff,
+    0 0 15px var(--tile-accent);
 }
 
 /* Cross (match-4): detonates its whole row AND column. */
@@ -1868,20 +1864,10 @@ h2 {
   content: "✸";
 }
 
-@keyframes tile-power-pulse {
-  0%,
-  100% {
-    opacity: 0.5;
-    transform: scale(0.95);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .tile--special::after {
+  .tile.idle-blink .tile-art,
+  .tile.idle-bob .tile-art,
+  .tile--special::before {
     animation: none;
   }
 }
@@ -2596,30 +2582,101 @@ h2 {
   }
 }
 
+@keyframes tile-idle-blink {
+  0%,
+  100% {
+    transform: scale(1.04);
+    filter:
+      var(--tile-art-shadow)
+      brightness(1.07)
+      contrast(1.04)
+      saturate(1.12);
+  }
+
+  38% {
+    transform: scale(1.04, 0.88) translateY(3%);
+    filter:
+      var(--tile-art-shadow)
+      brightness(1.12)
+      contrast(1.05)
+      saturate(1.16);
+  }
+
+  56% {
+    transform: scale(1.04, 1.05) translateY(-1%);
+  }
+}
+
+@keyframes tile-idle-bob {
+  0%,
+  100% {
+    transform: scale(1.04) translateY(0);
+  }
+
+  34% {
+    transform: scale(1.08, 0.98) translateY(-4%);
+    filter:
+      var(--tile-art-shadow)
+      brightness(1.13)
+      contrast(1.04)
+      saturate(1.18);
+  }
+
+  58% {
+    transform: scale(1.02, 1.06) translateY(2%);
+  }
+}
+
+@keyframes tile-special-aura {
+  0%,
+  100% {
+    opacity: 0.54;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+
 @keyframes tile-fall-in {
   0% {
     opacity: 0;
-    transform: translate3d(0, -42%, 0);
+    transform: translate3d(0, -78%, 0) scale(0.94);
+    filter: brightness(1.08) saturate(1.04);
   }
 
-  55% {
+  38% {
     opacity: 1;
   }
 
-  /* Gentle gravity bounce (BluKit block-gravity-drop, scaled way down): a small
-     overshoot past the cell, then settle. Kept tiny so 64 tiles don't slam. */
   78% {
     opacity: 1;
-    transform: translate3d(0, 7%, 0);
+    transform: translate3d(0, 5%, 0) scale(1.02);
+    filter: brightness(1.04) saturate(1);
   }
 
-  90% {
-    transform: translate3d(0, -2%, 0);
+  92% {
+    transform: translate3d(0, -1.5%, 0) scale(0.995);
   }
 
   100% {
     opacity: 1;
     transform: translateZ(0);
+    filter: brightness(1) saturate(1);
+  }
+}
+
+@keyframes tile-land-snap {
+  0% {
+    transform: scale(1.025);
+    filter: brightness(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
   }
 }
 
@@ -2644,16 +2701,16 @@ h2 {
     filter: brightness(1);
   }
 
-  32% {
+  38% {
     opacity: 1;
-    transform: scale(1);
-    filter: brightness(1.22) saturate(1.1);
+    transform: scale(1.12);
+    filter: brightness(1.45) saturate(1.2);
   }
 
   100% {
     opacity: 0;
-    transform: scale(0.68);
-    filter: brightness(1.08);
+    transform: scale(0.38);
+    filter: brightness(1.16) blur(1px);
   }
 }
 
@@ -2680,23 +2737,6 @@ h2 {
   }
 }
 
-@keyframes tile-clear-outline {
-  0% {
-    opacity: 0.96;
-    transform: scale(1);
-  }
-
-  48% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  100% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-}
-
 @keyframes tile-clear-art {
   0% {
     opacity: 1;
@@ -2704,20 +2744,20 @@ h2 {
     filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
   }
 
-  38% {
+  34% {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1.16) rotate(2deg);
     filter:
-      brightness(1.32)
-      saturate(1.16)
+      brightness(1.52)
+      saturate(1.24)
       drop-shadow(0 0 14px color-mix(in srgb, var(--tile-accent), white 28%));
   }
 
   100% {
     opacity: 0;
-    transform: scale(0.58);
+    transform: scale(0.24) rotate(-4deg);
     filter:
-      brightness(1.12)
+      brightness(1.2)
       drop-shadow(0 0 18px color-mix(in srgb, var(--tile-accent), white 36%));
   }
 }
@@ -3068,24 +3108,25 @@ h2 {
      tiles teleport instead of sliding, falling and clearing. These re-assert the
      real durations (animation-name stays set above, only duration was zeroed). */
   .tile.is-swapping {
-    animation-duration: 210ms !important;
+    animation-duration: 150ms !important;
   }
   .tile.is-rejecting {
-    animation-duration: 300ms !important;
+    animation-duration: 215ms !important;
   }
   .tile.is-falling {
-    animation-duration: 360ms !important;
+    animation-duration: 260ms !important;
   }
   .tile.is-reshuffling {
-    animation-duration: 320ms !important;
+    animation-duration: 230ms !important;
   }
   .tile.hint-jitter {
     animation-duration: 680ms !important;
   }
   .tile.clearing,
   .tile.clearing::before,
-  .tile.clearing::after {
-    animation-duration: 280ms !important;
+  .tile.clearing .tile-art,
+  .tile-burst i {
+    animation-duration: 155ms !important;
   }
 }
 
@@ -3425,7 +3466,7 @@ h2 {
   50% { transform: scale(1.12); }
 }
 
-/* --- Cascade combo / score floaters over the board --- */
+/* --- Cascade combo floaters over the board --- */
 .fx-layer {
   position: absolute;
   inset: 0;
@@ -3433,8 +3474,7 @@ h2 {
   overflow: visible;
   z-index: 30;
 }
-.fx-combo,
-.fx-score {
+.fx-combo {
   position: absolute;
   left: var(--fx-x, 50%);
   top: var(--fx-y, 50%);
@@ -3452,26 +3492,12 @@ h2 {
   color: hsl(var(--fx-hue, 40) 95% 52%);
   animation: fx-combo-pop 0.92s cubic-bezier(0.18, 0.9, 0.3, 1) forwards;
 }
-.fx-score {
-  font-size: calc(clamp(18px, 5vw, 26px) * var(--fx-scale, 1));
-  color: #1f7dff;
-  animation: fx-score-rise 0.98s ease-out forwards;
-}
-.fx-score.is-big-cascade {
-  color: #ff7a1f;
-}
 @keyframes fx-combo-pop {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-6deg); }
   28% { opacity: 1; transform: translate(-50%, -50%) scale(1.18) rotate(2deg); }
   55% { transform: translate(-50%, -58%) scale(1) rotate(0); }
   100% { opacity: 0; transform: translate(-50%, -96%) scale(0.92); }
 }
-@keyframes fx-score-rise {
-  0% { opacity: 0; transform: translate(-50%, -40%) scale(0.7); }
-  25% { opacity: 1; transform: translate(-50%, -52%) scale(1.05); }
-  100% { opacity: 0; transform: translate(-50%, -118%) scale(1); }
-}
-
 /* ── ComboFeedbackSystem: on-board praise texts ───────────────────────────── */
 
 .fx-praise {
@@ -3479,52 +3505,67 @@ h2 {
   transform: translate(-50%, -50%);
   font-family: inherit;
   font-weight: 900;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
+  letter-spacing: 0;
+  width: max-content;
+  max-width: min(88vw, 520px);
+  white-space: normal;
+  text-wrap: balance;
   line-height: 1;
   text-align: center;
   pointer-events: none;
   user-select: none;
+  text-transform: uppercase;
+  -webkit-text-stroke: 1.5px rgba(7, 72, 130, 0.78);
+  paint-order: stroke fill;
+  filter:
+    drop-shadow(0 6px 0 rgba(255, 255, 255, 0.42))
+    drop-shadow(0 14px 20px rgba(10, 33, 64, 0.28));
 }
 
 .fx-praise--subtle {
-  font-size: clamp(13px, 3.5vw, 15px);
-  color: #b8d8ff;
+  font-size: clamp(28px, 7vw, 42px);
+  color: #42dbde;
   text-shadow:
-    0 2px 8px rgba(20, 80, 180, 0.5),
-    0 1px 0 rgba(255, 255, 255, 0.2);
-  animation: fx-praise-subtle 750ms cubic-bezier(0.22, 0.9, 0.4, 1) forwards;
+    0 0 10px rgba(66, 219, 222, 0.9),
+    0 0 20px rgba(59, 134, 247, 0.42),
+    0 2px 0 rgba(255, 255, 255, 0.72);
+  animation: fx-praise-subtle 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .fx-praise--lively {
-  font-size: clamp(16px, 4.5vw, 20px);
-  color: #ffffff;
+  font-size: clamp(34px, 8.4vw, 52px);
+  color: #f7be21;
   text-shadow:
-    0 0 12px rgba(80, 180, 255, 0.7),
-    0 2px 0 rgba(40, 100, 200, 0.5);
-  animation: fx-praise-lively 850ms cubic-bezier(0.22, 0.9, 0.4, 1) forwards;
+    0 0 10px rgba(247, 190, 33, 0.98),
+    0 0 24px rgba(255, 77, 90, 0.42),
+    0 2px 0 rgba(255, 255, 255, 0.76);
+  animation: fx-praise-lively 1050ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .fx-praise--energized {
-  font-size: clamp(22px, 6vw, 28px);
-  color: #c8f0ff;
+  font-size: clamp(42px, 9.6vw, 64px);
+  color: #9355ea;
   text-shadow:
-    0 0 20px rgba(100, 220, 255, 0.9),
-    0 0 40px rgba(80, 160, 255, 0.5),
-    0 2px 0 rgba(20, 80, 160, 0.6);
-  animation: fx-praise-energized 950ms cubic-bezier(0.22, 0.9, 0.4, 1) forwards;
+    0 0 12px rgba(147, 85, 234, 0.98),
+    0 0 28px rgba(66, 219, 222, 0.62),
+    0 0 44px rgba(59, 134, 247, 0.42),
+    0 2px 0 rgba(255, 255, 255, 0.8);
+  animation: fx-praise-energized 1200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .fx-praise--legendary {
-  font-size: clamp(28px, 8vw, 36px);
-  color: #fff;
+  font-size: clamp(48px, 11vw, 76px);
+  color: #ff4d5a;
+  -webkit-text-stroke: 2px rgba(7, 72, 130, 0.82);
   filter:
-    drop-shadow(0 0 14px rgba(200, 240, 255, 0.95))
-    drop-shadow(0 0 28px rgba(160, 200, 255, 0.55));
+    drop-shadow(0 7px 0 rgba(255, 240, 168, 0.72))
+    drop-shadow(0 0 16px rgba(255, 77, 90, 0.95))
+    drop-shadow(0 0 34px rgba(147, 85, 234, 0.62));
   text-shadow:
-    0 0 20px rgba(220, 255, 255, 0.9),
-    0 2px 0 rgba(80, 160, 220, 0.6);
-  animation: fx-praise-legendary 1200ms cubic-bezier(0.22, 0.9, 0.4, 1) forwards;
+    0 0 14px rgba(255, 77, 90, 0.98),
+    0 0 30px rgba(247, 190, 33, 0.68),
+    0 2px 0 rgba(255, 255, 255, 0.86);
+  animation: fx-praise-legendary 1350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .fx-sparkle-dot {
@@ -3547,34 +3588,36 @@ h2 {
 }
 
 @keyframes fx-praise-subtle {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-  20%  { opacity: 0.9; transform: translate(-50%, -50%) scale(1.05); }
-  65%  { opacity: 0.8; transform: translate(-50%, calc(-50% - 10px)) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - 18px)) scale(0.95); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.52) rotate(var(--fx-tilt, 0deg)); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18) rotate(calc(var(--fx-tilt, 0deg) * -0.5)); }
+  34%  { transform: translate(-50%, -50%) scale(0.98) rotate(0deg); }
+  70%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 11px))) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 20px))) scale(0.92); }
 }
 
 @keyframes fx-praise-lively {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.85) rotate(-2deg); }
-  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(1deg); }
-  55%  { opacity: 1; transform: translate(-50%, calc(-50% - 14px)) scale(1) rotate(0deg); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - 28px)) scale(0.95); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.48) rotate(var(--fx-tilt, 0deg)); }
+  16%  { opacity: 1; transform: translate(-50%, -50%) scale(1.22) rotate(calc(var(--fx-tilt, 0deg) * -0.8)); }
+  32%  { transform: translate(-50%, -50%) scale(0.97) rotate(0deg); }
+  68%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 18px))) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 32px))) scale(0.9); }
 }
 
 @keyframes fx-praise-energized {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
-  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
-  35%  { transform: translate(-50%, -50%) scale(1.02); }
-  65%  { opacity: 1; transform: translate(-50%, calc(-50% - 20px)) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - 38px)) scale(0.95); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.44) rotate(var(--fx-tilt, 0deg)); }
+  13%  { opacity: 1; transform: translate(-50%, -50%) scale(1.28) rotate(calc(var(--fx-tilt, 0deg) * -0.75)); }
+  29%  { transform: translate(-50%, -50%) scale(0.96) rotate(0deg); }
+  60%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 24px))) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 44px))) scale(0.88); }
 }
 
 @keyframes fx-praise-legendary {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.72); filter: blur(2px) drop-shadow(0 0 6px rgba(200, 240, 255, 0.5)); }
-  12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.28); filter: drop-shadow(0 0 22px rgba(200, 240, 255, 1)) drop-shadow(0 0 28px rgba(160, 200, 255, 0.6)); }
-  28%  { transform: translate(-50%, -50%) scale(1.02); }
-  62%  { opacity: 1; transform: translate(-50%, calc(-50% - 24px)) scale(1); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.38) rotate(var(--fx-tilt, 0deg)); filter: blur(2px) drop-shadow(0 0 6px rgba(200, 240, 255, 0.5)); }
+  12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.34) rotate(calc(var(--fx-tilt, 0deg) * -1)); filter: drop-shadow(0 0 22px rgba(200, 240, 255, 1)) drop-shadow(0 0 28px rgba(160, 200, 255, 0.6)); }
+  26%  { transform: translate(-50%, -50%) scale(0.98) rotate(0deg); }
+  62%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 32px))) scale(1); }
   85%  { opacity: 0.7; }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - 48px)) scale(0.92); filter: blur(1px); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 58px))) scale(0.86); filter: blur(1px); }
 }
 
 @keyframes fx-ring-expand {
@@ -7669,7 +7712,7 @@ button,
   }
 
   .start-screen .start-actions--primary {
-    bottom: clamp(269px, calc(12dvh + 175px), 303px);
+    bottom: clamp(96px, 11dvh, 132px);
   }
 
   .start-screen .start-actions--secondary .btn {
@@ -7809,7 +7852,7 @@ button,
     grid-column: 1;
     grid-row: 2;
     grid-template-columns: 1fr;
-    gap: 8px;
+    gap: clamp(10px, 1.2dvh, 16px);
   }
 
   /* Reveal the desktop-only COMBO card and order the trio SCORE → MOVES → COMBO. */
@@ -7820,20 +7863,45 @@ button,
 
   .game-frame .topbar-stats .stat-pill {
     height: auto;
+    min-height: clamp(86px, 9.4dvh, 122px);
     min-width: 0;
-    padding: 7px 16px;
-    text-align: left;
-    justify-items: start;
-    gap: 2px;
+    padding: clamp(15px, 1.9dvh, 24px) clamp(22px, 2.5dvw, 34px);
+    text-align: center;
+    justify-items: center;
+    align-content: center;
+    gap: 4px;
   }
 
   .game-frame .topbar-stats .stat-kicker {
-    font-size: 10px;
-    letter-spacing: 0.1em;
+    font-size: clamp(13px, 1.35dvh, 18px);
+    letter-spacing: 0.12em;
   }
 
   .game-frame .topbar-stats .stat-pill strong {
-    font-size: clamp(18px, 2.1dvh, 23px);
+    font-size: clamp(42px, 5.1dvh, 72px);
+    letter-spacing: -0.055em;
+  }
+
+  .game-frame .topbar-stats #scoreValue[data-len="4"] {
+    font-size: clamp(40px, 4.9dvh, 68px);
+  }
+
+  .game-frame .topbar-stats #scoreValue[data-len="5"] {
+    font-size: clamp(36px, 4.4dvh, 60px);
+  }
+
+  .game-frame .topbar-stats #scoreValue[data-len="6"] {
+    font-size: clamp(32px, 3.9dvh, 52px);
+  }
+
+  .game-frame .topbar-stats #scoreValue[data-len="7"] {
+    font-size: clamp(28px, 3.4dvh, 44px);
+  }
+
+  .game-frame .topbar-stats #scoreValue[data-len="8"],
+  .game-frame .topbar-stats #scoreValue[data-len="9"],
+  .game-frame .topbar-stats #scoreValue[data-len="10"] {
+    font-size: clamp(24px, 3dvh, 38px);
   }
 
   /* MOVES is the highlighted card in the reference — give it a soft gold ring. */
@@ -7970,7 +8038,12 @@ button,
     /* Single silhouette shadow hugging the artwork (0 0 blur traces the image
        alpha all around) so drawings read against the board. One drop-shadow,
        not two — stacked filters on 64 tiles cost too much on desktop. */
-    filter: drop-shadow(0 0 2.5px rgba(10, 33, 64, 0.5));
+    --tile-art-shadow: drop-shadow(0 0 2.5px rgba(10, 33, 64, 0.5));
+    filter:
+      var(--tile-art-shadow)
+      brightness(1.06)
+      contrast(1.03)
+      saturate(1.1);
   }
 
   /* Filters are expensive to composite frame-by-frame: drop the shadow while a
@@ -7979,6 +8052,7 @@ button,
   .tile.is-swapping .tile-art,
   .tile.is-reshuffling .tile-art,
   .tile.is-rejecting .tile-art {
+    animation: none;
     filter: none;
   }
 
@@ -7988,7 +8062,7 @@ button,
   }
 
   .tile.is-swapping {
-    animation-duration: 150ms;
+    animation-duration: 125ms;
   }
 
   .tile.is-rejecting {
@@ -7996,7 +8070,7 @@ button,
   }
 
   .tile.is-falling {
-    animation-duration: 260ms;
+    animation-duration: 190ms;
   }
 
   .tile.is-reshuffling {
@@ -8005,10 +8079,9 @@ button,
 
   .tile.clearing,
   .tile.clearing::before,
-  .tile.clearing::after,
   .tile.clearing .tile-art,
   .tile-burst i {
-    animation-duration: 210ms;
+    animation-duration: 125ms;
   }
 
   /* Restore secondary start actions on desktop (original layout: 4-col grid) */

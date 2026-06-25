@@ -6,34 +6,34 @@
 // ── Configuration — edit here to tune feel ──────────────────────────────────
 
 export const FEEDBACK_CONFIG = {
-  // Tier classification thresholds.
-  // Logic is encoded in classifyEvent(); this object is the documentation.
-  // Tier 0: match-3, no cascade → sparkle only, no text
-  // Tier 1: match-4, first cascade step (stepIndex 0)
-  // Tier 2: match-5+, first step OR cascade depth 2 (stepIndex 1)
-  // Tier 3: cascade depth 3+ (stepIndex >= 2)
-  // Tier 4: match-5+ AND cascade depth >= 2, OR evolution trigger
+  // Tier classification thresholds, adapted from Pin Drop's "combo first"
+  // feel: the first clear is not text-worthy; text starts at combo x2.
+  // Tier 0: initial clear / no real combo -> sparkle only, no text
+  // Tier 1: combo x2
+  // Tier 2: combo x3
+  // Tier 3: combo x4-x5
+  // Tier 4: combo x6+ OR evolution trigger
   tierRules: {
-    match4Tier: 1,
-    match5Tier: 2,
-    cascadeDepth2Tier: 2,
-    cascadeDepth3Tier: 3,
-    bigMatchCascadeTier: 4, // match-5+ at stepIndex >= 1
+    combo2Tier: 1,
+    combo3Tier: 2,
+    combo4Tier: 3,
+    combo6Tier: 4,
   },
 
-  // Phrase bank — one pool per tier. Tier 0 = no text.
+  // Phrase bank — one pool per tier. Tier 0 = no text. Combo messages append
+  // the current multiplier, so wording stays compact and readable in motion.
   phrases: {
     0: [],
-    1: ["Sparked", "Pulse", "Resonant", "Color Touch"],
-    2: ["Awakened", "Merge Pulse", "Resonating", "Form Flicker", "Color Secured"],
-    3: ["Essence Rising", "Evolution Near", "Perfect Merge", "Form Shift", "Deep Resonance"],
-    4: ["Evolved", "Apex Merge", "Full Resonance", "Form Shift Complete", "Color Evolved"],
+    1: ["Combo"],
+    2: ["Chain", "Combo"],
+    3: ["Chain Reaction", "Power Combo"],
+    4: ["Combo King", "Untouchable", "Apex Chain"],
   },
 
   // Animation timing (ms) and upward drift (px) per tier.
   anim: {
-    durationMs: { 0: 550, 1: 750, 2: 850, 3: 950, 4: 1200 },
-    liftPx:     { 0: 0,   1: 18,  2: 28,  3: 38,  4: 48  },
+    durationMs: { 0: 550, 1: 900, 2: 1050, 3: 1200, 4: 1350 },
+    liftPx:     { 0: 0,   1: 20,  2: 32,   3: 44,   4: 58   },
   },
 
   // Audio.
@@ -43,12 +43,12 @@ export const FEEDBACK_CONFIG = {
 
   // Spawn anti-spam limits.
   spawn: {
-    maxActive:          3,  // max concurrent praise text elements on screen
+    maxActive:          2,  // max concurrent praise text elements on screen
     maxTier4Active:     1,  // max concurrent tier-4 elements
-    overlapThresholdPx: 40, // if new position is within this of an active, stack it
-    stackOffsetPx:      28, // shift up by this many px when stacking
-    sparkleCountByTier: { 0: 4, 3: 6, 4: 12 },
-    maxSparkleDots:     12, // hard cap on total simultaneous sparkle dots
+    overlapThresholdPx: 120, // combo text is board-focused, so stack generously
+    stackOffsetPx:      58,  // shift up by this many px when stacking
+    sparkleCountByTier: { 0: 4, 1: 4, 2: 6, 3: 9, 4: 14 },
+    maxSparkleDots:     18, // hard cap on total simultaneous sparkle dots
   },
 
   // Default sparkle color when tile color can't be determined.
@@ -66,21 +66,11 @@ export const FEEDBACK_CONFIG = {
  * @returns {0|1|2|3|4}
  */
 export function classifyEvent(step, stepIndex) {
-  const maxGroupLen = step.groups.reduce((max, g) => Math.max(max, g.length), 0);
-
-  // Tier 4: large match happening inside a cascade
-  if (maxGroupLen >= 5 && stepIndex >= 1) return 4;
-
-  // Tier 3: cascade depth 3 or deeper
-  if (stepIndex >= 2) return 3;
-
-  // Tier 2: first cascade step (cascade depth 2) OR match-5+ on first step
-  if (stepIndex === 1 || maxGroupLen >= 5) return 2;
-
-  // Tier 1: match-4 on first step
-  if (maxGroupLen >= 4) return 1;
-
-  // Tier 0: match-3, no cascade
+  const combo = Math.max(1, stepIndex + 1);
+  if (combo >= 6) return 4;
+  if (combo >= 4) return 3;
+  if (combo >= 3) return 2;
+  if (combo >= 2) return 1;
   return 0;
 }
 
@@ -134,6 +124,16 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     return (tile?.color && colorHexMap[tile.color]) || CFG.defaultSparkleColor;
   }
 
+  function getBoardComboPosition(combo) {
+    const shellRect = boardShellEl.getBoundingClientRect();
+    const boardRect  = boardEl.getBoundingClientRect();
+    if (boardRect.width === 0) return { x: shellRect.width / 2, y: shellRect.height / 2 };
+    const centeredX = (boardRect.left - shellRect.left) + boardRect.width / 2;
+    const focusedY = (boardRect.top - shellRect.top) + boardRect.height * (combo >= 4 ? 0.34 : 0.38);
+    const jitter = ((combo % 3) - 1) * Math.min(22, boardRect.width * 0.025);
+    return { x: centeredX + jitter, y: focusedY };
+  }
+
   function pickPhrase(tier) {
     const pool = CFG.phrases[tier];
     if (!pool || pool.length === 0) return null;
@@ -142,6 +142,12 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     const phrase = choices[Math.floor(Math.random() * choices.length)];
     lastPhrasePicked[tier] = phrase;
     return phrase;
+  }
+
+  function buildComboPhrase(tier, combo) {
+    const base = pickPhrase(tier);
+    if (!base) return null;
+    return `${base} x${combo}`;
   }
 
   function resolveStackedY(x, y, tier) {
@@ -169,6 +175,10 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     el.textContent = phrase;
     el.style.left = `${x}px`;
     el.style.top  = `${y}px`;
+    const lift = CFG.anim.liftPx[tier] ?? 24;
+    el.style.setProperty("--fx-lift", `${lift}px`);
+    el.style.setProperty("--fx-lift-mid", `${Math.round(lift * 0.55)}px`);
+    el.style.setProperty("--fx-tilt", `${tier % 2 === 0 ? -2 : 2}deg`);
     fxLayer.appendChild(el);
     setTimeout(() => el.remove(), CFG.anim.durationMs[tier] + 100);
   }
@@ -236,12 +246,13 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
       step.groups[0],
     );
     const centroid = getGroupCentroid(largestGroup);
-    const { x, y }  = cellToPixel(centroid.row, centroid.col);
+    const groupPos = cellToPixel(centroid.row, centroid.col);
     const colorHex   = getGroupColorHex(step, largestGroup);
 
-    // Tier 0: sparkle only (match-3, no cascade text)
+    // Tier 0: sparkle only. This intentionally includes match-4/5 on the first
+    // clear, matching Pin Drop's habit of saving text for real combo chains.
     if (tier === 0) {
-      spawnSparkles(x, y, CFG.spawn.sparkleCountByTier[0], colorHex);
+      spawnSparkles(groupPos.x, groupPos.y, CFG.spawn.sparkleCountByTier[0], colorHex);
       return;
     }
 
@@ -249,9 +260,11 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     if (activeCount >= CFG.spawn.maxActive) return;
     if (tier === 4 && activeTier4Count >= CFG.spawn.maxTier4Active) return;
 
-    const phrase = pickPhrase(tier);
+    const combo = stepIndex + 1;
+    const phrase = buildComboPhrase(tier, combo);
     if (!phrase) return;
 
+    const { x, y } = getBoardComboPosition(combo);
     const stackedY = resolveStackedY(x, y, tier);
 
     activeCount++;
@@ -264,9 +277,7 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     spawnPraiseText(phrase, tier, x, stackedY);
     playPraiseSfx(tier);
 
-    if (tier >= 3) {
-      spawnSparkles(x, stackedY, CFG.spawn.sparkleCountByTier[tier] ?? 6, colorHex);
-    }
+    spawnSparkles(x, stackedY, CFG.spawn.sparkleCountByTier[tier] ?? 6, colorHex);
     if (tier === 4) {
       spawnRing(x, stackedY);
     }

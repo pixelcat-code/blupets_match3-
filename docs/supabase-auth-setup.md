@@ -56,17 +56,19 @@ The app redirects back to the current page, stripping the `#hash`.
 - Google sign-in
 - X/Twitter sign-in
 - Sign-out
-- **Local progress** — wins/runs/forms stay in browser storage
-- **Trusted leaderboard writes** — `start-run` issues a run seed, `submit-run` replays the action log and writes only the server-computed result
+- **Supabase progress** — wins, runs, forms, capsules, shards, quests, and collection state are stored in `user_progress.progress`
+- **Trusted leaderboard writes** — `start-run` issues a run seed, `submit-run` validates and writes results, `sync-progress` stores profile progress, `sync-collection` refreshes collection-count ranks after capsule opens
 - **Avatar URL security** — provider avatar URLs are validated (`https:` only) before use in CSS or `<img>` src
 
 ## 6. Deploy Edge Functions
 
-Deploy both functions after applying the schema:
+Deploy all functions after applying the schema:
 
 ```bash
 supabase functions deploy start-run
 supabase functions deploy submit-run
+supabase functions deploy sync-progress
+supabase functions deploy sync-collection
 ```
 
 Required function secrets:
