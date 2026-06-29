@@ -7,6 +7,19 @@ function safeObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
+// Sanitize a capsule-collection map to { key: true }, capping size and key
+// length. Matches the helper in submit-run / submit-guest-run so the Blupets
+// count derived here is identical to the one written at run-submit time.
+function mergeCollectionTiles(...sources: unknown[]): Record<string, true> {
+  const out: Record<string, true> = {};
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(safeObject(source)).slice(0, 512)) {
+      if (value === true) out[String(key).slice(0, 96)] = true;
+    }
+  }
+  return out;
+}
+
 function int(value: unknown, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : fallback;
@@ -66,12 +79,16 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (existingError) throw existingError;
 
-    const serverProgress = safeObject(existing?.progress);
     const wins = int(existing?.wins);
     const runs = int(existing?.runs);
     const bestScore = int(existing?.best_score);
     const fewestMovesWin = existing?.fewest_moves_win == null ? null : int(existing?.fewest_moves_win);
     const forms = safeObject(existing?.forms);
+    // Blupets count = the player's capsule collection. Capsules are opened
+    // OUTSIDE the run-submit flow, so this is the moment the count changes —
+    // serverCollectionTiles tracks the capsule set (not stale run-evolved forms).
+    const collectionTilesEntry = mergeCollectionTiles(clientProgress.collectionTiles);
+    const blupetsCount = Object.keys(collectionTilesEntry).length;
     const progress = {
       ...clientProgress,
       wins,
@@ -79,7 +96,7 @@ Deno.serve(async (req) => {
       bestScore,
       fewestMovesWin,
       forms,
-      serverCollectionTiles: safeObject(serverProgress.serverCollectionTiles),
+      serverCollectionTiles: collectionTilesEntry,
     };
 
     const { error } = await supabase.from("user_progress").upsert(
@@ -96,6 +113,18 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" },
     );
     if (error) throw error;
+
+    // Keep the leaderboard Blupets count current the moment capsules are opened.
+    // blupets_count is a property of the USER's capsule collection, not of a run;
+    // without this, the leaderboard stays frozen at the last submit-time value
+    // (0 if the player exited before opening). Updates every existing row for the
+    // user — mirrors the backfill in submit-run / submit-guest-run. No-op if the
+    // player has no leaderboard row yet (they appear after their first run).
+    const { error: lbError } = await supabase
+      .from("leaderboard_entries")
+      .update({ blupets_count: blupetsCount, collection_tiles: collectionTilesEntry })
+      .eq("user_id", userData.user.id);
+    if (lbError) throw lbError;
 
     return json({ ok: true, progress }, 200, cors);
   } catch (error) {
