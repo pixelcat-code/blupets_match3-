@@ -1,0 +1,21 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.*
+
+# Playwright e2e artefacts (generated)
+test-results/
+playwright-report/
+
+# Tool / IDE artefacts — not part of the shipped app
+.gstack/
+.playwright-cli/
+.superpowers/
+output/
+.planning/
+docs/superpowers/
+
+# Supabase CLI local working files (linked project, pooler url, versions)
+supabase/.temp/
+_rename-to-store.mjs
