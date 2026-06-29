@@ -16,6 +16,33 @@ npx playwright test      # e2e smoke suite — 6 tests, must stay green
 Run BOTH after any change to `src/` and report real results (anti-degradation
 rule #1 — never claim "passes" without running it).
 
+## Where to look (topic → files)
+
+Quick jump-table. Each row points at the file(s) to open first; the detailed
+section (linked by name) has the rules. `render-*` is "one screen cluster per
+file", so the screen name usually IS the file name.
+
+| I want to change… | Open first | See section |
+| --- | --- | --- |
+| Match-3 engine (matches, cascades, scoring, special tiles, endless) | `src/game.js` | Architecture |
+| Progress / capsules / collection / quests data | `src/progress.js`, `src/ui/quest-logic.js` | Architecture |
+| A screen's HTML (what it shows) | `src/ui/render-<screen>.js` | Architecture · Module rules |
+| A screen's behavior (DOM, events, routing) | `src/main.js` (the `render*`/controller for it) | Architecture · History routing |
+| Shared UI state (cross-module) | `src/ui/store.js` (`app.*`) | Architecture |
+| Leaderboard | `src/ui/render-leaderboard.js` + controller in `main.js` | Architecture |
+| Profile / collection / capsules / evo-tree | `src/ui/render-profile-stats.js`, `render-collection.js`, `render-capsules.js`, `render-evo-tree.js` | Architecture |
+| In-run HUD / board markup | `src/ui/render-game.js` + `renderBoard` in `main.js` | Architecture |
+| Auth (sign-in/up, OAuth, avatar) | `src/main.js` **and** `src/auth.js` (change together) | Auth |
+| Cloud submit / leaderboard write / anti-cheat | `src/sync.js` + `supabase/functions/<fn>` | Cloud sync |
+| Styles / layout / responsive | `styles.css` (mobile = default, desktop = `@media 700px`) | Layout rules |
+| Back-button / URL fragments | `setScreen`/`close*` in `src/main.js` | History routing |
+| HTML escaping / safe img/css URLs | `src/ui/dom-safety.js` | Architecture |
+| The `elements` DOM registry | `src/ui/dom.js` | Architecture |
+| Cache-bust versions (`?v=`) | `index.html` | Cache-busting |
+
+When unsure which `render-*` file owns a screen, `grep` the visible text or a CSS
+class from the screen across `src/ui/`.
+
 ## Architecture
 
 The app was split out of a ~4.6k-line `src/main.js` monolith (refactor P-4).
@@ -68,7 +95,7 @@ stale files. The discipline:
 
 Current versions (bump on change):
 - `styles.css` → `?v=20260629-start-loading-1`
-- `src/main.js` → `?v=20260629-brand-ui-34`
+- `src/main.js` → `?v=20260629-brand-ui-35`
 - `auth-config.js` → `?v=20260617-2`
 - `sync.js` import in `main.js` → `?v=20260629-guest-replay-1`
 - `auth.js` import in `main.js` → `?v=20260629-signin-guard-1`

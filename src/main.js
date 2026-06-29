@@ -73,13 +73,13 @@ import { elements } from "./ui/dom.js?v=20260629-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260629-2";
 import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260629-2";
-import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-1";
+import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
 import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260629-2";
-import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260629-1";
+import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260629-2";
 import { renderGuideSection } from "./ui/render-guide.js?v=20260629-1";
 import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-1";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260629-1";
-import { renderAccountSection } from "./ui/render-account.js?v=20260629-1";
+import { renderAccountSection } from "./ui/render-account.js?v=20260629-2";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
@@ -96,7 +96,7 @@ import {
   renderQuestStatsHeader,
   questCompletionSummary,
   normalizeQuestTab,
-} from "./ui/render-quests.js?v=20260629-1";
+} from "./ui/render-quests.js?v=20260629-2";
 
 // Global pacing multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the

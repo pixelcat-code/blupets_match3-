@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
-import { getReplayCollectionTiles, getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
+import { getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
 
 function labelForUser(user: any) {
   const meta = user?.user_metadata ?? {};
@@ -242,9 +242,13 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
     const clientProgress = sanitizeProgressSnapshot(body.progress, progressRow?.progress ?? {});
+    // Blupets count = the player's capsule collection (progress.collectionTiles),
+    // the SAME Set the collection screen counts via collectionTileCount. Capsules
+    // are client-trusted (plausibility), not replay-derived. mergeCollectionTiles
+    // sanitizes keys/values and caps size. The full client set is written each
+    // submission, so capsules (monotonic on the client) never regress.
     const collectionTilesEntry = mergeCollectionTiles(
-      progressRow?.progress?.serverCollectionTiles,
-      getReplayCollectionTiles(replay.state),
+      (clientProgress as any)?.collectionTiles,
     );
     const blupetsCount = Object.keys(collectionTilesEntry).length;
 
@@ -309,6 +313,17 @@ Deno.serve(async (req) => {
 
     const { error: entryError } = await supabase.from("leaderboard_entries").insert(entry);
     if (entryError) throw entryError;
+
+    // Blupets count is a property of the USER's capsule collection, not of any
+    // single run. Overwrite every existing row for this user so the read-path
+    // max-by-blupets dedup (sync.js fetchGlobalLeaderboard) can never resurrect
+    // a stale, run-evolved (Set B) count. Evolved run forms must NOT influence
+    // the leaderboard blupets number — only the capsule set does.
+    const { error: backfillError } = await supabase
+      .from("leaderboard_entries")
+      .update({ blupets_count: blupetsCount, collection_tiles: collectionTilesEntry })
+      .eq("user_id", user.id);
+    if (backfillError) throw backfillError;
 
     return json({ ok: true, entry, progress: progressSnapshot }, 200, cors);
   } catch (error) {

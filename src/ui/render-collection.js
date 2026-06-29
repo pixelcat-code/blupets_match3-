@@ -15,7 +15,7 @@ import {
   TOTAL_INVENTORY_FORMS,
   SHARDS_PER_CAPSULE,
 } from "../progress.js?v=20260628-guest-gating-1";
-import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-1";
+import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-2";
 
 function renderCollectionCard(entry, { apex = false } = {}) {
   const apexKey = apex ? entry.key : getAscendedKeyByFormKey(entry.key) ?? entry.key;

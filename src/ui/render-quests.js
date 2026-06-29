@@ -18,7 +18,7 @@ import {
   questIsComplete,
   questSentenceText,
 } from "./quest-logic.js?v=20260629-1";
-import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-1";
+import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-2";
 
 const QUEST_TYPES = [
   ["collection", "Collection", ["collection"]],
