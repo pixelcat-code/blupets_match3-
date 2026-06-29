@@ -4308,7 +4308,9 @@ h2 {
   background: var(--surface-glass);
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
+  /* 16px prevents iOS Safari from auto-zooming on focus (and getting stuck
+     zoomed after sign-up). Desktop restores 14px in the 700px media query. */
+  font-size: 16px;
   font-weight: 600;
   box-sizing: border-box;
   outline: none;
@@ -4658,7 +4660,8 @@ h2 {
   background: rgba(255, 255, 255, 0.9);
   color: var(--color-text);
   font: inherit;
-  font-size: 13px;
+  /* 16px avoids iOS Safari focus auto-zoom; desktop restores 13px below. */
+  font-size: 16px;
   font-weight: 700;
   box-sizing: border-box;
   outline: none;
@@ -7785,6 +7788,49 @@ h2 {
     width: 104px;
     height: 104px;
   }
+
+  /* Bulk reveals (Open 10) — pack the tiles tighter so all ten fit with
+     minimal scrolling on a phone. */
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-grid {
+    width: min(calc(100vw - 20px), 560px);
+    max-height: min(64dvh, 560px);
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+    padding-bottom: 80px;
+  }
+
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-prize {
+    grid-template-rows: 56px 11px minmax(24px, auto) 16px;
+    min-height: 112px;
+    padding-top: 6px;
+  }
+
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-art {
+    width: 56px;
+    height: 56px;
+  }
+
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-prize-glow {
+    top: 28px;
+    width: 66px;
+    height: 66px;
+  }
+
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-pedestal {
+    width: 58px;
+    height: 11px;
+  }
+
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-prize strong {
+    font-size: 11px;
+  }
+
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-shard,
+  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-new {
+    min-height: 17px;
+    padding: 3px 6px 2px;
+    font-size: 8px;
+  }
 }
 
 @media (min-width: 1100px) and (min-height: 740px) {
@@ -8386,6 +8432,15 @@ button,
 @media (min-width: 700px) {
   :root {
     --desktop-aspect: 16 / 9;
+  }
+
+  /* Restore the tuned input sizes on desktop (the 16px mobile default exists
+     only to stop iOS Safari focus-zoom; ≥700px viewports never auto-zoom). */
+  .auth-email-input {
+    font-size: 14px;
+  }
+  .profile-name-input {
+    font-size: 13px;
   }
 
   .app-shell {

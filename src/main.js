@@ -2476,6 +2476,8 @@ function openCapsuleRevealModal({ count = 1, source = "profile" } = {}) {
       renderGameoverScreen(app.state);
     } else {
       renderProfile();
+      renderMetaOverlay();
+      renderCollectionScreen();
     }
     return;
   }
@@ -2510,6 +2512,7 @@ function updateAfterCapsuleReveal(results, source) {
   } else {
     renderProfile();
     renderMetaOverlay();
+    renderCollectionScreen();
   }
 }
 
@@ -2560,6 +2563,7 @@ function performCapsuleReveal() {
     updateAfterCapsuleReveal(results, request?.source ?? "profile");
     elements.capsuleRevealModal.dataset.phase = "result";
     elements.capsuleRevealModal.dataset.count = results.length > 1 ? "multi" : "single";
+    elements.capsuleRevealModal.dataset.bulk = results.length >= 6 ? "1" : "0";
     elements.capsuleRevealOutput.innerHTML = renderCapsuleRevealOutput(results);
     if (elements.capsuleRevealClose) {
       elements.capsuleRevealClose.hidden = false;
@@ -2580,6 +2584,7 @@ function closeCapsuleRevealModal() {
   elements.capsuleRevealModal.setAttribute("aria-hidden", "true");
   elements.capsuleRevealModal.dataset.phase = "closed";
   delete elements.capsuleRevealModal.dataset.count;
+  delete elements.capsuleRevealModal.dataset.bulk;
   if (elements.capsuleRevealOutput) elements.capsuleRevealOutput.innerHTML = "";
   if (elements.capsuleRevealClose) elements.capsuleRevealClose.hidden = true;
   if (elements.capsuleRevealCube) elements.capsuleRevealCube.disabled = false;
