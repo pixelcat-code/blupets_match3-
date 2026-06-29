@@ -74,12 +74,12 @@ import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260629-2";
 import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260629-2";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
-import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260629-2";
-import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260629-2";
+import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260629-3";
+import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260629-3";
 import { renderGuideSection } from "./ui/render-guide.js?v=20260629-1";
-import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-1";
+import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260629-1";
-import { renderAccountSection } from "./ui/render-account.js?v=20260629-2";
+import { renderAccountSection } from "./ui/render-account.js?v=20260629-3";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
@@ -2454,7 +2454,6 @@ function openCapsuleBatch(count) {
 
 function capsuleRevealCount(requested) {
   const available = Math.max(0, Math.floor(Number(app.progress.capsules) || 0));
-  if (requested === "all") return available;
   return Math.min(Math.max(1, Math.floor(Number(requested) || 1)), available);
 }
 
@@ -2632,7 +2631,7 @@ function renderGameoverScreen(stateLike) {
     ? (ctaCount === 1 ? "Blupet ready!" : `${ctaCount} Blupets ready!`)
     : "No Blupets ready";
   const ctaSub = balance > 0
-    ? (balance > 1 ? "Tap to reveal all Blupets" : "Tap to reveal your Blupet")
+    ? (balance > 1 ? "Tap to reveal your Blupets" : "Tap to reveal your Blupet")
     : "Play again to earn reveals";
 
   elements.gameoverDetail.innerHTML =
@@ -2734,7 +2733,7 @@ async function shareRunSummary() {
 function handleGameoverCapsuleCta(event) {
   if (!event.target.closest?.("[data-gameover-capsule-cta]")) return;
   const balance = Math.max(0, Math.floor(Number(app.progress.capsules) || 0));
-  openCapsuleRevealModal({ count: balance > 1 ? "all" : 1, source: "gameover" });
+  openCapsuleRevealModal({ count: Math.min(10, Math.max(1, balance)), source: "gameover" });
 }
 
 // Discovered-forms count for the victory/share card. Prefers the cloud number
@@ -2929,8 +2928,8 @@ function handleCapsuleAction(event) {
   const action = button.dataset.capsuleAction;
   if (action === "open") {
     const available = Math.max(0, Math.floor(Number(app.progress.capsules) || 0));
-    const requested = button.dataset.count === "all" ? "all" : Math.max(1, Math.floor(Number(button.dataset.count) || 1));
-    const count = requested === "all" ? available : Math.min(requested, available);
+    const requested = Math.max(1, Math.floor(Number(button.dataset.count) || 1));
+    const count = Math.min(requested, available);
     if (count <= 0) {
       showToast("No Blupets to reveal");
       return;

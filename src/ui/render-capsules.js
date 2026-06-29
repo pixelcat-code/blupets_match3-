@@ -9,17 +9,21 @@ function renderCapsulePanel() {
   const capsules = Math.max(0, Math.floor(Number(app.progress.capsules) || 0));
   const shards = Math.max(0, Math.floor(Number(app.progress.shards) || 0));
   const canExchange = shards >= SHARDS_PER_CAPSULE;
+  const canOpenTen = capsules >= 10;
   const ctaTitle = capsules > 0 ? `${capsules} Blupet${capsules === 1 ? "" : "s"} ready` : "No Blupets ready";
   const ctaSub = capsules > 0
-    ? (capsules > 1 ? "Tap to reveal all Blupets" : "Tap to reveal your Blupet")
+    ? "Tap to reveal one Blupet"
     : "Earn reveals from runs and badges";
   return `
     <section class="capsule-panel" aria-label="Reveal Blupets">
-      <button class="run-capsule-summary capsule-inventory-cta" type="button" data-capsule-action="open" data-count="${capsules > 1 ? "all" : "1"}" ${capsules <= 0 ? "disabled" : ""}>
-        <span class="run-capsule-icon"><img src="./assets/blocks/origin.svg" alt="" /></span>
-        <span class="run-capsule-copy"><strong>${escapeHtml(ctaTitle)}</strong><small>${escapeHtml(ctaSub)}</small></span>
-        ${capsules > 0 ? `<span class="run-capsule-arrow" aria-hidden="true">→</span>` : `<span></span>`}
-      </button>
+      <div class="capsule-open-stack">
+        <button class="run-capsule-summary capsule-inventory-cta" type="button" data-capsule-action="open" data-count="1" ${capsules <= 0 ? "disabled" : ""}>
+          <span class="run-capsule-icon"><img src="./assets/blocks/origin.svg" alt="" /></span>
+          <span class="run-capsule-copy"><strong>${escapeHtml(ctaTitle)}</strong><small>${escapeHtml(ctaSub)}</small></span>
+          ${capsules > 0 ? `<span class="run-capsule-arrow" aria-hidden="true">→</span>` : `<span></span>`}
+        </button>
+        <button class="capsule-btn capsule-open-ten" type="button" data-capsule-action="open" data-count="10" ${canOpenTen ? "" : "disabled"}>Open 10</button>
+      </div>
       <div class="capsule-secondary">
         <div class="capsule-shards">
           <span>Shards</span>

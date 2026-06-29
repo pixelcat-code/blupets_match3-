@@ -11,7 +11,7 @@ import { app } from "./store.js?v=20260629-5";
 import { elements } from "./dom.js?v=20260629-1";
 import { collectionTileCount, TOTAL_INVENTORY_FORMS } from "../progress.js?v=20260628-guest-gating-1";
 import { leaderboardRanksForUser, renderProfileStatsPanel } from "./render-profile-stats.js?v=20260629-2";
-import { renderPublicBlupetsCollection } from "./render-collection.js?v=20260629-2";
+import { renderPublicBlupetsCollection } from "./render-collection.js?v=20260629-3";
 
 export function renderPublicProfile(entries, isSelf = false, userId = "", storedCollectionTiles = null) {
   if (app.currentScreen !== "public-profile") return;

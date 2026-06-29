@@ -5691,6 +5691,7 @@ h2 {
 
 .collection-capsule-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -6331,6 +6332,18 @@ h2 {
   width: min(100%, 360px);
   margin: 0;
   justify-self: center;
+}
+.capsule-open-stack {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  min-width: 0;
+}
+.capsule-open-ten {
+  width: min(100%, 360px);
+  min-height: 40px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
 }
 .capsule-secondary {
   display: grid;

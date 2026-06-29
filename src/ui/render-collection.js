@@ -75,7 +75,7 @@ function renderCollectionCapsuleShelf() {
   const shards = Math.max(0, Math.floor(Number(app.progress.shards) || 0));
   const canExchange = shards >= SHARDS_PER_CAPSULE;
   const readyLabel = capsules > 0 ? `${capsules} ready` : "No Blupets";
-  const openLabel = capsules > 1 ? "Reveal All" : "Reveal";
+  const canOpenTen = capsules >= 10;
   return `
     <section class="collection-capsule-shelf${capsules > 0 ? " has-capsules" : ""}" aria-label="Reveal Blupets">
       <div class="collection-capsule-copy">
@@ -86,7 +86,8 @@ function renderCollectionCapsuleShelf() {
         </div>
       </div>
       <div class="collection-capsule-actions">
-        <button class="capsule-btn" type="button" data-capsule-action="open" data-count="${capsules > 1 ? "all" : "1"}" ${capsules <= 0 ? "disabled" : ""}>${openLabel}</button>
+        <button class="capsule-btn" type="button" data-capsule-action="open" data-count="1" ${capsules <= 0 ? "disabled" : ""}>Reveal</button>
+        <button class="capsule-btn" type="button" data-capsule-action="open" data-count="10" ${canOpenTen ? "" : "disabled"}>Reveal 10</button>
         <button class="capsule-btn capsule-btn--ghost" type="button" data-capsule-action="exchange" ${canExchange ? "" : "disabled"}>Use Shards</button>
       </div>
     </section>`;
