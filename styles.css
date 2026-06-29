@@ -7759,6 +7759,17 @@ h2 {
     min-height: min(86dvh, 760px);
   }
 
+  /* Vertically centre the capsule cube on phones — the grid would otherwise
+     pack its content toward the top of the tall stage. */
+  .capsule-reveal-modal[data-phase="ready"] .capsule-reveal-stage,
+  .capsule-reveal-modal[data-phase="opening"] .capsule-reveal-stage {
+    align-content: center;
+  }
+
+  .capsule-reveal-cube {
+    top: 0;
+  }
+
   .capsule-reveal-output,
   .capsule-reveal-results {
     width: fit-content;
