@@ -138,12 +138,11 @@ const SARAI_HEART_ASSET = "./assets/evolution/crimson/t2/04-heart.svg";
 
 
 // ── Combo feedback system — on-board praise (replaces static COMBO pill) ────
-const _colorHexMap = Object.fromEntries(COLORS.map((c) => [c.id, c.hex]));
 const feedback = createComboFeedback(
   elements.fxLayer,
   elements.board,
   elements.boardShell,
-  { playSfx: sfx, colorHexMap: _colorHexMap },
+  { playSfx: sfx },
 );
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1261,21 +1260,43 @@ function pulseBoardImpact() {
   requestAnimationFrame(() => shell.classList.add("is-impact"));
 }
 
+function isMobilePopupLayout() {
+  return window.matchMedia?.("(max-width: 699px)")?.matches ?? window.innerWidth < 700;
+}
+
+function getMobileFxTopCenter(shell) {
+  const shellRect = _cachedShellRect ?? shell.getBoundingClientRect();
+  const viewportTop = Math.max(78, Math.min(window.innerHeight * 0.16, 118));
+  return {
+    x: window.innerWidth / 2 - shellRect.left,
+    y: viewportTop - shellRect.top,
+  };
+}
+
 // Floating "Combo ×N" popup over the board during a cascade chain.
 function spawnComboPopup(text, level) {
   const layer = elements.fxLayer;
-  if (!layer) {
+  const shell = elements.boardShell;
+  if (!layer || !shell) {
     return;
   }
   const el = document.createElement("div");
   el.className = "fx-combo";
   el.textContent = text;
   const lift = Math.min(level, 5) * 7;
-  el.style.setProperty("--fx-x", `${50 + (level % 2 ? 7 : -7)}%`);
-  el.style.setProperty("--fx-y", `${48 - lift}%`);
+  if (isMobilePopupLayout()) {
+    const pos = getMobileFxTopCenter(shell);
+    el.style.left = `${pos.x}px`;
+    el.style.top = `${pos.y}px`;
+  } else {
+    el.style.setProperty("--fx-x", `${50 + (level % 2 ? 7 : -7)}%`);
+    el.style.setProperty("--fx-y", `${48 - lift}%`);
+  }
+  el.style.setProperty("--fx-lift", `${Math.max(28, lift + 26)}px`);
+  el.style.setProperty("--fx-lift-mid", `${Math.max(14, Math.round((lift + 26) * 0.48))}px`);
   el.style.setProperty("--fx-hue", String(Math.max(0, 46 - level * 9)));
   layer.appendChild(el);
-  window.setTimeout(() => el.remove(), 950);
+  window.setTimeout(() => el.remove(), 1150);
 }
 
 function spawnSaraiHeartPopup(message, complete = false) {
@@ -1289,19 +1310,19 @@ function spawnSaraiHeartPopup(message, complete = false) {
 
   const shellRect = _cachedShellRect ?? shell.getBoundingClientRect();
   const boardRect = _cachedBoardRect ?? board.getBoundingClientRect();
-  const x = boardRect.width
+  const mobilePos = isMobilePopupLayout() ? getMobileFxTopCenter(shell) : null;
+  const x = mobilePos?.x ?? (boardRect.width
     ? (boardRect.left - shellRect.left) + boardRect.width / 2
-    : shellRect.width / 2;
-  const y = boardRect.height
+    : shellRect.width / 2);
+  const y = mobilePos?.y ?? (boardRect.height
     ? (boardRect.top - shellRect.top) + boardRect.height * (complete ? 0.36 : 0.42)
-    : shellRect.height / 2;
+    : shellRect.height / 2);
 
   const el = document.createElement("div");
   el.className = `fx-sarai-heart${complete ? " is-complete" : ""}`;
   el.style.left = `${x}px`;
   el.style.top = `${y}px`;
   el.innerHTML = `
-    <span class="fx-sarai-heart-orbit" aria-hidden="true"></span>
     <img class="fx-sarai-heart-icon" src="${SARAI_HEART_ASSET}" alt="" aria-hidden="true" />
     <span class="fx-sarai-heart-text">${escapeHtml(message)}</span>
   `;
@@ -3373,12 +3394,7 @@ async function performSwap(first, second) {
     await playResolutionAnimation(resolution, swappedBoard, first, second);
     // Evolution praise fires right as the animation finishes, before state applies.
     if (nextState.pendingEvolutionQueue.length > currentState.pendingEvolutionQueue.length) {
-      const newItem = nextState.pendingEvolutionQueue.find(
-        (item) => !currentState.pendingEvolutionQueue.some(
-          (p) => p.colorId === item.colorId && p.tier === item.tier,
-        ),
-      );
-      feedback.onEvolutionTrigger(newItem ? (_colorHexMap[newItem.colorId] ?? null) : null);
+      feedback.onEvolutionTrigger();
     }
   } catch (error) {
     console.error("Match animation failed", error);

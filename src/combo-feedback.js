@@ -8,7 +8,7 @@
 export const FEEDBACK_CONFIG = {
   // Tier classification thresholds, adapted from Pin Drop's "combo first"
   // feel: the first clear is not text-worthy; text starts at combo x2.
-  // Tier 0: initial clear / no real combo -> sparkle only, no text
+  // Tier 0: initial clear / no real combo -> no text
   // Tier 1: combo x2
   // Tier 2: combo x3
   // Tier 3: combo x4-x5
@@ -43,8 +43,8 @@ export const FEEDBACK_CONFIG = {
 
   // Animation timing (ms) and upward drift (px) per tier.
   anim: {
-    durationMs: { 0: 550, 1: 900, 2: 1050, 3: 1200, 4: 1350 },
-    liftPx:     { 0: 0,   1: 20,  2: 32,   3: 44,   4: 58   },
+    durationMs: { 0: 650, 1: 1150, 2: 1300, 3: 1450, 4: 1600 },
+    liftPx:     { 0: 0,   1: 28,   2: 42,   3: 56,   4: 72   },
   },
 
   // Audio.
@@ -58,12 +58,7 @@ export const FEEDBACK_CONFIG = {
     maxTier4Active:     1,  // max concurrent tier-4 elements
     overlapThresholdPx: 120, // combo text is board-focused, so stack generously
     stackOffsetPx:      58,  // shift up by this many px when stacking
-    sparkleCountByTier: { 0: 3, 1: 3, 2: 4, 3: 6, 4: 8 },
-    maxSparkleDots:     12, // hard cap on total simultaneous sparkle dots
   },
-
-  // Default sparkle color when tile color can't be determined.
-  defaultSparkleColor: "#7dd4fc",
 };
 
 // ── Pure helper: tier classification ────────────────────────────────────────
@@ -93,18 +88,16 @@ export function classifyEvent(step, stepIndex) {
  * @param {HTMLElement} boardShellEl - .board-shell (parent that fxLayer is relative to)
  * @param {object}      opts
  * @param {function}    [opts.playSfx]      - sfx(name) from audio.js (injected to avoid import coupling)
- * @param {object}      [opts.colorHexMap]  - { colorId: "#hex" } for sparkle tinting
- * @returns {{ onCascadeStep(step, stepIndex): void, onEvolutionTrigger(colorHex?): void }}
+ * @returns {{ onCascadeStep(step, stepIndex): void, onEvolutionTrigger(): void }}
  */
 export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
-  const { playSfx = () => {}, colorHexMap = {} } = opts;
+  const { playSfx = () => {} } = opts;
   const CFG = FEEDBACK_CONFIG;
   const BOARD_SIZE = 8;
 
   // ── Internal state ──────────────────────────────────────────────────────────
   let activeCount = 0;
   let activeTier4Count = 0;
-  let activeSparkleCount = 0;
   let lastAudioAt = 0;
   let cachedGeometry = null;
   let cachedGeometryAt = 0;
@@ -143,11 +136,6 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     return { row: avgRow, col: avgCol };
   }
 
-  function getGroupColorHex(step, group) {
-    const tile = step.boardBeforeClear?.[group[0]?.row]?.[group[0]?.col];
-    return (tile?.color && colorHexMap[tile.color]) || CFG.defaultSparkleColor;
-  }
-
   function getBoardComboPosition(combo) {
     const { shellRect, boardRect } = getGeometry();
     if (boardRect.width === 0) return { x: shellRect.width / 2, y: shellRect.height / 2 };
@@ -155,6 +143,23 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     const focusedY = (boardRect.top - shellRect.top) + boardRect.height * (combo >= 4 ? 0.34 : 0.38);
     const jitter = ((combo % 3) - 1) * Math.min(22, boardRect.width * 0.025);
     return { x: centeredX + jitter, y: focusedY };
+  }
+
+  function isMobilePopupLayout() {
+    return window.matchMedia?.("(max-width: 699px)")?.matches ?? window.innerWidth < 700;
+  }
+
+  function getMobileTopCenterPosition() {
+    const { shellRect } = getGeometry();
+    const viewportTop = Math.max(78, Math.min(window.innerHeight * 0.16, 118));
+    return {
+      x: window.innerWidth / 2 - shellRect.left,
+      y: viewportTop - shellRect.top,
+    };
+  }
+
+  function resolvePopupPosition(fallback) {
+    return isMobilePopupLayout() ? getMobileTopCenterPosition() : fallback;
   }
 
   function pickFromPool(key, pool) {
@@ -224,30 +229,6 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     setTimeout(() => el.remove(), CFG.anim.durationMs[tier] + 100);
   }
 
-  function spawnSparkles(x, y, count, colorHex) {
-    if (activeSparkleCount + count > CFG.spawn.maxSparkleDots) return;
-    activeSparkleCount += count;
-    for (let i = 0; i < count; i++) {
-      const angle  = (i / count) * Math.PI * 2;
-      const radius = 22 + Math.random() * 22;
-      const dx = Math.cos(angle) * radius;
-      const dy = Math.sin(angle) * radius;
-      const duration = 480 + Math.random() * 120;
-
-      const el = document.createElement("div");
-      el.className = "fx-sparkle-dot";
-      el.style.left = `${x}px`;
-      el.style.top  = `${y}px`;
-      el.style.setProperty("--fx-color", colorHex || CFG.defaultSparkleColor);
-      el.style.setProperty("--fx-dx", `${dx}px`);
-      el.style.setProperty("--fx-dy", `${dy}px`);
-      el.style.setProperty("--fx-duration", `${duration}ms`);
-      fxLayer.appendChild(el);
-      setTimeout(() => el.remove(), duration + 40);
-    }
-    setTimeout(() => { activeSparkleCount -= count; }, 650);
-  }
-
   function spawnRing(x, y) {
     const el = document.createElement("div");
     el.className = "fx-ring";
@@ -286,12 +267,10 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     );
     const centroid = getGroupCentroid(largestGroup);
     const groupPos = cellToPixel(centroid.row, centroid.col);
-    const colorHex   = getGroupColorHex(step, largestGroup);
 
-    // Tier 0: sparkle only. This intentionally includes ordinary first clears;
-    // special tile events still get semantic text below.
+    // Tier 0: ordinary first clears stay quiet; special tile events still get
+    // semantic text below.
     if (tier === 0) {
-      spawnSparkles(groupPos.x, groupPos.y, CFG.spawn.sparkleCountByTier[0], colorHex);
       return;
     }
 
@@ -305,7 +284,7 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
       : buildComboPhrase(tier, combo);
     if (!phrase) return;
 
-    const { x, y } = specialEvent ? groupPos : getBoardComboPosition(combo);
+    const { x, y } = resolvePopupPosition(specialEvent ? groupPos : getBoardComboPosition(combo));
     const stackedY = resolveStackedY(x, y, tier);
 
     activeCount++;
@@ -318,7 +297,6 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     spawnPraiseText(phrase, tier, x, stackedY);
     playPraiseSfx(tier);
 
-    spawnSparkles(x, stackedY, CFG.spawn.sparkleCountByTier[tier] ?? 6, colorHex);
     if (tier === 4) {
       spawnRing(x, stackedY);
     }
@@ -329,13 +307,15 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
    * Spawns a tier-4 praise at board center regardless of cascade tier.
    * @param {string|null} colorHex - hex color of the evolving color, or null for default
    */
-  function onEvolutionTrigger(colorHex) {
+  function onEvolutionTrigger() {
     if (!fxLayer || !boardEl || !boardShellEl) return;
     if (activeTier4Count >= CFG.spawn.maxTier4Active) return;
 
     const { shellRect, boardRect } = getGeometry();
-    const x = (boardRect.left - shellRect.left) + boardRect.width  / 2;
-    const y = (boardRect.top  - shellRect.top)  + boardRect.height / 2;
+    const { x, y } = resolvePopupPosition({
+      x: (boardRect.left - shellRect.left) + boardRect.width  / 2,
+      y: (boardRect.top  - shellRect.top)  + boardRect.height / 2,
+    });
 
     const phrase = pickFromPool("evolution", CFG.evolutionPhrases);
     if (!phrase) return;
@@ -349,7 +329,6 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
 
     spawnPraiseText(phrase, 4, x, y);
     spawnRing(x, y);
-    spawnSparkles(x, y, CFG.spawn.sparkleCountByTier[4], colorHex || CFG.defaultSparkleColor);
     playPraiseSfx(4);
   }
 
