@@ -113,6 +113,7 @@ const SWAP_ANIMATION_MS = 210 * ANIM_SCALE;
 const REJECT_ANIMATION_MS = 300 * ANIM_SCALE;
 const CLEAR_ANIMATION_MS = 280 * CLEAR_SCALE;
 const DROP_ANIMATION_MS = 360 * ANIM_SCALE;
+const BOMB_RIPPLE_MS = 720 * ANIM_SCALE;
 // Falling tiles are lightly staggered by --tile-delay (up to ~80ms for the
 // bottom-right cell). Hold the drop phase long enough that the last-staggered
 // tile's animation finishes without making cascades feel slow.
@@ -2153,6 +2154,9 @@ function patchBoard(stateLike) {
         }
         const wantPowerClass = `tile-power tile-power--${tile.special}`;
         if (power.className !== wantPowerClass) power.className = wantPowerClass;
+        if (!power.childElementCount) {
+          power.innerHTML = "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>";
+        }
         const wantDir = tile.dir ?? "";
         if (power.dataset.dir !== wantDir) power.dataset.dir = wantDir;
       } else if (power) {
@@ -3089,6 +3093,134 @@ function playCreatedSpecialSfx(step, stepIndex) {
   }
 }
 
+function spawnSpecialTriggerFx(step) {
+  const layer = elements.fxLayer;
+  const board = elements.board;
+  const shell = elements.boardShell;
+  if (!layer || !board || !shell) {
+    return;
+  }
+
+  const boardRect = _cachedBoardRect ?? board.getBoundingClientRect();
+  const shellRect = _cachedShellRect ?? shell.getBoundingClientRect();
+  const size = step.boardBeforeClear?.length || app.state?.board?.length || 8;
+  const cell = boardRect.width / size;
+  const seen = new Set();
+
+  for (const position of step.clearedTiles ?? []) {
+    const source = step.boardBeforeClear?.[position.row]?.[position.col];
+    if (!source?.special) {
+      continue;
+    }
+
+    const key = `${position.row}:${position.col}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    const el = document.createElement("div");
+    el.className = `fx-special fx-special--${source.special}`;
+    el.style.left = `${boardRect.left - shellRect.left + (position.col + 0.5) * cell}px`;
+    el.style.top = `${boardRect.top - shellRect.top + (position.row + 0.5) * cell}px`;
+    el.style.setProperty("--fx-color", getColor(source.color)?.hex ?? "#5ce8ff");
+    el.style.setProperty("--fx-cell", `${cell}px`);
+    el.innerHTML = source.special === "cross"
+      ? '<span class="fx-special-beam fx-special-beam--h"></span><span class="fx-special-beam fx-special-beam--v"></span><span class="fx-special-core"></span>'
+      : '<span class="fx-bomb-flash"></span><span class="fx-special-core"></span>';
+    layer.appendChild(el);
+    window.setTimeout(() => el.remove(), source.special === "bomb" ? 520 : 700);
+  }
+}
+
+function triggerBombBoardRipple(step) {
+  const board = elements.board;
+  if (!board) {
+    return 0;
+  }
+
+  const bombs = [];
+  for (const position of step.clearedTiles ?? []) {
+    const source = step.boardBeforeClear?.[position.row]?.[position.col];
+    if (source?.special === "bomb") {
+      bombs.push(position);
+    }
+  }
+  if (bombs.length === 0) {
+    return 0;
+  }
+
+  const size = step.boardBeforeClear?.length || app.state?.board?.length || 8;
+  let maxDelay = 0;
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      const tile = board.querySelector(`.tile[data-row="${row}"][data-col="${col}"]:not(.tile--empty)`);
+      if (!tile) {
+        continue;
+      }
+
+      const distance = Math.min(
+        ...bombs.map((bomb) => Math.hypot(row - bomb.row, col - bomb.col)),
+      );
+      const nearestBomb = bombs.reduce((nearest, bomb) => {
+        const bombDistance = Math.hypot(row - bomb.row, col - bomb.col);
+        return bombDistance < nearest.distance ? { bomb, distance: bombDistance } : nearest;
+      }, { bomb: bombs[0], distance: Infinity }).bomb;
+      const dx = col - nearestBomb.col;
+      const dy = row - nearestBomb.row;
+      const magnitude = Math.hypot(dx, dy) || 1;
+      const rippleX = dx === 0 && dy === 0 ? 0 : dx / magnitude;
+      const rippleY = dx === 0 && dy === 0 ? -1 : dy / magnitude;
+      const delayMs = Math.round(distance * 58 * ANIM_SCALE);
+      const rippleStrength = Math.max(0.42, 1.24 - distance * 0.12);
+      const push = rippleStrength * 10.5;
+      const settle = rippleStrength * 3.2;
+      const recoil = rippleStrength * -1.9;
+      const tilt = rippleX * rippleStrength * 2.8;
+      maxDelay = Math.max(maxDelay, delayMs);
+      tile.style.setProperty("--bomb-ripple-push-x", `${rippleX * push}%`);
+      tile.style.setProperty("--bomb-ripple-push-y", `${rippleY * push}%`);
+      tile.style.setProperty("--bomb-ripple-settle-x", `${rippleX * settle}%`);
+      tile.style.setProperty("--bomb-ripple-settle-y", `${rippleY * settle}%`);
+      tile.style.setProperty("--bomb-ripple-recoil-x", `${rippleX * recoil}%`);
+      tile.style.setProperty("--bomb-ripple-recoil-y", `${rippleY * recoil}%`);
+      tile.style.setProperty("--bomb-ripple-scale-x", `${1 + rippleStrength * 0.15}`);
+      tile.style.setProperty("--bomb-ripple-scale-y", `${1 - rippleStrength * 0.08}`);
+      tile.style.setProperty("--bomb-ripple-settle-scale-x", `${1 - rippleStrength * 0.035}`);
+      tile.style.setProperty("--bomb-ripple-settle-scale-y", `${1 + rippleStrength * 0.085}`);
+      tile.style.setProperty("--bomb-ripple-recoil-scale-x", `${1 + rippleStrength * 0.05}`);
+      tile.style.setProperty("--bomb-ripple-recoil-scale-y", `${1 - rippleStrength * 0.025}`);
+      tile.style.setProperty("--bomb-ripple-tilt", `${tilt}deg`);
+      tile.style.setProperty("--bomb-ripple-tilt-back", `${tilt * -0.52}deg`);
+      tile.style.setProperty("--bomb-ripple-tilt-recoil", `${tilt * 0.28}deg`);
+      tile.style.setProperty("--bomb-ripple-delay", `${delayMs}ms`);
+      tile.classList.remove("is-bomb-ripple");
+      tile.classList.add("is-bomb-ripple");
+      window.setTimeout(() => {
+        tile.classList.remove("is-bomb-ripple");
+        tile.style.removeProperty("--bomb-ripple-delay");
+        tile.style.removeProperty("--bomb-ripple-push-x");
+        tile.style.removeProperty("--bomb-ripple-push-y");
+        tile.style.removeProperty("--bomb-ripple-settle-x");
+        tile.style.removeProperty("--bomb-ripple-settle-y");
+        tile.style.removeProperty("--bomb-ripple-recoil-x");
+        tile.style.removeProperty("--bomb-ripple-recoil-y");
+        tile.style.removeProperty("--bomb-ripple-scale-x");
+        tile.style.removeProperty("--bomb-ripple-scale-y");
+        tile.style.removeProperty("--bomb-ripple-settle-scale-x");
+        tile.style.removeProperty("--bomb-ripple-settle-scale-y");
+        tile.style.removeProperty("--bomb-ripple-recoil-scale-x");
+        tile.style.removeProperty("--bomb-ripple-recoil-scale-y");
+        tile.style.removeProperty("--bomb-ripple-tilt");
+        tile.style.removeProperty("--bomb-ripple-tilt-back");
+        tile.style.removeProperty("--bomb-ripple-tilt-recoil");
+      }, delayMs + 360);
+    }
+  }
+
+  return Math.max(CLEAR_ANIMATION_MS, Math.min(BOMB_RIPPLE_MS, maxDelay + 360));
+}
+
 async function playResolutionAnimation(resolution, swappedBoard, first, second) {
   if (resolution.cascadeSteps.length === 0) {
     return;
@@ -3136,6 +3268,8 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
     });
     render();
     pulseBoardImpact();
+    spawnSpecialTriggerFx(step);
+    const clearHoldMs = triggerBombBoardRipple(step);
 
     // Audio + combo feedback rise with cascade depth.
     sfx("match", stepIndex);
@@ -3143,7 +3277,7 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
     buzz(Math.min(45, 12 + stepIndex * 8));
     feedback.onCascadeStep(step, stepIndex);
 
-    await delay(CLEAR_ANIMATION_MS);
+    await delay(Math.max(CLEAR_ANIMATION_MS, clearHoldMs));
 
     const movedCells = getMovedTileCellSet(step.boardAfterClear, step.boardAfterCollapse);
     setBoardAnimation({

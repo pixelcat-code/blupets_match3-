@@ -58,8 +58,8 @@ export const FEEDBACK_CONFIG = {
     maxTier4Active:     1,  // max concurrent tier-4 elements
     overlapThresholdPx: 120, // combo text is board-focused, so stack generously
     stackOffsetPx:      58,  // shift up by this many px when stacking
-    sparkleCountByTier: { 0: 4, 1: 4, 2: 6, 3: 9, 4: 14 },
-    maxSparkleDots:     18, // hard cap on total simultaneous sparkle dots
+    sparkleCountByTier: { 0: 3, 1: 3, 2: 4, 3: 6, 4: 8 },
+    maxSparkleDots:     12, // hard cap on total simultaneous sparkle dots
   },
 
   // Default sparkle color when tile color can't be determined.
@@ -106,6 +106,8 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
   let activeTier4Count = 0;
   let activeSparkleCount = 0;
   let lastAudioAt = 0;
+  let cachedGeometry = null;
+  let cachedGeometryAt = 0;
   const lastPhrasePicked = {}; // phrase-pool key → string
 
   // Track active text positions for stacking: Array<{ x, y, expiresAt }>
@@ -113,11 +115,22 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
 
   // ── Internal helpers ────────────────────────────────────────────────────────
 
-  function cellToPixel(row, col) {
+  function getGeometry() {
+    const now = performance.now();
+    if (cachedGeometry && now - cachedGeometryAt < 120) {
+      return cachedGeometry;
+    }
+
     const shellRect = boardShellEl.getBoundingClientRect();
     const boardRect  = boardEl.getBoundingClientRect();
+    cachedGeometry = { shellRect, boardRect, cellSize: boardRect.width / BOARD_SIZE };
+    cachedGeometryAt = now;
+    return cachedGeometry;
+  }
+
+  function cellToPixel(row, col) {
+    const { shellRect, boardRect, cellSize } = getGeometry();
     if (boardRect.width === 0) return { x: shellRect.width / 2, y: shellRect.height / 2 };
-    const cellSize = boardRect.width / BOARD_SIZE;
     return {
       x: (boardRect.left - shellRect.left) + (col + 0.5) * cellSize,
       y: (boardRect.top  - shellRect.top)  + (row + 0.5) * cellSize,
@@ -136,8 +149,7 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
   }
 
   function getBoardComboPosition(combo) {
-    const shellRect = boardShellEl.getBoundingClientRect();
-    const boardRect  = boardEl.getBoundingClientRect();
+    const { shellRect, boardRect } = getGeometry();
     if (boardRect.width === 0) return { x: shellRect.width / 2, y: shellRect.height / 2 };
     const centeredX = (boardRect.left - shellRect.left) + boardRect.width / 2;
     const focusedY = (boardRect.top - shellRect.top) + boardRect.height * (combo >= 4 ? 0.34 : 0.38);
@@ -220,22 +232,18 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
       const radius = 22 + Math.random() * 22;
       const dx = Math.cos(angle) * radius;
       const dy = Math.sin(angle) * radius;
+      const duration = 480 + Math.random() * 120;
 
       const el = document.createElement("div");
       el.className = "fx-sparkle-dot";
       el.style.left = `${x}px`;
       el.style.top  = `${y}px`;
       el.style.setProperty("--fx-color", colorHex || CFG.defaultSparkleColor);
+      el.style.setProperty("--fx-dx", `${dx}px`);
+      el.style.setProperty("--fx-dy", `${dy}px`);
+      el.style.setProperty("--fx-duration", `${duration}ms`);
       fxLayer.appendChild(el);
-
-      const duration = 480 + Math.random() * 120;
-      el.animate(
-        [
-          { transform: "translate(-50%, -50%)", opacity: 1 },
-          { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`, opacity: 0 },
-        ],
-        { duration, easing: "ease-out", fill: "forwards" },
-      ).onfinish = () => el.remove();
+      setTimeout(() => el.remove(), duration + 40);
     }
     setTimeout(() => { activeSparkleCount -= count; }, 650);
   }
@@ -325,8 +333,7 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     if (!fxLayer || !boardEl || !boardShellEl) return;
     if (activeTier4Count >= CFG.spawn.maxTier4Active) return;
 
-    const shellRect = boardShellEl.getBoundingClientRect();
-    const boardRect  = boardEl.getBoundingClientRect();
+    const { shellRect, boardRect } = getGeometry();
     const x = (boardRect.left - shellRect.left) + boardRect.width  / 2;
     const y = (boardRect.top  - shellRect.top)  + boardRect.height / 2;
 
