@@ -150,11 +150,10 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
   }
 
   function getMobileTopCenterPosition() {
-    const { shellRect } = getGeometry();
     const viewportTop = Math.max(78, Math.min(window.innerHeight * 0.16, 118));
     return {
-      x: window.innerWidth / 2 - shellRect.left,
-      y: viewportTop - shellRect.top,
+      x: window.innerWidth / 2,
+      y: viewportTop,
     };
   }
 
@@ -215,21 +214,29 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
   }
 
   function spawnPraiseText(phrase, tier, x, y) {
+    const fixedToViewport = isMobilePopupLayout();
     const suffix = ["", "--subtle", "--lively", "--energized", "--legendary"][tier];
     const el = document.createElement("div");
     el.className = `fx-praise fx-praise${suffix}`;
     el.textContent = phrase;
+    if (fixedToViewport) {
+      el.style.position = "fixed";
+      el.style.zIndex = "260";
+    }
     el.style.left = `${x}px`;
     el.style.top  = `${y}px`;
     const lift = CFG.anim.liftPx[tier] ?? 24;
     el.style.setProperty("--fx-lift", `${lift}px`);
     el.style.setProperty("--fx-lift-mid", `${Math.round(lift * 0.55)}px`);
     el.style.setProperty("--fx-tilt", `${tier % 2 === 0 ? -2 : 2}deg`);
-    fxLayer.appendChild(el);
+    (fixedToViewport ? document.body : fxLayer).appendChild(el);
     setTimeout(() => el.remove(), CFG.anim.durationMs[tier] + 100);
   }
 
   function spawnRing(x, y) {
+    if (isMobilePopupLayout()) {
+      return;
+    }
     const el = document.createElement("div");
     el.className = "fx-ring";
     el.style.left = `${x}px`;
@@ -328,7 +335,6 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     }, CFG.anim.durationMs[4]);
 
     spawnPraiseText(phrase, 4, x, y);
-    spawnRing(x, y);
     playPraiseSfx(4);
   }
 

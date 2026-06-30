@@ -1264,12 +1264,15 @@ function isMobilePopupLayout() {
   return window.matchMedia?.("(max-width: 699px)")?.matches ?? window.innerWidth < 700;
 }
 
-function getMobileFxTopCenter(shell) {
-  const shellRect = _cachedShellRect ?? shell.getBoundingClientRect();
+function syncMobilePerfMode() {
+  document.body.classList.toggle("mobile-perf-mode", isMobilePopupLayout());
+}
+
+function getMobileFxTopCenter() {
   const viewportTop = Math.max(78, Math.min(window.innerHeight * 0.16, 118));
   return {
-    x: window.innerWidth / 2 - shellRect.left,
-    y: viewportTop - shellRect.top,
+    x: window.innerWidth / 2,
+    y: viewportTop,
   };
 }
 
@@ -1285,7 +1288,9 @@ function spawnComboPopup(text, level) {
   el.textContent = text;
   const lift = Math.min(level, 5) * 7;
   if (isMobilePopupLayout()) {
-    const pos = getMobileFxTopCenter(shell);
+    const pos = getMobileFxTopCenter();
+    el.style.position = "fixed";
+    el.style.zIndex = "260";
     el.style.left = `${pos.x}px`;
     el.style.top = `${pos.y}px`;
   } else {
@@ -1295,7 +1300,7 @@ function spawnComboPopup(text, level) {
   el.style.setProperty("--fx-lift", `${Math.max(28, lift + 26)}px`);
   el.style.setProperty("--fx-lift-mid", `${Math.max(14, Math.round((lift + 26) * 0.48))}px`);
   el.style.setProperty("--fx-hue", String(Math.max(0, 46 - level * 9)));
-  layer.appendChild(el);
+  (isMobilePopupLayout() ? document.body : layer).appendChild(el);
   window.setTimeout(() => el.remove(), 1150);
 }
 
@@ -1310,7 +1315,8 @@ function spawnSaraiHeartPopup(message, complete = false) {
 
   const shellRect = _cachedShellRect ?? shell.getBoundingClientRect();
   const boardRect = _cachedBoardRect ?? board.getBoundingClientRect();
-  const mobilePos = isMobilePopupLayout() ? getMobileFxTopCenter(shell) : null;
+  const fixedToViewport = isMobilePopupLayout();
+  const mobilePos = fixedToViewport ? getMobileFxTopCenter() : null;
   const x = mobilePos?.x ?? (boardRect.width
     ? (boardRect.left - shellRect.left) + boardRect.width / 2
     : shellRect.width / 2);
@@ -1320,13 +1326,17 @@ function spawnSaraiHeartPopup(message, complete = false) {
 
   const el = document.createElement("div");
   el.className = `fx-sarai-heart${complete ? " is-complete" : ""}`;
+  if (fixedToViewport) {
+    el.style.position = "fixed";
+    el.style.zIndex = "260";
+  }
   el.style.left = `${x}px`;
   el.style.top = `${y}px`;
   el.innerHTML = `
     <img class="fx-sarai-heart-icon" src="${SARAI_HEART_ASSET}" alt="" aria-hidden="true" />
     <span class="fx-sarai-heart-text">${escapeHtml(message)}</span>
   `;
-  layer.appendChild(el);
+  (fixedToViewport ? document.body : layer).appendChild(el);
   window.setTimeout(() => el.remove(), complete ? 1800 : 1400);
 }
 
@@ -2332,9 +2342,15 @@ function drainAutoSelections() {
 // cancel — focus is trapped on the option buttons until one is picked.
 let _openGameModal = null;
 let _gameModalKeyHandler = null;
+let _gameModalFocusFrame = null;
+let _renderedGameModalKey = "";
 function syncGameModalFocus(which) {
   if (which === _openGameModal) return;
   _openGameModal = which;
+  if (_gameModalFocusFrame !== null) {
+    cancelAnimationFrame(_gameModalFocusFrame);
+    _gameModalFocusFrame = null;
+  }
   document.body.classList.toggle("modal-open", Boolean(which));
   if (_gameModalKeyHandler) {
     document.removeEventListener("keydown", _gameModalKeyHandler, true);
@@ -2344,7 +2360,14 @@ function syncGameModalFocus(which) {
   const modal = which === "partner" ? elements.modalPartner : elements.modalForm;
   if (!modal) return;
   const focusables = () => [...modal.querySelectorAll("button:not([disabled])")];
-  focusables()[0]?.focus();
+  _gameModalFocusFrame = requestAnimationFrame(() => {
+    _gameModalFocusFrame = requestAnimationFrame(() => {
+      _gameModalFocusFrame = null;
+      if (_openGameModal === which && !modal.hidden) {
+        focusables()[0]?.focus({ preventScroll: true });
+      }
+    });
+  });
   _gameModalKeyHandler = (event) => {
     if (event.key !== "Tab") return;
     const items = focusables();
@@ -2374,6 +2397,7 @@ function renderModals(stateLike) {
   ) {
     elements.modalPartner.hidden = true;
     elements.modalForm.hidden = true;
+    _renderedGameModalKey = "";
     syncGameModalFocus(null);
     return;
   }
@@ -2382,37 +2406,45 @@ function renderModals(stateLike) {
   const color = getColor(queueItem.colorId);
 
   if (queueItem.tier === 2 && queueItem.step !== "form") {
+    const partnerOptions = getTopPartnerOptions(stateLike, queueItem.colorId, 3);
+    const modalKey = `partner:${queueItem.colorId}:${queueItem.tier}:${partnerOptions
+      .map((partner) => `${partner.id}:${stateLike.colorMatchCounts[partner.id]}`)
+      .join("|")}`;
     elements.modalPartner.hidden = false;
     elements.modalForm.hidden = true;
-    elements.partnerHeadline.replaceChildren();
-    const colorLabel = document.createElement("span");
-    colorLabel.className = "modal-color-label";
-    colorLabel.style.setProperty("--modal-color", color.hex);
-    colorLabel.textContent = color.label;
-    elements.partnerHeadline.append(colorLabel, document.createTextNode(" is ready"));
+    if (_renderedGameModalKey !== modalKey) {
+      _renderedGameModalKey = modalKey;
+      elements.partnerHeadline.replaceChildren();
+      const colorLabel = document.createElement("span");
+      colorLabel.className = "modal-color-label";
+      colorLabel.style.setProperty("--modal-color", color.hex);
+      colorLabel.textContent = color.label;
+      elements.partnerHeadline.append(colorLabel, document.createTextNode(" is ready"));
 
-    elements.partnerOptions.replaceChildren();
-    for (const partner of getTopPartnerOptions(stateLike, queueItem.colorId, 3)) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "partner-card";
-      button.dataset.colorId = queueItem.colorId;
-      button.dataset.partnerId = partner.id;
+      const fragment = document.createDocumentFragment();
+      for (const partner of partnerOptions) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "partner-card";
+        button.dataset.colorId = queueItem.colorId;
+        button.dataset.partnerId = partner.id;
 
-      const dot = document.createElement("span");
-      dot.className = "partner-dot";
-      dot.style.setProperty("--partner-color", partner.hex);
+        const dot = document.createElement("span");
+        dot.className = "partner-dot";
+        dot.style.setProperty("--partner-color", partner.hex);
 
-      const name = document.createElement("span");
-      name.className = "partner-name";
-      name.textContent = partner.label;
+        const name = document.createElement("span");
+        name.className = "partner-name";
+        name.textContent = partner.label;
 
-      const points = document.createElement("span");
-      points.className = "partner-pts";
-      points.textContent = `${stateLike.colorMatchCounts[partner.id]} pts`;
+        const points = document.createElement("span");
+        points.className = "partner-pts";
+        points.textContent = `${stateLike.colorMatchCounts[partner.id]} pts`;
 
-      button.append(dot, name, points);
-      elements.partnerOptions.append(button);
+        button.append(dot, name, points);
+        fragment.append(button);
+      }
+      elements.partnerOptions.replaceChildren(fragment);
     }
     syncGameModalFocus("partner");
     return;
@@ -2422,24 +2454,39 @@ function renderModals(stateLike) {
     stateLike.evolutionFusions[queueItem.colorId]?.partnerColorId ?? queueItem.colorId;
   const partner = getColor(partnerColorId);
   const selection = getEvolutionFormSelection(stateLike, queueItem.colorId, queueItem.tier);
+  const modalKey = `form:${queueItem.colorId}:${queueItem.tier}:${partnerColorId}:${selection.options
+    .map((form) => form.key)
+    .join("|")}`;
 
   elements.modalPartner.hidden = true;
   elements.modalForm.hidden = false;
-  elements.formHeadline.textContent = `${color.label} + ${partner.label} · T${queueItem.tier}`;
-  elements.formOptions.innerHTML = selection.options
-    .map((form) => `
-      <button
-        type="button"
-        class="form-card"
-        data-color-id="${queueItem.colorId}"
-        data-tier="${queueItem.tier}"
-        data-form-key="${form.key}"
-      >
-        <img class="form-img" src="${form.asset ?? getBaseBlockAsset(queueItem.colorId)}" alt="" decoding="async" />
-        <span class="form-name">${form.name}</span>
-      </button>
-    `)
-    .join("");
+  if (_renderedGameModalKey !== modalKey) {
+    _renderedGameModalKey = modalKey;
+    elements.formHeadline.textContent = `${color.label} + ${partner.label} · T${queueItem.tier}`;
+    const fragment = document.createDocumentFragment();
+    for (const form of selection.options) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "form-card";
+      button.dataset.colorId = queueItem.colorId;
+      button.dataset.tier = `${queueItem.tier}`;
+      button.dataset.formKey = form.key;
+
+      const img = document.createElement("img");
+      img.className = "form-img";
+      img.src = form.asset ?? getBaseBlockAsset(queueItem.colorId);
+      img.alt = "";
+      img.decoding = "async";
+
+      const name = document.createElement("span");
+      name.className = "form-name";
+      name.textContent = form.name;
+
+      button.append(img, name);
+      fragment.append(button);
+    }
+    elements.formOptions.replaceChildren(fragment);
+  }
   syncGameModalFocus("form");
 }
 
@@ -3024,6 +3071,7 @@ function handleQuestTabActivate(event) {
 
 function render() {
   document.body.dataset.theme = document.body.dataset.theme || "light";
+  syncMobilePerfMode();
   if (app.state) {
     drainAutoSelections();
   }
@@ -3374,6 +3422,7 @@ async function performSwap(first, second) {
   const nextState = attemptSwap(currentState, first, second, runRng);
   const resolution = nextState._lastResolution;
   const didMatch = nextState.movesUsed > currentState.movesUsed;
+  const evolutionQueued = nextState.pendingEvolutionQueue.length > currentState.pendingEvolutionQueue.length;
 
   if (!didMatch || !resolution) {
     app.selectedTile = null;
@@ -3392,10 +3441,6 @@ async function performSwap(first, second) {
   const swappedBoard = previewSwap(currentState.board, first, second);
   try {
     await playResolutionAnimation(resolution, swappedBoard, first, second);
-    // Evolution praise fires right as the animation finishes, before state applies.
-    if (nextState.pendingEvolutionQueue.length > currentState.pendingEvolutionQueue.length) {
-      feedback.onEvolutionTrigger();
-    }
   } catch (error) {
     console.error("Match animation failed", error);
   } finally {
@@ -3403,6 +3448,9 @@ async function performSwap(first, second) {
     app.isAnimating = false;
     collectSaraiHeartQuestProgress(currentState, resolution);
     applyState(nextState);
+    if (evolutionQueued) {
+      window.setTimeout(() => feedback.onEvolutionTrigger(), isMobilePopupLayout() ? 260 : 120);
+    }
     await showTutorialForStateTransition(currentState, nextState);
   }
 }
