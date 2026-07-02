@@ -150,7 +150,15 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
   }
 
   function getMobileTopCenterPosition() {
-    const viewportTop = Math.max(78, Math.min(window.innerHeight * 0.16, 118));
+    const boardRect = boardEl?.getBoundingClientRect();
+    if (boardRect?.width && boardRect?.height) {
+      const inset = Math.max(28, Math.min(boardRect.height * 0.11, 44));
+      return {
+        x: boardRect.left + boardRect.width / 2,
+        y: boardRect.top + inset,
+      };
+    }
+    const viewportTop = Math.max(96, Math.min(window.innerHeight * 0.22, 148));
     return {
       x: window.innerWidth / 2,
       y: viewportTop,

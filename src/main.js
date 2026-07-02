@@ -1269,7 +1269,15 @@ function syncMobilePerfMode() {
 }
 
 function getMobileFxTopCenter() {
-  const viewportTop = Math.max(78, Math.min(window.innerHeight * 0.16, 118));
+  const boardRect = elements.board?.getBoundingClientRect();
+  if (boardRect?.width && boardRect?.height) {
+    const inset = Math.max(28, Math.min(boardRect.height * 0.11, 44));
+    return {
+      x: boardRect.left + boardRect.width / 2,
+      y: boardRect.top + inset,
+    };
+  }
+  const viewportTop = Math.max(96, Math.min(window.innerHeight * 0.22, 148));
   return {
     x: window.innerWidth / 2,
     y: viewportTop,
@@ -3162,6 +3170,33 @@ function playCreatedSpecialSfx(step, stepIndex) {
   }
 }
 
+function playMatchHaptics(step, stepIndex) {
+  const triggered = new Set();
+  for (const tile of step.clearedTiles ?? []) {
+    const source = step.boardBeforeClear?.[tile.row]?.[tile.col];
+    if (source?.special) {
+      triggered.add(source.special);
+    }
+  }
+
+  if (triggered.has("bomb")) {
+    buzz([0, 18, 28, 42, 34, 58]);
+    return;
+  }
+  if (triggered.has("cross")) {
+    buzz([0, 16, 26, 36]);
+    return;
+  }
+
+  const clearedCount = step.clearedTiles?.length ?? 0;
+  const pulse = Math.min(36, 14 + stepIndex * 6 + Math.max(0, clearedCount - 3) * 2);
+  if (stepIndex >= 2 || clearedCount >= 5) {
+    buzz([0, pulse, 24, Math.max(18, Math.round(pulse * 0.65))]);
+    return;
+  }
+  buzz(pulse);
+}
+
 function spawnSpecialTriggerFx(step) {
   const layer = elements.fxLayer;
   const board = elements.board;
@@ -3343,7 +3378,7 @@ async function playResolutionAnimation(resolution, swappedBoard, first, second) 
     // Audio + combo feedback rise with cascade depth.
     sfx("match", stepIndex);
     playTriggeredSpecialSfx(step, stepIndex);
-    buzz(Math.min(45, 12 + stepIndex * 8));
+    playMatchHaptics(step, stepIndex);
     feedback.onCascadeStep(step, stepIndex);
 
     await delay(Math.max(CLEAR_ANIMATION_MS, clearHoldMs));
