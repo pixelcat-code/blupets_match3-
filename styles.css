@@ -3849,7 +3849,7 @@ body.mobile-perf-mode .modal-card {
 .fx-combo {
   font-size: clamp(22px, 7vw, 38px);
   color: hsl(var(--fx-hue, 40) 95% 52%);
-  animation: fx-combo-pop 1.15s cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+  animation: fx-popup-float 1.22s linear forwards;
 }
 
 .fx-special {
@@ -3938,14 +3938,6 @@ body.mobile-perf-mode .modal-card {
   animation: fx-cross-beam-v 660ms cubic-bezier(0.12, 0.86, 0.2, 1) both;
 }
 
-@keyframes fx-combo-pop {
-  0% { opacity: 0; transform: translate(-50%, -42%) scale(0.82) rotate(-1deg); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.06) rotate(0.5deg); }
-  42% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
-  78% { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 16px))) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 36px))) scale(0.98); }
-}
-
 @keyframes fx-special-core {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
   18% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
@@ -4007,7 +3999,7 @@ body.mobile-perf-mode .modal-card {
   text-shadow:
     0 2px 0 rgba(255, 255, 255, 0.9),
     0 0 14px rgba(255, 188, 204, 0.7);
-  animation: fx-sarai-heart-pop 1650ms cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+  animation: fx-pill-float 1720ms linear forwards;
 }
 
 .fx-sarai-heart.is-complete {
@@ -4026,7 +4018,7 @@ body.mobile-perf-mode .modal-card {
   filter:
     drop-shadow(0 3px 0 rgba(255, 255, 255, 0.72))
     drop-shadow(0 0 14px rgba(255, 111, 146, 0.5));
-  animation: fx-sarai-heart-icon 900ms cubic-bezier(0.22, 0.78, 0.28, 1) both;
+  animation: fx-soft-icon-in 960ms linear both;
 }
 
 .fx-sarai-heart-text {
@@ -4036,33 +4028,18 @@ body.mobile-perf-mode .modal-card {
   overflow-wrap: anywhere;
 }
 
-@keyframes fx-sarai-heart-pop {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -42%) scale(0.82) rotate(-1deg);
-  }
-  22% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.05) rotate(0.5deg);
-  }
-  46% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1) rotate(0);
-  }
-  78% {
-    opacity: 1;
-    transform: translate(-50%, -72%) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -104%) scale(0.98);
-  }
+@keyframes fx-pill-float {
+  0%   { opacity: 0; transform: translate(-50%, -36%) scale(0.94) rotate(-0.4deg); }
+  12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.018) rotate(0.2deg); }
+  38%  { opacity: 0.92; transform: translate(-50%, -66%) scale(1) rotate(0deg); }
+  68%  { opacity: 0.48; transform: translate(-50%, -88%) scale(0.992); }
+  100% { opacity: 0; transform: translate(-50%, -112%) scale(0.982); }
 }
 
-@keyframes fx-sarai-heart-icon {
-  0% { transform: scale(0.78) rotate(-5deg); }
-  45% { transform: scale(1.06) rotate(3deg); }
-  100% { transform: scale(1) rotate(0); }
+@keyframes fx-soft-icon-in {
+  0%   { opacity: 0.72; transform: scale(0.9) rotate(-2deg); }
+  36%  { opacity: 1; transform: scale(1.025) rotate(1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
 }
 /* ── ComboFeedbackSystem: on-board praise texts ───────────────────────────── */
 
@@ -4096,7 +4073,7 @@ body.mobile-perf-mode .modal-card {
   text-shadow:
     0 2px 0 rgba(255, 255, 255, 0.86),
     0 0 12px rgba(104, 216, 255, 0.58);
-  animation: fx-praise-subtle 1150ms cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+  animation: fx-popup-float 1220ms linear forwards;
 }
 
 .fx-praise--lively {
@@ -4106,7 +4083,7 @@ body.mobile-perf-mode .modal-card {
     0 2px 0 rgba(255, 255, 255, 0.9),
     0 0 14px rgba(104, 216, 255, 0.66),
     0 0 20px rgba(255, 155, 232, 0.2);
-  animation: fx-praise-lively 1300ms cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+  animation: fx-popup-float 1380ms linear forwards;
 }
 
 .fx-praise--energized {
@@ -4116,7 +4093,7 @@ body.mobile-perf-mode .modal-card {
     0 2px 0 rgba(255, 255, 255, 0.92),
     0 0 18px rgba(104, 216, 255, 0.74),
     0 0 26px rgba(255, 155, 232, 0.28);
-  animation: fx-praise-energized 1450ms cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+  animation: fx-popup-float 1520ms linear forwards;
 }
 
 .fx-praise--legendary {
@@ -4127,7 +4104,7 @@ body.mobile-perf-mode .modal-card {
     0 3px 0 rgba(221, 249, 255, 0.74),
     0 0 18px rgba(104, 216, 255, 0.78),
     0 0 28px rgba(255, 155, 232, 0.36);
-  animation: fx-praise-legendary 1600ms cubic-bezier(0.22, 0.78, 0.28, 1) forwards;
+  animation: fx-popup-float 1660ms linear forwards;
 }
 
 .fx-ring {
@@ -4140,37 +4117,27 @@ body.mobile-perf-mode .modal-card {
   animation: fx-ring-expand 700ms ease-out forwards;
 }
 
-@keyframes fx-praise-subtle {
-  0%   { opacity: 0; transform: translate(-50%, -42%) scale(0.82) rotate(var(--fx-tilt, 0deg)); }
-  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05) rotate(calc(var(--fx-tilt, 0deg) * -0.25)); }
-  42%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-  78%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 14px))) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 28px))) scale(0.98); }
-}
-
-@keyframes fx-praise-lively {
-  0%   { opacity: 0; transform: translate(-50%, -42%) scale(0.8) rotate(var(--fx-tilt, 0deg)); }
-  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.07) rotate(calc(var(--fx-tilt, 0deg) * -0.32)); }
-  42%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-  78%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 20px))) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 42px))) scale(0.98); }
-}
-
-@keyframes fx-praise-energized {
-  0%   { opacity: 0; transform: translate(-50%, -42%) scale(0.78) rotate(var(--fx-tilt, 0deg)); }
-  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.09) rotate(calc(var(--fx-tilt, 0deg) * -0.36)); }
-  40%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-  76%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 28px))) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 56px))) scale(0.98); }
-}
-
-@keyframes fx-praise-legendary {
-  0%   { opacity: 0; transform: translate(-50%, -42%) scale(0.76) rotate(var(--fx-tilt, 0deg)); }
-  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.11) rotate(calc(var(--fx-tilt, 0deg) * -0.4)); }
-  40%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
-  76%  { opacity: 1; transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 36px))) scale(1); }
-  90%  { opacity: 0.72; }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - var(--fx-lift, 72px))) scale(0.98); }
+@keyframes fx-popup-float {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -36%) scale(0.93) rotate(var(--fx-tilt, 0deg));
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.018) rotate(0deg);
+  }
+  38% {
+    opacity: 0.92;
+    transform: translate(-50%, calc(-50% - var(--fx-lift-mid, 20px))) scale(1) rotate(0deg);
+  }
+  68% {
+    opacity: 0.48;
+    transform: translate(-50%, calc(-50% - var(--fx-lift-near, 34px))) scale(0.992);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - var(--fx-lift, 42px))) scale(0.982);
+  }
 }
 
 @keyframes fx-ring-expand {
