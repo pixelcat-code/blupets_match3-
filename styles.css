@@ -153,11 +153,13 @@
 .tournament-room-headline {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px 12px;
 }
 .tournament-room-headline h3 {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   margin: 0;
   color: var(--ink);
   font-size: 22px;
@@ -193,9 +195,8 @@
 .tournament-room-metarow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px 14px;
 }
 .tournament-room-code {
   margin: 0;
