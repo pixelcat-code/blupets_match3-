@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
-      .select("id, code, title, creator_user_id, status, starts_at, ends_at, seed, vibe_id, rules, created_at")
+      .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, seed, vibe_id, rules, created_at")
       .eq("code", code)
       .single();
     if (roomError || !room) return json({ error: "room_not_found" }, 404, cors);
