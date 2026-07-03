@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-2" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -344,24 +344,22 @@
 
       <section class="screen tournament-screen" id="tournamentScreen" hidden>
         <div class="leaderboard-card tournament-card">
-          <header class="leaderboard-head">
+          <header class="leaderboard-head tournament-head">
             <button id="tournamentBackBtn" class="icon-btn" type="button" title="Back" aria-label="Back">
               ←
             </button>
-            <div>
-              <h2 id="tournamentTitle">Tournament Room</h2>
-              <p id="tournamentStatusText" class="tournament-status"></p>
-            </div>
+            <span id="tournamentTitle" class="tournament-kicker">Tournament</span>
+            <p id="tournamentStatusText" class="tournament-status"></p>
           </header>
 
           <div class="tournament-room" id="tournamentRoomPanel" hidden>
             <div class="tournament-room-head">
-              <div>
+              <div class="tournament-room-headline">
                 <h3 id="tournamentRoomTitle"></h3>
-                <p class="tournament-room-code">Room <strong id="tournamentRoomCode"></strong></p>
+                <span class="tournament-status-badge" id="tournamentRoomCountdown"></span>
               </div>
-              <div class="tournament-room-actions">
-                <span class="tournament-countdown" id="tournamentRoomCountdown"></span>
+              <div class="tournament-room-metarow">
+                <p class="tournament-room-code">Room <strong id="tournamentRoomCode"></strong></p>
                 <button id="tournamentCopyBtn" class="btn btn--ghost" type="button">Copy invite</button>
               </div>
             </div>
