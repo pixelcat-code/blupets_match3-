@@ -64,7 +64,7 @@ export async function createTournamentRoom({ title, durationMinutes, vibeId } = 
   const { data, error } = await client.functions.invoke("create-tournament-room", {
     body: { title, durationMinutes, vibeId },
   });
-  if (error) throw new Error(error.message || "create_tournament_room_failed");
+  if (error) throw new Error(await fnErrorCode(error));
   return data;
 }
 
@@ -73,7 +73,7 @@ export async function getTournamentRoom(code) {
   const { data, error } = await client.functions.invoke("get-tournament-room", {
     body: { code },
   });
-  if (error) throw new Error(error.message || "get_tournament_room_failed");
+  if (error) throw new Error(await fnErrorCode(error));
   return data;
 }
 
@@ -82,7 +82,7 @@ export async function startTournamentRoom(code) {
   const { data, error } = await client.functions.invoke("start-tournament-room", {
     body: { code },
   });
-  if (error) throw new Error(error.message || "start_tournament_room_failed");
+  if (error) throw new Error(await fnErrorCode(error));
   return data;
 }
 
@@ -91,7 +91,7 @@ export async function startTournamentRun(code) {
   const { data, error } = await client.functions.invoke("start-tournament-run", {
     body: { code },
   });
-  if (error) throw new Error(error.message || "start_tournament_run_failed");
+  if (error) throw new Error(await fnErrorCode(error));
   if (!data?.runId) throw new Error("Tournament run service returned an invalid run.");
   return { ...data, seed: data.seed >>> 0, actions: [], tournament: true };
 }
@@ -101,7 +101,7 @@ export async function submitTournamentRun(runId, result, actions = [], { abandon
   const { data, error } = await client.functions.invoke("submit-tournament-run", {
     body: { runId, result, actions, abandoned },
   });
-  if (error) throw new Error(error.message || "submit_tournament_run_failed");
+  if (error) throw new Error(await fnErrorCode(error));
   return data;
 }
 
@@ -110,7 +110,7 @@ export async function fetchTournamentLeaderboard(code, limit = 100) {
   const { data, error } = await client.functions.invoke("fetch-tournament-leaderboard", {
     body: { code, limit },
   });
-  if (error) throw new Error(error.message || "fetch_tournament_leaderboard_failed");
+  if (error) throw new Error(await fnErrorCode(error));
   return data;
 }
 

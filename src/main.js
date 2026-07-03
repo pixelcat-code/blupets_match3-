@@ -75,7 +75,7 @@ import {
   subscribeTournamentRoom,
   unsubscribeTournamentRoom,
   presenceTrack,
-} from "./sync.js?v=20260703-tournament-realtime-1";
+} from "./sync.js?v=20260703-tournament-realtime-2";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260629-1";
@@ -1628,7 +1628,7 @@ async function submitTournamentAbandon() {
     console.error("[tournament] abandon submit failed:", error);
   } finally {
     if (runProof === proof) clearRunProof();
-    app.tournamentRunProof = null;
+    if (app.tournamentRunProof === proof) app.tournamentRunProof = null;
   }
 }
 
