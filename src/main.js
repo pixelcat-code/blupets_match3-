@@ -62,6 +62,7 @@ import {
   createTournamentRoom,
   fetchTournamentLeaderboard,
   getTournamentRoom,
+  startTournamentRoom,
   startGuestRun,
   startTournamentRun,
   startTrustedRun,
@@ -813,6 +814,7 @@ function formatTimeLeft(endValue) {
 }
 
 function stopTournamentPolling() {
+  stopTournamentCountdownTicker();
   if (tournamentPollTimer) {
     clearInterval(tournamentPollTimer);
     tournamentPollTimer = null;
@@ -828,6 +830,40 @@ function startTournamentPolling() {
       console.error("[tournament] leaderboard refresh failed:", error);
     });
   }, 5000);
+}
+
+let tournamentCountdownTimer = null;
+function stopTournamentCountdownTicker() {
+  if (tournamentCountdownTimer) { clearInterval(tournamentCountdownTimer); tournamentCountdownTimer = null; }
+}
+function startTournamentCountdownTicker() {
+  stopTournamentCountdownTicker();
+  tournamentCountdownTimer = window.setInterval(() => {
+    if (app.currentScreen !== "tournament" || !app.tournamentRoom) { stopTournamentCountdownTicker(); return; }
+    renderTournamentCountdown();
+    // When the clock runs out, disable Start Attempt.
+    const room = app.tournamentRoom;
+    if (room.ends_at && Date.now() > new Date(room.ends_at).getTime()) renderTournamentRoom();
+  }, 1000);
+}
+
+async function handleHostStartTournament() {
+  const code = app.tournamentRoom?.code;
+  if (!code || !app.tournamentIsHost) return;
+  app.tournamentStatus = "starting-room";
+  renderTournamentRoom();
+  try {
+    const data = await startTournamentRoom(code);
+    const room = data.room ?? data;
+    app.tournamentRoom = { ...app.tournamentRoom, ...room };
+    app.tournamentStatus = "ready";
+    renderTournamentRoom();
+  } catch (error) {
+    console.error("[tournament] host start failed:", error);
+    app.tournamentStatus = "ready";
+    showToast(error.message === "not_host" ? "Only the host can start." : "Could not start the tournament.");
+    renderTournamentRoom();
+  }
 }
 
 async function refreshTournamentLeaderboard() {
@@ -1004,6 +1040,7 @@ async function openTournamentRoom(code) {
     app.tournamentLeaderboard = data.entries ?? [];
     app.tournamentStatus = "ready";
     startTournamentPolling();
+    startTournamentCountdownTicker();
     render();
   } catch (error) {
     console.error("[tournament] room load failed:", error);
@@ -4259,6 +4296,7 @@ bindClick(elements.startTournament, openTournamentModal);
 bindClick(elements.tournamentBackBtn, goToStart);
 bindClick(elements.tournamentStartBtn, startTournamentAttempt);
 bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
+bindClick(elements.tournamentHostStartBtn, handleHostStartTournament);
 elements.tournamentModalCreateForm?.addEventListener("submit", handleModalCreate);
 elements.tournamentModalJoinForm?.addEventListener("submit", handleModalJoin);
 bindClick(elements.tournamentModalClose, closeTournamentModal);
