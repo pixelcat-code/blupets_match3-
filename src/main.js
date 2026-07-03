@@ -876,54 +876,95 @@ function renderTournamentRoom() {
   elements.tournamentScreen?.classList.toggle("has-room", Boolean(room));
   const status = elements.tournamentStatusText;
   if (status) {
-    status.textContent = app.tournamentStatus === "loading"
-      ? "Loading room..."
-      : app.tournamentStatus === "error"
-        ? "Could not load that room."
-        : room
-          ? `Code ${room.code} · ${formatTimeLeft(room.ends_at ?? room.endsAt)} left`
-          : "Create a room or join one by code.";
-  }
-  if (elements.tournamentCodeInput && app.tournamentCodeInput) {
-    elements.tournamentCodeInput.value = app.tournamentCodeInput;
-  }
-  if (elements.tournamentCreateBtn) {
-    elements.tournamentCreateBtn.disabled = app.tournamentCreateStatus === "loading";
-  }
-  if (elements.tournamentJoinBtn) {
-    elements.tournamentJoinBtn.disabled = app.tournamentStatus === "loading";
+    status.textContent =
+      app.tournamentStatus === "loading" ? "Loading room…" :
+      app.tournamentStatus === "error" ? "Room unavailable." : "";
   }
   if (!elements.tournamentRoomPanel) return;
   elements.tournamentRoomPanel.hidden = !room;
   if (!room) return;
 
-  const vibe = getVibeById(room.vibe_id ?? room.vibeId);
-  const playerState = room.playerState ?? {};
-  const hasSubmitted = Boolean(playerState.hasSubmitted);
-  const ended = new Date(room.ends_at ?? room.endsAt).getTime() <= Date.now();
-  elements.tournamentRoomTitle.textContent = room.title || "Tournament Room";
-  elements.tournamentRoomMeta.innerHTML = `
-    <span><strong>${escapeHtml(room.code)}</strong> Code</span>
-    <span><strong>1</strong> Attempt</span>
-    <span><strong>${escapeHtml(vibe.label)}</strong> Vibe</span>
-    <span><strong>${escapeHtml(formatTimeLeft(room.ends_at ?? room.endsAt))}</strong> Left</span>
-  `;
-  elements.tournamentStartBtn.disabled = ended || hasSubmitted || app.tournamentStatus === "starting";
-  elements.tournamentStartBtn.textContent = hasSubmitted
-    ? `Submitted${playerState.rank ? ` · Rank #${playerState.rank}` : ""}`
-    : ended
-      ? "Tournament ended"
-      : app.tournamentStatus === "starting"
-        ? "Starting..."
-        : "Start Attempt";
-  elements.tournamentLeaderboard.innerHTML = `
-    <div class="leaderboard-column-head">
-      <h3>Live Leaderboard</h3>
-    </div>
-    <div class="leaderboard-list">
-      ${renderTournamentLeaderboardRows()}
-    </div>
-  `;
+  if (elements.tournamentRoomTitle) elements.tournamentRoomTitle.textContent = room.title || "Tournament Room";
+  if (elements.tournamentRoomCode) elements.tournamentRoomCode.textContent = room.code || "";
+
+  renderTournamentVibe(room);
+  renderTournamentRules(room);
+  renderTournamentPlayers();
+  renderTournamentCountdown();
+
+  if (elements.tournamentLeaderboard) {
+    elements.tournamentLeaderboard.innerHTML =
+      `<div class="leaderboard-list">${renderTournamentLeaderboardRows()}</div>`;
+  }
+
+  const started = room.status === "live" && room.started_at;
+  const ended = room.status === "ended" ||
+    (room.ends_at && Date.now() > new Date(room.ends_at).getTime());
+  const hasSubmitted = Boolean(room.playerState?.hasSubmitted);
+
+  // Host sees Start Tournament while the room is still in lobby.
+  if (elements.tournamentHostStartBtn) {
+    elements.tournamentHostStartBtn.hidden = !(app.tournamentIsHost && room.status === "lobby");
+    elements.tournamentHostStartBtn.disabled = app.tournamentStatus === "starting-room";
+  }
+  // Start Attempt is live only once the host has started and the player hasn't run.
+  if (elements.tournamentStartBtn) {
+    elements.tournamentStartBtn.hidden = room.status === "lobby";
+    elements.tournamentStartBtn.disabled = !started || ended || hasSubmitted || app.tournamentStatus === "starting";
+    elements.tournamentStartBtn.textContent =
+      hasSubmitted ? "Attempt used" :
+      ended ? "Tournament ended" :
+      !started ? "Waiting for host…" :
+      app.tournamentStatus === "starting" ? "Starting…" : "Start Attempt";
+  }
+}
+
+function renderTournamentVibe(room) {
+  if (!elements.tournamentVibeCard) return;
+  const vibe = getVibeById(room.vibe_id) ?? { label: "Neutral", blurb: "No bonuses." };
+  elements.tournamentVibeCard.innerHTML =
+    `<strong>Vibe · ${escapeHtml(vibe.label)}</strong>` +
+    `<div class="tournament-vibe-blurb">${escapeHtml(vibe.blurb || "No bonuses.")}</div>`;
+}
+
+function renderTournamentRules(room) {
+  if (!elements.tournamentRules) return;
+  const rules = room.rules && typeof room.rules === "object" ? room.rules : {};
+  const chips = [
+    "1 attempt",
+    rules.endlessRun !== false ? "Endless run" : "Fixed run",
+    rules.specialTiles !== false ? "Special tiles" : "No specials",
+    "No boosters",
+  ];
+  elements.tournamentRules.innerHTML = chips.map((c) => `<li>${escapeHtml(c)}</li>`).join("");
+}
+
+function renderTournamentPlayers() {
+  if (!elements.tournamentPlayers) return;
+  const players = app.tournamentPresence ?? [];
+  if (!players.length) {
+    elements.tournamentPlayers.innerHTML = `<li class="tournament-player is-empty">No one connected yet…</li>`;
+    return;
+  }
+  elements.tournamentPlayers.innerHTML = players.map((p) => {
+    const initial = escapeHtml((p.name || "?").slice(0, 1).toUpperCase());
+    const avatar = p.avatar
+      ? `<img src="${safeImgSrc(p.avatar)}" alt="" />`
+      : `<span class="tournament-player-avatar">${initial}</span>`;
+    const state = p.state === "playing" ? "playing" : p.state === "finished" ? "finished" : "in lobby";
+    return `<li class="tournament-player">${avatar}<span>${escapeHtml(p.name || "Player")}</span>` +
+      `<span class="tournament-player-state">${state}</span></li>`;
+  }).join("");
+}
+
+function renderTournamentCountdown() {
+  if (!elements.tournamentRoomCountdown) return;
+  const room = app.tournamentRoom;
+  if (!room || room.status === "lobby" || !room.ends_at) {
+    elements.tournamentRoomCountdown.textContent = room?.status === "lobby" ? "Not started" : "";
+    return;
+  }
+  elements.tournamentRoomCountdown.textContent = `${formatTimeLeft(room.ends_at)} left`;
 }
 
 function renderTournamentHud() {
@@ -957,6 +998,9 @@ async function openTournamentRoom(code) {
   try {
     const data = await getTournamentRoom(normalized);
     app.tournamentRoom = { ...data.room, playerState: data.playerState };
+    app.tournamentIsHost = Boolean(
+      app.authState.user && data.room.creator_user_id === app.authState.user.id,
+    );
     app.tournamentLeaderboard = data.entries ?? [];
     app.tournamentStatus = "ready";
     startTournamentPolling();
