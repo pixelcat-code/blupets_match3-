@@ -1368,6 +1368,14 @@ h2 {
   transform: translateY(-1px);
 }
 
+/* Corner variant: sits under the profile chip, matches its pill width. */
+.tournament-entry-btn--corner {
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
 @keyframes entry-btn-spin {
   to {
     transform: rotate(360deg);
@@ -4657,10 +4665,20 @@ body.mobile-perf-mode .modal-card {
 }
 
 /* --- Start-screen profile chip (non-intrusive overlay) --- */
-.profile-chip {
+/* Top-right corner cluster: profile chip with the Join Lobby button stacked
+   under it. The wrapper owns the absolute positioning so both track together
+   across breakpoints; the chip and button flow inside it. */
+.start-topright {
   position: absolute;
   top: calc(14px + env(safe-area-inset-top, 0px));
   right: 14px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.profile-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5662,11 +5680,14 @@ body.mobile-perf-mode .modal-card {
     top: calc(22px + env(safe-area-inset-top, 0px));
   }
 
+  .start-screen .start-topright {
+    right: calc(16px + env(safe-area-inset-right, 0px));
+    top: calc(22px + env(safe-area-inset-top, 0px));
+  }
+
   .start-screen .profile-chip {
     min-width: 132px;
     height: 48px;
-    right: calc(16px + env(safe-area-inset-right, 0px));
-    top: calc(22px + env(safe-area-inset-top, 0px));
     padding: 0 12px 0 8px;
     gap: 7px;
     font-size: 12px;
@@ -8562,7 +8583,7 @@ body.mobile-perf-mode .modal-card {
   user-select: none;
 }
 
-.start-screen.is-end-backdrop .profile-chip,
+.start-screen.is-end-backdrop .start-topright,
 .start-screen.is-end-backdrop .start-mute-btn {
   opacity: 0;
 }
@@ -9153,7 +9174,7 @@ button,
     bottom: auto;
   }
 
-  .start-screen .profile-chip {
+  .start-screen .start-topright {
     right: clamp(24px, 3dvh, 36px);
     top: clamp(18px, 2.2dvh, 26px);
   }
