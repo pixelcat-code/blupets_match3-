@@ -74,4 +74,8 @@ export const app = {
   tournamentCodeInput: "",
   tournamentCreateStatus: "idle",
   tournamentRunProof: null,
+  tournamentPresence: [],
+  tournamentIsHost: false,
+  tournamentChannel: null,
+  tournamentModalOpen: false,
 };
