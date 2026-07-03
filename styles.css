@@ -324,28 +324,36 @@
 .tournament-modal-head { display: grid; gap: 2px; }
 .tournament-modal-close { position: absolute; top: 12px; right: 12px; }
 .tournament-modal-form { display: flex; flex-direction: column; gap: 8px; }
-.tournament-modal-label {
-  margin: 0;
-  color: var(--color-text-soft);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.tournament-modal-divider {
+.tournament-modal-form[hidden] { display: none; }
+/* Segmented Create/Join switch — one form at a time, keeps the modal compact. */
+.tournament-modal-tabs {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text-soft);
-  font-size: 12px;
-  font-weight: 800;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: rgba(235, 248, 255, 0.9);
 }
-.tournament-modal-divider::before,
-.tournament-modal-divider::after {
-  content: "";
-  height: 1px;
-  background: var(--hairline);
+.tournament-modal-tab {
+  appearance: none;
+  border: 0;
+  border-radius: var(--r-pill);
+  padding: 9px 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 160ms var(--ease-out), color 160ms var(--ease-out),
+    box-shadow 160ms var(--ease-out);
+}
+.tournament-modal-tab.is-active {
+  background: #ffffff;
+  color: var(--ink);
+  box-shadow: 0 1px 4px rgba(10, 33, 64, 0.12);
 }
 
 .tournament-vibe-card {

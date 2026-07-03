@@ -80,7 +80,7 @@ import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-pop
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260629-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
-import { elements } from "./ui/dom.js?v=20260629-1";
+import { elements } from "./ui/dom.js?v=20260704-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260629-2";
 import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260629-2";
@@ -1083,8 +1083,29 @@ async function openTournamentRoom(code) {
   }
 }
 
+// Segmented Create/Join switch — show one form at a time. `focus` is false on
+// the initial open (avoids yanking focus before the modal animates in).
+function setTournamentModalTab(tab, { focus = true } = {}) {
+  const isJoin = tab === "join";
+  if (elements.tournamentTabCreate) {
+    elements.tournamentTabCreate.classList.toggle("is-active", !isJoin);
+    elements.tournamentTabCreate.setAttribute("aria-selected", String(!isJoin));
+  }
+  if (elements.tournamentTabJoin) {
+    elements.tournamentTabJoin.classList.toggle("is-active", isJoin);
+    elements.tournamentTabJoin.setAttribute("aria-selected", String(isJoin));
+  }
+  if (elements.tournamentModalCreateForm) elements.tournamentModalCreateForm.hidden = isJoin;
+  if (elements.tournamentModalJoinForm) elements.tournamentModalJoinForm.hidden = !isJoin;
+  if (focus) {
+    const field = isJoin ? elements.tournamentModalJoinCode : elements.tournamentModalCreateTitle;
+    field?.focus();
+  }
+}
+
 function openTournamentModal() {
   app.tournamentModalOpen = true;
+  setTournamentModalTab("create", { focus: false });
   if (elements.tournamentModal) {
     elements.tournamentModal.hidden = false;
     elements.tournamentModal.setAttribute("aria-hidden", "false");
@@ -4376,6 +4397,8 @@ bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
 bindClick(elements.tournamentHostStartBtn, handleHostStartTournament);
 elements.tournamentModalCreateForm?.addEventListener("submit", handleModalCreate);
 elements.tournamentModalJoinForm?.addEventListener("submit", handleModalJoin);
+bindClick(elements.tournamentTabCreate, () => setTournamentModalTab("create"));
+bindClick(elements.tournamentTabJoin, () => setTournamentModalTab("join"));
 bindClick(elements.tournamentModalClose, closeTournamentModal);
 bindClick(elements.tournamentModalBackdrop, closeTournamentModal);
 bindClick(elements.profileChip, () => {

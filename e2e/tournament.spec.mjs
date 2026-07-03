@@ -27,8 +27,14 @@ test("tournament modal opens from the start screen", async ({ page }) => {
 
   const modal = page.locator("#tournamentModal");
   await expect(modal).toBeVisible();
+  // Create tab is active by default; Join form is hidden until its tab is picked.
   await expect(page.locator("#tournamentModalCreateForm")).toBeVisible();
+  await expect(page.locator("#tournamentModalJoinForm")).toBeHidden();
+
+  // Switching to the Join tab swaps the visible form.
+  await clickEl(page, "#tournamentTabJoin");
   await expect(page.locator("#tournamentModalJoinForm")).toBeVisible();
+  await expect(page.locator("#tournamentModalCreateForm")).toBeHidden();
 
   // Close via backdrop click.
   await clickEl(page, "#tournamentModalBackdrop");

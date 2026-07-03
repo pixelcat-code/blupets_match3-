@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-5" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -139,8 +139,11 @@
             <div class="auth-modal-kicker">Tournament</div>
             <h2 class="auth-modal-title">Tournament Room</h2>
           </div>
+          <div class="tournament-modal-tabs" role="tablist" aria-label="Create or join">
+            <button id="tournamentTabCreate" class="tournament-modal-tab is-active" type="button" role="tab" aria-selected="true">Create</button>
+            <button id="tournamentTabJoin" class="tournament-modal-tab" type="button" role="tab" aria-selected="false">Join</button>
+          </div>
           <form class="tournament-modal-form" id="tournamentModalCreateForm">
-            <h3 class="tournament-modal-label">Create a room</h3>
             <input id="tournamentModalCreateTitle" class="auth-email-input" type="text" maxlength="60" placeholder="Discord Cup" />
             <select id="tournamentModalCreateDuration" class="auth-email-input">
               <option value="15">15 minutes</option>
@@ -149,11 +152,9 @@
             </select>
             <button class="btn btn--primary" type="submit">Create room</button>
           </form>
-          <div class="tournament-modal-divider"><span>or</span></div>
-          <form class="tournament-modal-form" id="tournamentModalJoinForm">
-            <h3 class="tournament-modal-label">Join with a code</h3>
+          <form class="tournament-modal-form" id="tournamentModalJoinForm" hidden>
             <input id="tournamentModalJoinCode" class="auth-email-input" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="A7K9Q" />
-            <button class="btn btn--ghost" type="submit">Join room</button>
+            <button class="btn btn--primary" type="submit">Join room</button>
           </form>
         </div>
       </div>
@@ -542,6 +543,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260703-brand-ui-39"></script>
+    <script type="module" src="./src/main.js?v=20260703-brand-ui-40"></script>
   </body>
 </html>
