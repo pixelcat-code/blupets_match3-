@@ -1368,13 +1368,6 @@ h2 {
   transform: translateY(-1px);
 }
 
-/* Corner variant: sits under the profile chip, matches its pill width. */
-.tournament-entry-btn--corner {
-  width: 100%;
-  min-height: 46px;
-  padding: 8px 14px;
-  font-size: 13px;
-}
 
 @keyframes entry-btn-spin {
   to {
@@ -1436,7 +1429,7 @@ h2 {
   max-width: none;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 4px;
   border: 0;
@@ -4665,9 +4658,8 @@ body.mobile-perf-mode .modal-card {
 }
 
 /* --- Start-screen profile chip (non-intrusive overlay) --- */
-/* Top-right corner cluster: profile chip with the Join Lobby button stacked
-   under it. The wrapper owns the absolute positioning so both track together
-   across breakpoints; the chip and button flow inside it. */
+/* Top-right corner cluster holding the profile chip. The wrapper owns the
+   absolute positioning so its contents track together across breakpoints. */
 .start-topright {
   position: absolute;
   top: calc(14px + env(safe-area-inset-top, 0px));

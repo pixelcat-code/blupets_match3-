@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-7" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -23,9 +23,6 @@
             </span>
             <span class="profile-chip-label">Profile</span>
             <span class="profile-chip-count" id="profileChipCount">0/36</span>
-          </button>
-          <button id="start-tournament" class="tournament-entry-btn tournament-entry-btn--corner" type="button">
-            Join Lobby
           </button>
         </div>
         <button id="startMuteBtn" class="hud-btn mute-btn start-mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
@@ -67,6 +64,9 @@
             </button>
           </div>
           <div class="start-actions start-actions--secondary">
+            <button id="start-tournament" class="btn btn--ghost" type="button">
+              Join Lobby
+            </button>
             <button id="start-collection" class="btn btn--ghost" type="button">
               Collection
             </button>
