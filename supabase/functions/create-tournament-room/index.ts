@@ -50,15 +50,14 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const now = Date.now();
-    const startsAt = new Date(now);
-    const endsAt = new Date(now + durationMinutes(body.durationMinutes) * 60_000);
+    const duration = durationMinutes(body.durationMinutes);
 
     const { count: activeCount, error: activeError } = await supabase
       .from("tournament_rooms")
       .select("id", { count: "exact", head: true })
       .eq("creator_user_id", userData.user.id)
-      .eq("status", "live")
-      .gt("ends_at", new Date().toISOString());
+      .in("status", ["lobby", "live"])
+      .gte("created_at", new Date(now - 24 * 60 * 60_000).toISOString());
     if (activeError) throw activeError;
     if ((activeCount ?? 0) >= MAX_ACTIVE_ROOMS) {
       return json({ error: "too_many_active_rooms" }, 429, cors);
@@ -95,14 +94,15 @@ Deno.serve(async (req) => {
           code,
           title: cleanTitle(body.title),
           creator_user_id: userData.user.id,
-          status: "live",
-          starts_at: startsAt.toISOString(),
-          ends_at: endsAt.toISOString(),
+          status: "lobby",
+          starts_at: new Date(now).toISOString(),
+          ends_at: null,
+          duration_minutes: duration,
           seed,
           vibe_id: vibe.id,
           rules,
         })
-        .select("id, code, title, status, starts_at, ends_at, seed, vibe_id, rules")
+        .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, seed, vibe_id, rules")
         .single();
 
       if (!error && data) {
