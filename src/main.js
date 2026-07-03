@@ -1,6 +1,8 @@
 import {
   activeBadgeFormKey,
   COLORS,
+  VIBES,
+  NEUTRAL_VIBE,
   attemptSwap,
   areAdjacent,
   createInitialState,
@@ -57,14 +59,19 @@ import {
   fetchPublicUserEntries,
   fetchPublicCollectionTiles,
   fetchUserProgress,
+  createTournamentRoom,
+  fetchTournamentLeaderboard,
+  getTournamentRoom,
   startGuestRun,
+  startTournamentRun,
   startTrustedRun,
   submitGuestRun,
+  submitTournamentRun,
   syncProfile,
   syncCollectionSnapshot,
   syncProgressSnapshot,
   submitTrustedRun,
-} from "./sync.js?v=20260629-guest-replay-1";
+} from "./sync.js?v=20260703-tournament-local-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260629-1";
@@ -83,6 +90,7 @@ import { renderAccountSection } from "./ui/render-account.js?v=20260629-3";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
+import { getSupabaseConfig } from "./supabase-client.js?v=20260629-client-singleton-1";
 import {
   getLeaderColorId,
   renderTopBar,
@@ -315,6 +323,9 @@ function countSaraiHeartMatchGroups(stateBefore, resolution) {
 }
 
 function collectSaraiHeartQuestProgress(stateBefore, resolution) {
+  if (runProof?.tournament || app.tournamentRunProof) {
+    return;
+  }
   const matches = countSaraiHeartMatchGroups(stateBefore, resolution);
   if (!app.authState.user) {
     // Accumulate for later application if the guest signs in after the run.
@@ -408,7 +419,7 @@ function setScreen(screen) {
   // audio layer on a real screen change — render() calls setScreen() every
   // frame, and the first-gesture pointerdown handler already kicks off ambience.
   if (changed) {
-    if (screen === "start" || screen === "game" || screen === "victory" || screen === "gameover" || screen === "leaderboard" || screen === "profile" || screen === "public-profile" || screen === "collection" || screen === "quests" || screen === "guide") {
+    if (screen === "start" || screen === "game" || screen === "victory" || screen === "gameover" || screen === "leaderboard" || screen === "profile" || screen === "public-profile" || screen === "collection" || screen === "quests" || screen === "guide" || screen === "tournament") {
       startMusic();
     } else {
       stopMusic();
@@ -421,6 +432,9 @@ function setScreen(screen) {
   elements.victoryScreen.hidden = screen !== "victory";
   elements.gameoverScreen.hidden = screen !== "gameover";
   elements.leaderboardScreen.hidden = screen !== "leaderboard";
+  if (elements.tournamentScreen) {
+    elements.tournamentScreen.hidden = screen !== "tournament";
+  }
   if (elements.profileScreen) {
     elements.profileScreen.hidden = screen !== "profile";
   }
@@ -481,6 +495,7 @@ async function startRun({ guided = false } = {}) {
   unlockAudio();
   sfx("ui");
   closeMetaOverlay();
+  app.tournamentRunProof = null;
   // Set the loading state AFTER closeMetaOverlay — it calls renderStartMetaTabs,
   // which would otherwise re-enable the button. The synchronous prelude above
   // can't re-enter (no awaits yet), so guarding here is sufficient.
@@ -567,6 +582,64 @@ async function startRun({ guided = false } = {}) {
     startGuideTour();
   } else {
     showVibeIntro();
+  }
+}
+
+async function startTournamentAttempt() {
+  const room = app.tournamentRoom;
+  if (!room?.code || _runStarting) return;
+  const allowLocalGuestTournament = room.local || isLocalDevHost() || !getSupabaseConfig().configured;
+  if (!app.authState.user && !allowLocalGuestTournament) {
+    openAuthModal({ force: true });
+    return;
+  }
+
+  unlockAudio();
+  sfx("ui");
+  app.tournamentStatus = "starting";
+  setStartRunLoading(true);
+  renderTournamentRoom();
+  clearBoardDom();
+  resetScoreBaseline();
+  lastRunSummary = null;
+  pendingGuestRun = null;
+  pendingGuestQuestMatches = 0;
+  gameoverRevealResult = null;
+  gameoverRevealBatch = [];
+  runProof = null;
+  app.tournamentRunProof = null;
+
+  try {
+    const proof = await Promise.race([
+      startTournamentRun(room.code),
+      new Promise((_, reject) =>
+        window.setTimeout(() => reject(new Error("start-tournament-run timed out")), 8000),
+      ),
+    ]);
+    runProof = proof;
+    app.tournamentRunProof = proof;
+    const rules = proof.rules && typeof proof.rules === "object" ? proof.rules : {};
+    runRng = createSeededRng(proof.seed);
+    app.state = createInitialState({
+      diagonalAssist: Boolean(rules.diagonalAssist),
+      diagonalSwaps: Boolean(rules.diagonalSwaps),
+      specialTiles: rules.specialTiles !== false,
+      endlessRun: rules.endlessRun !== false,
+      vibe: getVibeById(proof.vibeId),
+      rng: runRng,
+    });
+    app.tournamentStatus = "ready";
+    setStartRunLoading(false);
+    resetInteractionState();
+    setScreen("game");
+    render();
+    showVibeIntro();
+  } catch (error) {
+    console.error("[tournament] start failed:", error);
+    app.tournamentStatus = "ready";
+    setStartRunLoading(false);
+    showToast(error.message === "attempt_already_used" ? "Attempt already used." : "Could not start tournament attempt.");
+    await openTournamentRoom(room.code);
   }
 }
 
@@ -713,6 +786,251 @@ function hasLiveRun() {
   return Boolean(app.state && !app.state.victory && !app.state.gameOver);
 }
 
+let tournamentPollTimer = null;
+
+function normalizeTournamentCode(value) {
+  return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+}
+
+function getVibeById(vibeId) {
+  return VIBES.find((vibe) => vibe.id === vibeId) ?? NEUTRAL_VIBE;
+}
+
+function isLocalDevHost() {
+  return ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
+}
+
+function formatTimeLeft(endValue) {
+  const ms = new Date(endValue).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return "";
+  if (ms <= 0) return "ended";
+  const total = Math.ceil(ms / 1000);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function stopTournamentPolling() {
+  if (tournamentPollTimer) {
+    clearInterval(tournamentPollTimer);
+    tournamentPollTimer = null;
+  }
+}
+
+function startTournamentPolling() {
+  stopTournamentPolling();
+  const code = app.tournamentRoom?.code;
+  if (!code) return;
+  tournamentPollTimer = window.setInterval(() => {
+    refreshTournamentLeaderboard().catch((error) => {
+      console.error("[tournament] leaderboard refresh failed:", error);
+    });
+  }, 5000);
+}
+
+async function refreshTournamentLeaderboard() {
+  const code = app.tournamentRoom?.code;
+  if (!code) return;
+  const data = await fetchTournamentLeaderboard(code);
+  app.tournamentLeaderboard = data?.entries ?? [];
+  if (data?.room) {
+    app.tournamentRoom = { ...app.tournamentRoom, ...data.room };
+  }
+  renderTournamentRoom();
+}
+
+function renderTournamentLeaderboardRows() {
+  const rows = app.tournamentLeaderboard ?? [];
+  if (rows.length === 0) {
+    return `<div class="leaderboard-empty">No submitted scores yet.</div>`;
+  }
+  return rows.map((entry) => (
+    (() => {
+      const avatar = entry.avatarUrl
+        ? `<img class="leaderboard-avatar" src="${escapeHtml(entry.avatarUrl)}" alt="" aria-hidden="true" />`
+        : `<span class="leaderboard-avatar leaderboard-avatar--placeholder" aria-hidden="true"></span>`;
+      return (
+    `<div class="leaderboard-row tournament-leaderboard-row${entry.isPlayer ? " is-player" : ""}${entry.rank <= 3 ? ` is-top3 is-rank${entry.rank}` : ""}">` +
+      `<div class="leaderboard-rank">` +
+        (entry.rank <= 3
+          ? `<span class="leaderboard-medal" aria-hidden="true">${entry.rank}</span><span class="sr-only">Rank ${entry.rank}</span>`
+          : `#${entry.rank}`) +
+      `</div>` +
+      avatar +
+      `<div class="leaderboard-user">` +
+        `<span class="leaderboard-title">${escapeHtml(entry.accountName || "Player")}</span>` +
+        `<span class="leaderboard-meta">${Number(entry.movesUsed || 0)} moves · ${entry.isPlayer ? "Your run" : "Tournament run"}</span>` +
+      `</div>` +
+      `<div class="leaderboard-value">${Number(entry.score || 0).toLocaleString()}</div>` +
+    `</div>`
+      );
+    })()
+  )).join("");
+}
+
+function renderTournamentRoom() {
+  if (app.currentScreen !== "tournament") return;
+  const room = app.tournamentRoom;
+  elements.tournamentScreen?.classList.toggle("has-room", Boolean(room));
+  const status = elements.tournamentStatusText;
+  if (status) {
+    status.textContent = app.tournamentStatus === "loading"
+      ? "Loading room..."
+      : app.tournamentStatus === "error"
+        ? "Could not load that room."
+        : room
+          ? `Code ${room.code} · ${formatTimeLeft(room.ends_at ?? room.endsAt)} left`
+          : "Create a room or join one by code.";
+  }
+  if (elements.tournamentCodeInput && app.tournamentCodeInput) {
+    elements.tournamentCodeInput.value = app.tournamentCodeInput;
+  }
+  if (elements.tournamentCreateBtn) {
+    elements.tournamentCreateBtn.disabled = app.tournamentCreateStatus === "loading";
+  }
+  if (elements.tournamentJoinBtn) {
+    elements.tournamentJoinBtn.disabled = app.tournamentStatus === "loading";
+  }
+  if (!elements.tournamentRoomPanel) return;
+  elements.tournamentRoomPanel.hidden = !room;
+  if (!room) return;
+
+  const vibe = getVibeById(room.vibe_id ?? room.vibeId);
+  const playerState = room.playerState ?? {};
+  const hasSubmitted = Boolean(playerState.hasSubmitted);
+  const ended = new Date(room.ends_at ?? room.endsAt).getTime() <= Date.now();
+  elements.tournamentRoomTitle.textContent = room.title || "Tournament Room";
+  elements.tournamentRoomMeta.innerHTML = `
+    <span><strong>${escapeHtml(room.code)}</strong> Code</span>
+    <span><strong>1</strong> Attempt</span>
+    <span><strong>${escapeHtml(vibe.label)}</strong> Vibe</span>
+    <span><strong>${escapeHtml(formatTimeLeft(room.ends_at ?? room.endsAt))}</strong> Left</span>
+  `;
+  elements.tournamentStartBtn.disabled = ended || hasSubmitted || app.tournamentStatus === "starting";
+  elements.tournamentStartBtn.textContent = hasSubmitted
+    ? `Submitted${playerState.rank ? ` · Rank #${playerState.rank}` : ""}`
+    : ended
+      ? "Tournament ended"
+      : app.tournamentStatus === "starting"
+        ? "Starting..."
+        : "Start Attempt";
+  elements.tournamentLeaderboard.innerHTML = `
+    <div class="leaderboard-column-head">
+      <h3>Live Leaderboard</h3>
+    </div>
+    <div class="leaderboard-list">
+      ${renderTournamentLeaderboardRows()}
+    </div>
+  `;
+}
+
+function renderTournamentHud() {
+  if (!elements.tournamentHud) return;
+  const proof = app.tournamentRunProof;
+  const room = app.tournamentRoom;
+  if (!proof || !room) {
+    elements.tournamentHud.hidden = true;
+    elements.tournamentHud.textContent = "";
+    return;
+  }
+  elements.tournamentHud.hidden = false;
+  const title = String(room.title || "Tournament Room").trim();
+  elements.tournamentHud.innerHTML = `
+    <span class="tournament-hud-title">${escapeHtml(title)}</span>
+    <span class="tournament-hud-meta">1 attempt · ${escapeHtml(formatTimeLeft(room.ends_at ?? room.endsAt))} left</span>
+  `;
+}
+
+async function openTournamentRoom(code) {
+  const normalized = normalizeTournamentCode(code);
+  if (!normalized) {
+    setScreen("tournament");
+    render();
+    return;
+  }
+  app.tournamentCodeInput = normalized;
+  app.tournamentStatus = "loading";
+  setScreen("tournament");
+  render();
+  try {
+    const data = await getTournamentRoom(normalized);
+    app.tournamentRoom = { ...data.room, playerState: data.playerState };
+    app.tournamentLeaderboard = data.entries ?? [];
+    app.tournamentStatus = "ready";
+    startTournamentPolling();
+    render();
+  } catch (error) {
+    console.error("[tournament] room load failed:", error);
+    app.tournamentRoom = null;
+    app.tournamentLeaderboard = [];
+    app.tournamentStatus = "error";
+    showToast(error.message === "room_not_found" ? "Tournament room not found." : "Could not load tournament room.");
+    render();
+  }
+}
+
+async function handleCreateTournament(event) {
+  event?.preventDefault();
+  const allowLocalGuestTournament = isLocalDevHost() || !getSupabaseConfig().configured;
+  if (!app.authState.user && !allowLocalGuestTournament) {
+    openAuthModal({ force: true });
+    return;
+  }
+  app.tournamentCreateStatus = "loading";
+  renderTournamentRoom();
+  try {
+    const data = await createTournamentRoom({
+      title: elements.tournamentCreateTitle?.value,
+      durationMinutes: elements.tournamentCreateDuration?.value,
+    });
+    const room = data?.room;
+    if (!room?.code) throw new Error("invalid_room");
+    elements.tournamentCreateTitle.value = "";
+    await openTournamentRoom(room.code);
+    showToast(`Tournament room ${room.code} created.`);
+  } catch (error) {
+    console.error("[tournament] create failed:", error);
+    showToast(error.message || "Could not create tournament room.");
+  } finally {
+    app.tournamentCreateStatus = "idle";
+    renderTournamentRoom();
+  }
+}
+
+async function handleJoinTournament(event) {
+  event?.preventDefault();
+  await openTournamentRoom(elements.tournamentCodeInput?.value);
+}
+
+async function copyTournamentInvite() {
+  const room = app.tournamentRoom;
+  if (!room?.code) return;
+  const url = `${location.origin}/t/${room.code}`;
+  const text = `Blupets tournament room ${room.code}\n${url}`;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Invite copied.");
+  } catch {
+    showToast(`Code: ${room.code}`);
+  }
+}
+
+function backToTournamentRoom() {
+  const code = app.tournamentRoom?.code;
+  if (!code) {
+    goToStart();
+    return;
+  }
+  app.state = null;
+  clearRunProof();
+  app.tournamentRunProof = null;
+  setScreen("tournament");
+  render();
+  openTournamentRoom(code);
+}
+
 const AUTH_REQUIRED_META_SECTIONS = new Set(["collection", "quests"]);
 
 function renderStartMetaTabs(active = activeMetaOverlay) {
@@ -724,6 +1042,7 @@ function renderStartMetaTabs(active = activeMetaOverlay) {
     [elements.startCollection, "collection"],
     [elements.startQuests, "quests"],
     [elements.startLeaderboard, "rank"],
+    [elements.startTournament, "tournament"],
     [elements.startGuide, "guide"],
   ];
   const normalizedActive = active === "public-profile" ? "rank" : active;
@@ -868,9 +1187,11 @@ function isMobileViewport() {
 
 function goToStart() {
   stopTutorialRun();
+  stopTournamentPolling();
   closeMetaOverlay();
   resetInteractionState();
   clearRunProof();
+  app.tournamentRunProof = null;
   // Drop the finished/abandoned run so nothing can navigate back into a frozen
   // board (close-button fallbacks and popstate both gate on a live run).
   app.state = null;
@@ -1031,6 +1352,10 @@ function recordVictory(nextState) {
 }
 
 function submitRunToLeaderboard(stateLike, formMeta = null) {
+  if (runProof?.tournament) {
+    submitTournamentResult(stateLike, formMeta);
+    return;
+  }
   if (!app.authState.user) return;
   if (!runProof) {
     console.error(
@@ -1078,6 +1403,51 @@ function submitRunToLeaderboard(stateLike, formMeta = null) {
     })
     .finally(() => {
       if (runProof === proof) clearRunProof();
+    });
+}
+
+function submitTournamentResult(stateLike, formMeta = null) {
+  if (!app.authState.user || !runProof?.tournament) return;
+  if (!stateLike || !Number.isFinite(Number(stateLike.score)) || Number(stateLike.score) <= 0) {
+    clearRunProof();
+    app.tournamentRunProof = null;
+    return;
+  }
+
+  const proof = runProof;
+  const best = formMeta ?? getBestRunForm(stateLike);
+  const colorId = best.colorId ?? getLeaderColorId(stateLike) ?? "blue";
+  const partnerColorId = best.partnerColorId ?? colorId;
+  const result = {
+    score: stateLike.score,
+    movesUsed: stateLike.movesUsed ?? 0,
+    formKey: best.formKey ?? "RUN_COMPLETE",
+    formName: best.formName ?? best.name ?? "Run Complete",
+    colorId,
+    partnerColorId,
+    vibe: stateLike.vibe?.id ?? null,
+  };
+
+  console.info("[tournament] submitting run result:", proof.runId, result);
+  submitTournamentRun(proof.runId, result, proof.actions)
+    .then((data) => {
+      console.info("[tournament] submit accepted:", data);
+      const code = proof.code ?? app.tournamentRoom?.code;
+      if (!code) return null;
+      return getTournamentRoom(code).then((roomData) => {
+        app.tournamentRoom = { ...roomData.room, playerState: roomData.playerState };
+        app.tournamentLeaderboard = roomData.entries ?? [];
+        if (app.currentScreen === "gameover") renderGameoverScreen(app.state);
+      });
+    })
+    .catch((error) => {
+      console.error("[tournament] submit failed:", error);
+      showToast(error.message || "Tournament submit failed.");
+    })
+    .finally(() => {
+      if (runProof === proof) {
+        clearRunProof();
+      }
     });
 }
 
@@ -1144,7 +1514,19 @@ function applyState(nextState) {
   } else if (nextState?.gameOver) {
     // Endless run ended (moves = 0). Fold this run into the lifetime badge store
     // exactly once and capture the summary the end screen renders.
-    if (nextState.endlessRun) {
+    if (runProof?.tournament) {
+      lastRunSummary = {
+        score: nextState.score,
+        movesUsed: nextState.movesUsed ?? 0,
+        maxCombo: nextState.runMaxCombo ?? 0,
+        specials: nextState.runSpecials ?? { cross: 0, bomb: 0 },
+        newBadges: [],
+        capsulesEarned: 0,
+        bonusCapsules: 0,
+        ascendedCount: ascendedLineageCount(app.progress),
+        blupetsCount: collectionTileCount(app.progress),
+      };
+    } else if (nextState.endlessRun) {
       const reachedForms = [];
       for (const color of COLORS) {
         const tier = nextState.evolutionTiers?.[color.id] ?? 1;
@@ -2705,6 +3087,28 @@ function renderGameoverScreen(stateLike) {
   if (elements.gameoverFormName) {
     elements.gameoverFormName.textContent = bestForm.name;
   }
+  if (elements.gameoverBtn) {
+    elements.gameoverBtn.textContent = "Play Again";
+  }
+  if (elements.gameoverHomeBtn) {
+    elements.gameoverHomeBtn.textContent = "Main Menu";
+  }
+
+  if (app.tournamentRunProof) {
+    const player = app.tournamentRoom?.playerState ?? {};
+    const ownRank = player.rank ? `Rank #${player.rank}` : "Submitting score...";
+    elements.gameoverDetail.innerHTML =
+      `<div class="gameover-save-prompt">` +
+        `<p class="gameover-save-text">Tournament score · ${escapeHtml(ownRank)}</p>` +
+      `</div>`;
+    if (elements.gameoverBtn) {
+      elements.gameoverBtn.textContent = "Back to Room";
+    }
+    if (elements.gameoverHomeBtn) {
+      elements.gameoverHomeBtn.textContent = "Main Menu";
+    }
+    return;
+  }
 
   // Guests: prompt to sign in instead of capsule CTA
   if (!app.authState.user) {
@@ -3105,6 +3509,7 @@ function render() {
     renderCollectionScreen();
     renderQuestsScreen();
     renderGuideScreen();
+    renderTournamentRoom();
   }
 
   if (!app.state) {
@@ -3126,6 +3531,7 @@ function render() {
   }
 
   renderTopBar(app.state);
+  renderTournamentHud();
   renderColorRoster(app.state);
   renderVibeStrip(app.state);
   renderBoardGlow();
@@ -3774,7 +4180,10 @@ bindClick(elements.profileSignInBtn, () => openAuthModal({ force: true }));
 bindClick(elements.profileLogoutBtn, handleAuthLogout);
 bindClick(elements.victoryLeaderboardBtn, () => openLeaderboard("victory"));
 bindClick(elements.victoryBtn, () => startRun());
-bindClick(elements.gameoverBtn, () => startRun());
+bindClick(elements.gameoverBtn, () => {
+  if (app.tournamentRunProof) backToTournamentRoom();
+  else startRun();
+});
 bindClick(elements.gameoverHomeBtn, goToStart);
 bindClick(elements.gameoverShareBtn, shareRunSummary);
 bindClick(elements.capsuleRevealClose, closeCapsuleRevealModal);
@@ -3788,6 +4197,12 @@ bindClick(elements.victoryShareBtn, () => shareVictory());
 bindClick(elements.muteBtn, handleMuteToggle);
 bindClick(elements.muteBtnGame, handleMuteToggle);
 bindClick(elements.startMuteBtn, handleMuteToggle);
+bindClick(elements.startTournament, () => openTournamentRoom(""));
+bindClick(elements.tournamentBackBtn, goToStart);
+bindClick(elements.tournamentStartBtn, startTournamentAttempt);
+bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
+elements.tournamentJoinForm?.addEventListener("submit", handleJoinTournament);
+elements.tournamentCreateForm?.addEventListener("submit", handleCreateTournament);
 bindClick(elements.profileChip, () => {
   if (app.authState.user) {
     openMetaSection("account", "start");
@@ -3911,6 +4326,11 @@ const _demoScreen = (() => {
   return null;
 })();
 
+const _initialTournamentCode = (() => {
+  const match = location.pathname.match(/\/t\/([A-Za-z0-9]+)/);
+  return match ? normalizeTournamentCode(match[1]) : "";
+})();
+
 // Set initial history entry (don't clobber OAuth fragment/code if redirect just landed).
 // PKCE flow returns ?code=… in query string; implicit flow returns #access_token in hash.
 const _hasOAuthCode = new URLSearchParams(location.search).has("code");
@@ -3918,7 +4338,9 @@ if (!_hasOAuthCode && !/access_token|error_description/.test(location.hash)) {
   // Restore navigable screens from the URL hash on page refresh.
   // Game/victory/gameover can't be restored (no persisted game state) — fall back to start.
   const hashScreen = location.hash.replace(/^#/, "") || "start";
-  const initialScreen = ["profile", "leaderboard"].includes(hashScreen) ? hashScreen : "start";
+  const initialScreen = _initialTournamentCode
+    ? "tournament"
+    : (["profile", "leaderboard"].includes(hashScreen) ? hashScreen : "start");
   if (initialScreen === "leaderboard") lastScreenBeforeLeaderboard = "start";
   if (initialScreen === "profile") lastScreenBeforeProfile = "start";
   app.currentScreen = initialScreen;
@@ -3933,6 +4355,9 @@ updateProfileChip();
 initializeAuth();
 
 render();
+if (_initialTournamentCode) {
+  openTournamentRoom(_initialTournamentCode);
+}
 
 // ── Demo shortcut ─────────────────────────────────────────────────────────
 // Jump straight to an end screen with sample data so the design can be reviewed

@@ -7,9 +7,10 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Blupets Match</title>
+    <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260629-capsule-center-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260703-tournament-room-1" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -58,6 +59,9 @@
           <div class="start-actions start-actions--primary">
             <button id="start-run" class="entry-btn" type="button">
               Enter Run
+            </button>
+            <button id="start-tournament" class="tournament-entry-btn" type="button">
+              Tournament Room
             </button>
           </div>
           <div class="start-actions start-actions--secondary">
@@ -156,7 +160,9 @@
                 <strong id="comboValue">—</strong>
               </div>
             </div>
-            <div class="topbar-right"></div>
+            <div class="topbar-right">
+              <div class="tournament-hud" id="tournamentHud" hidden></div>
+            </div>
           </header>
 
           <div class="roster-row">
@@ -306,6 +312,59 @@
           <div id="leaderboard-tabs-host" class="leaderboard-tabs-host"></div>
           <div id="leaderboard-content" class="leaderboard-content" aria-live="polite"></div>
           <nav class="meta-nav" id="leaderboardMetaNav" aria-label="Main sections"></nav>
+        </div>
+      </section>
+
+      <section class="screen tournament-screen" id="tournamentScreen" hidden>
+        <div class="leaderboard-card tournament-card">
+          <header class="leaderboard-head">
+            <button id="tournamentBackBtn" class="icon-btn" type="button" title="Back" aria-label="Back">
+              ←
+            </button>
+            <div>
+              <h2 id="tournamentTitle">Tournament Room</h2>
+              <p id="tournamentStatusText" class="tournament-status"></p>
+            </div>
+          </header>
+
+          <div class="tournament-grid">
+            <section class="tournament-panel">
+              <h3>Join by code</h3>
+              <form class="tournament-form" id="tournamentJoinForm">
+                <input id="tournamentCodeInput" class="auth-email-input" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="A7K9Q" />
+                <button id="tournamentJoinBtn" class="btn btn--primary" type="submit">Join</button>
+              </form>
+            </section>
+
+            <section class="tournament-panel">
+              <h3>Create room</h3>
+              <form class="tournament-form" id="tournamentCreateForm">
+                <input id="tournamentCreateTitle" class="auth-email-input" type="text" maxlength="60" placeholder="Discord Cup" />
+                <select id="tournamentCreateDuration" class="auth-email-input">
+                  <option value="15">15 minutes</option>
+                  <option value="30" selected>30 minutes</option>
+                  <option value="60">60 minutes</option>
+                  <option value="180">3 hours</option>
+                  <option value="1440">24 hours</option>
+                </select>
+                <button id="tournamentCreateBtn" class="btn btn--ghost" type="submit">Create</button>
+              </form>
+            </section>
+          </div>
+
+          <section class="tournament-room-panel" id="tournamentRoomPanel" hidden>
+            <div class="tournament-room-head">
+              <div>
+                <h3 id="tournamentRoomTitle"></h3>
+                <p id="tournamentRoomMeta"></p>
+              </div>
+              <div class="tournament-room-actions">
+                <button id="tournamentCopyBtn" class="btn btn--ghost" type="button">Copy invite</button>
+                <button id="tournamentStartBtn" class="btn btn--primary" type="button">Start Attempt</button>
+              </div>
+            </div>
+            <div id="tournamentLeaderboard" class="tournament-leaderboard" aria-live="polite"></div>
+          </section>
         </div>
       </section>
 
@@ -471,6 +530,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260629-brand-ui-37"></script>
+    <script type="module" src="./src/main.js?v=20260703-tournament-local-1"></script>
   </body>
 </html>

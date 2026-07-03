@@ -64,4 +64,14 @@ export const app = {
   // normalized/written on tab activation. Lives here so render-quests.js can
   // read and update it across the module boundary.
   questTab: "collection",
+  // ── Tournament room state ────────────────────────────────────────────────
+  // Quick community tournaments are scoped rooms with their own seed, vibe,
+  // one-attempt run, and leaderboard. They intentionally do not write to the
+  // global progression/leaderboard paths.
+  tournamentRoom: null,
+  tournamentLeaderboard: [],
+  tournamentStatus: "idle",
+  tournamentCodeInput: "",
+  tournamentCreateStatus: "idle",
+  tournamentRunProof: null,
 };
