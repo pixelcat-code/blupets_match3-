@@ -971,37 +971,51 @@ async function openTournamentRoom(code) {
   }
 }
 
-async function handleCreateTournament(event) {
-  event?.preventDefault();
-  const allowLocalGuestTournament = isLocalDevHost() || !getSupabaseConfig().configured;
-  if (!app.authState.user && !allowLocalGuestTournament) {
-    openAuthModal({ force: true });
-    return;
+function openTournamentModal() {
+  app.tournamentModalOpen = true;
+  if (elements.tournamentModal) {
+    elements.tournamentModal.hidden = false;
+    elements.tournamentModal.setAttribute("aria-hidden", "false");
   }
-  app.tournamentCreateStatus = "loading";
-  renderTournamentRoom();
+}
+
+function closeTournamentModal() {
+  app.tournamentModalOpen = false;
+  if (elements.tournamentModal) {
+    elements.tournamentModal.hidden = true;
+    elements.tournamentModal.setAttribute("aria-hidden", "true");
+  }
+}
+
+async function handleModalCreate(event) {
+  event.preventDefault();
+  if (!app.authState.user) { openAuthModal({ force: true }); return; }
+  const btn = elements.tournamentModalCreateForm?.querySelector("button[type=submit]");
+  if (btn) btn.disabled = true;
   try {
     const data = await createTournamentRoom({
-      title: elements.tournamentCreateTitle?.value,
-      durationMinutes: elements.tournamentCreateDuration?.value,
+      title: elements.tournamentModalCreateTitle?.value,
+      durationMinutes: elements.tournamentModalCreateDuration?.value,
     });
-    const room = data?.room;
-    if (!room?.code) throw new Error("invalid_room");
-    elements.tournamentCreateTitle.value = "";
+    const room = data.room ?? data;
+    closeTournamentModal();
+    if (elements.tournamentModalCreateTitle) elements.tournamentModalCreateTitle.value = "";
     await openTournamentRoom(room.code);
     showToast(`Tournament room ${room.code} created.`);
   } catch (error) {
     console.error("[tournament] create failed:", error);
     showToast(error.message || "Could not create tournament room.");
   } finally {
-    app.tournamentCreateStatus = "idle";
-    renderTournamentRoom();
+    if (btn) btn.disabled = false;
   }
 }
 
-async function handleJoinTournament(event) {
-  event?.preventDefault();
-  await openTournamentRoom(elements.tournamentCodeInput?.value);
+async function handleModalJoin(event) {
+  event.preventDefault();
+  const code = normalizeTournamentCode(elements.tournamentModalJoinCode?.value);
+  if (!code) { showToast("Enter a room code."); return; }
+  closeTournamentModal();
+  await openTournamentRoom(code);
 }
 
 async function copyTournamentInvite() {
@@ -4197,12 +4211,14 @@ bindClick(elements.victoryShareBtn, () => shareVictory());
 bindClick(elements.muteBtn, handleMuteToggle);
 bindClick(elements.muteBtnGame, handleMuteToggle);
 bindClick(elements.startMuteBtn, handleMuteToggle);
-bindClick(elements.startTournament, () => openTournamentRoom(""));
+bindClick(elements.startTournament, openTournamentModal);
 bindClick(elements.tournamentBackBtn, goToStart);
 bindClick(elements.tournamentStartBtn, startTournamentAttempt);
 bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
-elements.tournamentJoinForm?.addEventListener("submit", handleJoinTournament);
-elements.tournamentCreateForm?.addEventListener("submit", handleCreateTournament);
+elements.tournamentModalCreateForm?.addEventListener("submit", handleModalCreate);
+elements.tournamentModalJoinForm?.addEventListener("submit", handleModalJoin);
+bindClick(elements.tournamentModalClose, closeTournamentModal);
+bindClick(elements.tournamentModalBackdrop, closeTournamentModal);
 bindClick(elements.profileChip, () => {
   if (app.authState.user) {
     openMetaSection("account", "start");
