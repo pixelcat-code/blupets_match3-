@@ -3,9 +3,9 @@ create table if not exists public.tournament_rooms (
   code            text        not null unique,
   title           text        not null,
   creator_user_id uuid        references auth.users on delete set null,
-  status          text        not null default 'live',
+  status          text        not null default 'lobby',
   starts_at       timestamptz not null default now(),
-  ends_at         timestamptz not null,
+  ends_at         timestamptz,
   seed            bigint      not null,
   vibe_id         text        not null,
   rules           jsonb       not null default '{}',
@@ -76,3 +76,31 @@ create index if not exists tournament_leaderboard_rank_idx
 
 create index if not exists tournament_rooms_creator_recent_idx
   on public.tournament_rooms (creator_user_id, created_at desc);
+
+-- v2: lobby-driven start. Rooms are created in 'lobby' and flipped to 'live'
+-- only when the host presses Start (which stamps started_at/ends_at).
+alter table public.tournament_rooms
+  add column if not exists started_at timestamptz;
+alter table public.tournament_rooms
+  add column if not exists duration_minutes integer not null default 30;
+alter table public.tournament_rooms
+  alter column ends_at drop not null;
+alter table public.tournament_rooms
+  alter column status set default 'lobby';
+
+alter table public.tournament_rooms
+  drop constraint if exists tournament_rooms_status_check;
+alter table public.tournament_rooms
+  add constraint tournament_rooms_status_check
+  check (status in ('draft', 'lobby', 'live', 'ended'));
+
+-- Abandons are still replay-verified, but only over a partial action log.
+alter table public.tournament_leaderboard_entries
+  drop constraint if exists tournament_leaderboard_entries_validation_mode_check;
+alter table public.tournament_leaderboard_entries
+  add constraint tournament_leaderboard_entries_validation_mode_check
+  check (validation_mode in ('replay_verified', 'replay_verified_partial'));
+
+-- Realtime: clients subscribe to room-start + verified finals.
+alter publication supabase_realtime add table public.tournament_rooms;
+alter publication supabase_realtime add table public.tournament_leaderboard_entries;
