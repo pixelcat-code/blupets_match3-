@@ -1,6 +1,4 @@
 import { getSupabaseClient, getSupabaseConfig } from "./supabase-client.js?v=20260629-client-singleton-1";
-import { randomSeed } from "./rng.js";
-import { VIBES } from "./vibes.js";
 
 // supabase-js wraps a non-2xx edge-function response in a FunctionsHttpError
 // whose `.context` is the raw Response. Pull the server's `{ error: "code" }`
@@ -19,195 +17,6 @@ async function fnErrorCode(error) {
   return error?.message || "unknown_error";
 }
 
-const LOCAL_TOURNAMENT_KEY = "blupets.localTournamentRooms.v1";
-const LOCAL_PLAYER_ID_KEY = "blupets.localTournamentPlayerId.v1";
-
-function readLocalTournamentStore() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(LOCAL_TOURNAMENT_KEY) || "{}");
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalTournamentStore(store) {
-  localStorage.setItem(LOCAL_TOURNAMENT_KEY, JSON.stringify(store));
-}
-
-function localPlayerId() {
-  let id = localStorage.getItem(LOCAL_PLAYER_ID_KEY);
-  if (!id) {
-    id = `local-${randomSeed().toString(36)}`;
-    localStorage.setItem(LOCAL_PLAYER_ID_KEY, id);
-  }
-  return id;
-}
-
-function localPlayerName() {
-  return localStorage.getItem("blupets.profileName") || "Local Player";
-}
-
-function normalizeTournamentCode(value) {
-  return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
-}
-
-function isLocalDevHost() {
-  return ["localhost", "127.0.0.1", "::1"].includes(location.hostname);
-}
-
-function localTournamentCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 5; i += 1) {
-    code += alphabet[randomSeed() % alphabet.length];
-  }
-  return code;
-}
-
-function rankLocalEntries(room) {
-  const uid = localPlayerId();
-  return [...(room.entries ?? [])]
-    .sort((a, b) => b.score - a.score || a.movesUsed - b.movesUsed || String(a.submittedAt).localeCompare(String(b.submittedAt)))
-    .map((entry, index) => ({
-      rank: index + 1,
-      userId: entry.userId,
-      accountName: entry.accountName,
-      avatarUrl: entry.avatarUrl ?? "./assets/blu-logo.png",
-      score: entry.score,
-      movesUsed: entry.movesUsed,
-      submittedAt: entry.submittedAt,
-      isPlayer: entry.userId === uid,
-    }));
-}
-
-function localRoomPayload(room) {
-  const entries = rankLocalEntries(room);
-  const own = entries.find((entry) => entry.isPlayer);
-  const run = (room.runs ?? {})[localPlayerId()] ?? null;
-  return {
-    room: {
-      id: room.id,
-      code: room.code,
-      title: room.title,
-      status: room.status,
-      starts_at: room.starts_at,
-      ends_at: room.ends_at,
-      seed: room.seed,
-      vibe_id: room.vibe_id,
-      rules: room.rules,
-      playerState: {
-        hasStarted: Boolean(run),
-        hasSubmitted: Boolean(own),
-        score: own?.score ?? null,
-        rank: own?.rank ?? null,
-      },
-    },
-    entries,
-    playerState: {
-      hasStarted: Boolean(run),
-      hasSubmitted: Boolean(own),
-      score: own?.score ?? null,
-      rank: own?.rank ?? null,
-    },
-  };
-}
-
-function createLocalTournamentRoom({ title, durationMinutes, vibeId } = {}) {
-  const store = readLocalTournamentStore();
-  let code = localTournamentCode();
-  while (store[code]) code = localTournamentCode();
-  const duration = Math.max(5, Math.min(24 * 60, Math.trunc(Number(durationMinutes) || 30)));
-  const vibe = VIBES.find((entry) => entry.id === vibeId) ?? VIBES[randomSeed() % VIBES.length];
-  const now = Date.now();
-  const room = {
-    id: `local-room-${code}`,
-    code,
-    title: String(title || "").trim().slice(0, 60) || "Community Cup",
-    status: "live",
-    starts_at: new Date(now).toISOString(),
-    ends_at: new Date(now + duration * 60_000).toISOString(),
-    seed: randomSeed() >>> 0,
-    vibe_id: vibe.id,
-    rules: {
-      attemptsLimit: 1,
-      diagonalAssist: false,
-      diagonalSwaps: false,
-      specialTiles: true,
-      endlessRun: true,
-      boostersAllowed: false,
-    },
-    runs: {},
-    entries: [],
-  };
-  store[code] = room;
-  writeLocalTournamentStore(store);
-  return { room: localRoomPayload(room).room, local: true };
-}
-
-function getLocalTournamentRoom(code) {
-  const store = readLocalTournamentStore();
-  const room = store[normalizeTournamentCode(code)];
-  if (!room) throw new Error("room_not_found");
-  return { ...localRoomPayload(room), local: true };
-}
-
-function startLocalTournamentRun(code) {
-  const store = readLocalTournamentStore();
-  const room = store[normalizeTournamentCode(code)];
-  if (!room) throw new Error("room_not_found");
-  if (Date.now() > new Date(room.ends_at).getTime()) throw new Error("room_ended");
-  const uid = localPlayerId();
-  room.runs = room.runs ?? {};
-  if (room.runs[uid]) throw new Error("attempt_already_used");
-  const runId = `local-run-${room.code}-${uid}`;
-  room.runs[uid] = { id: runId, startedAt: new Date().toISOString(), submittedAt: null };
-  store[room.code] = room;
-  writeLocalTournamentStore(store);
-  return {
-    runId,
-    roomId: room.id,
-    code: room.code,
-    seed: Number(room.seed) >>> 0,
-    vibeId: room.vibe_id,
-    rules: room.rules,
-    actions: [],
-    tournament: true,
-    local: true,
-  };
-}
-
-function submitLocalTournamentRun(runId, result) {
-  const store = readLocalTournamentStore();
-  const uid = localPlayerId();
-  const room = Object.values(store).find((candidate) => candidate?.runs?.[uid]?.id === runId);
-  if (!room) throw new Error("run_not_found");
-  if (room.runs[uid].submittedAt) throw new Error("run_already_submitted");
-  const submittedAt = new Date().toISOString();
-  room.runs[uid].submittedAt = submittedAt;
-  room.entries = (room.entries ?? []).filter((entry) => entry.userId !== uid);
-  room.entries.push({
-    userId: uid,
-    accountName: localPlayerName(),
-    avatarUrl: "./assets/blu-logo.png",
-    score: Number(result?.score) || 0,
-    movesUsed: Number(result?.movesUsed) || 0,
-    submittedAt,
-  });
-  store[room.code] = room;
-  writeLocalTournamentStore(store);
-  return { ok: true, entry: room.entries[room.entries.length - 1], local: true };
-}
-
-function fetchLocalTournamentLeaderboard(code, limit = 100) {
-  const payload = getLocalTournamentRoom(code);
-  return {
-    room: payload.room,
-    entries: payload.entries.slice(0, limit),
-    playerRank: payload.entries.find((entry) => entry.isPlayer)?.rank ?? null,
-    local: true,
-  };
-}
 
 export async function startTrustedRun() {
   const { configured } = getSupabaseConfig();
@@ -251,91 +60,58 @@ export async function submitTrustedRun(runId, result, actions = [], extra = {}) 
 }
 
 export async function createTournamentRoom({ title, durationMinutes, vibeId } = {}) {
-  const { configured } = getSupabaseConfig();
-  if (!configured || isLocalDevHost()) return createLocalTournamentRoom({ title, durationMinutes, vibeId });
-
-  try {
-    const client = await getSupabaseClient();
-    const { data, error } = await client.functions.invoke("create-tournament-room", {
-      body: { title, durationMinutes, vibeId },
-    });
-    if (error) throw new Error(await fnErrorCode(error));
-    return data;
-  } catch (error) {
-    console.warn("[tournament] using local room fallback:", error);
-    return createLocalTournamentRoom({ title, durationMinutes, vibeId });
-  }
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("create-tournament-room", {
+    body: { title, durationMinutes, vibeId },
+  });
+  if (error) throw new Error(error.message || "create_tournament_room_failed");
+  return data;
 }
 
 export async function getTournamentRoom(code) {
-  const { configured } = getSupabaseConfig();
-  if (!configured || isLocalDevHost()) return getLocalTournamentRoom(code);
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("get-tournament-room", {
+    body: { code },
+  });
+  if (error) throw new Error(error.message || "get_tournament_room_failed");
+  return data;
+}
 
-  try {
-    const client = await getSupabaseClient();
-    const { data, error } = await client.functions.invoke("get-tournament-room", {
-      body: { code },
-    });
-    if (error) throw new Error(await fnErrorCode(error));
-    return data;
-  } catch (error) {
-    console.warn("[tournament] using local get fallback:", error);
-    return getLocalTournamentRoom(code);
-  }
+export async function startTournamentRoom(code) {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("start-tournament-room", {
+    body: { code },
+  });
+  if (error) throw new Error(error.message || "start_tournament_room_failed");
+  return data;
 }
 
 export async function startTournamentRun(code) {
-  const { configured } = getSupabaseConfig();
-  if (!configured || isLocalDevHost()) return startLocalTournamentRun(code);
-
-  try {
-    const client = await getSupabaseClient();
-    const { data, error } = await client.functions.invoke("start-tournament-run", {
-      body: { code },
-    });
-    if (error) throw new Error(await fnErrorCode(error));
-    if (!data?.runId || !Number.isInteger(data.seed)) {
-      throw new Error("Tournament run service returned an invalid run.");
-    }
-    return { ...data, seed: data.seed >>> 0, actions: [], tournament: true };
-  } catch (error) {
-    console.warn("[tournament] using local start fallback:", error);
-    return startLocalTournamentRun(code);
-  }
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("start-tournament-run", {
+    body: { code },
+  });
+  if (error) throw new Error(error.message || "start_tournament_run_failed");
+  if (!data?.runId) throw new Error("Tournament run service returned an invalid run.");
+  return { ...data, seed: data.seed >>> 0, actions: [], tournament: true };
 }
 
-export async function submitTournamentRun(runId, result, actions = []) {
-  const { configured } = getSupabaseConfig();
-  if (!configured || isLocalDevHost() || String(runId).startsWith("local-run-")) return submitLocalTournamentRun(runId, result, actions);
-
-  try {
-    const client = await getSupabaseClient();
-    const { data, error } = await client.functions.invoke("submit-tournament-run", {
-      body: { runId, result, actions },
-    });
-    if (error) throw new Error(await fnErrorCode(error));
-    return data;
-  } catch (error) {
-    console.warn("[tournament] using local submit fallback:", error);
-    return submitLocalTournamentRun(runId, result, actions);
-  }
+export async function submitTournamentRun(runId, result, actions = [], { abandoned = false } = {}) {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("submit-tournament-run", {
+    body: { runId, result, actions, abandoned },
+  });
+  if (error) throw new Error(error.message || "submit_tournament_run_failed");
+  return data;
 }
 
 export async function fetchTournamentLeaderboard(code, limit = 100) {
-  const { configured } = getSupabaseConfig();
-  if (!configured || isLocalDevHost()) return fetchLocalTournamentLeaderboard(code, limit);
-
-  try {
-    const client = await getSupabaseClient();
-    const { data, error } = await client.functions.invoke("fetch-tournament-leaderboard", {
-      body: { code, limit },
-    });
-    if (error) throw new Error(await fnErrorCode(error));
-    return data;
-  } catch (error) {
-    console.warn("[tournament] using local leaderboard fallback:", error);
-    return fetchLocalTournamentLeaderboard(code, limit);
-  }
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("fetch-tournament-leaderboard", {
+    body: { code, limit },
+  });
+  if (error) throw new Error(error.message || "fetch_tournament_leaderboard_failed");
+  return data;
 }
 
 export async function syncCollectionSnapshot(extra = {}) {
@@ -476,6 +252,56 @@ function countFamilyBadges(familyBadges) {
     const n = Math.trunc(Number(value));
     return Number.isFinite(n) ? sum + Math.max(0, Math.min(9, n)) : sum;
   }, 0);
+}
+
+// ── Tournament realtime ──────────────────────────────────────────────────────
+// One channel per open room. postgres_changes: room row (host Start) + verified
+// leaderboard finals. Presence: ephemeral connected-players list (name/avatar/
+// state), no DB writes. Callers get plain callbacks; we own the single channel.
+let _tournamentChannel = null;
+
+export async function subscribeTournamentRoom(code, roomId, { onRoom, onEntry, onPresenceSync } = {}) {
+  await unsubscribeTournamentRoom();
+  const client = await getSupabaseClient();
+  const channel = client.channel(`tournament:${code}`, {
+    config: { presence: { key: code } },
+  });
+
+  channel.on(
+    "postgres_changes",
+    { event: "UPDATE", schema: "public", table: "tournament_rooms", filter: `code=eq.${code}` },
+    (payload) => { try { onRoom?.(payload.new); } catch (e) { console.error(e); } },
+  );
+  channel.on(
+    "postgres_changes",
+    { event: "INSERT", schema: "public", table: "tournament_leaderboard_entries", filter: `room_id=eq.${roomId}` },
+    (payload) => { try { onEntry?.(payload.new); } catch (e) { console.error(e); } },
+  );
+  channel.on("presence", { event: "sync" }, () => {
+    try { onPresenceSync?.(channel.presenceState()); } catch (e) { console.error(e); }
+  });
+
+  await new Promise((resolve) => {
+    channel.subscribe((status) => { if (status === "SUBSCRIBED") resolve(); });
+  });
+  _tournamentChannel = channel;
+  return channel;
+}
+
+export function presenceTrack(channel, payload) {
+  return channel?.track?.(payload);
+}
+
+export async function unsubscribeTournamentRoom() {
+  if (!_tournamentChannel) return;
+  const channel = _tournamentChannel;
+  _tournamentChannel = null;
+  try {
+    const client = await getSupabaseClient();
+    await client.removeChannel(channel);
+  } catch (error) {
+    console.error("[tournament] channel teardown failed:", error);
+  }
 }
 
 export async function fetchGlobalLeaderboard(limit = 100) {
