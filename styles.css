@@ -245,43 +245,116 @@
 
 .tournament-modal[hidden] { display: none; }
 .tournament-modal {
-  position: fixed; inset: 0; z-index: 60;
-  display: flex; align-items: center; justify-content: center; padding: 16px;
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: grid;
+  place-items: center;
+  padding: 20px;
 }
 .tournament-modal-backdrop {
-  position: absolute; inset: 0; background: rgba(6, 8, 20, 0.72); backdrop-filter: blur(4px);
+  position: absolute;
+  inset: 0;
+  /* Sky-tinted scrim — matches the auth modal, keeps the brand mood behind. */
+  background:
+    radial-gradient(circle at 50% 30%, rgba(29, 111, 232, 0.28), transparent 60%),
+    rgba(7, 24, 48, 0.52);
+  backdrop-filter: blur(8px);
+  animation: modal-backdrop-in 260ms var(--ease-out) both;
 }
 .tournament-modal-card {
-  position: relative; z-index: 1; width: min(420px, 100%);
-  background: var(--panel, #131a2e); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 14px;
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* Holographic iridescent edge to match the hero + auth cards. */
+  border: 1.5px solid transparent;
+  border-radius: var(--r-card);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.97), rgba(255, 255, 255, 0.78) 46%, rgba(235, 249, 255, 0.7) 100%) padding-box,
+    var(--holo-border) border-box;
+  box-shadow:
+    var(--glow-lg),
+    0 0 38px rgba(104, 216, 255, 0.22),
+    var(--ring-inset);
+  animation: modal-panel-in 360ms var(--ease-out) both;
 }
-.tournament-modal-close { position: absolute; top: 10px; right: 10px; }
+.tournament-modal-head { display: grid; gap: 2px; }
+.tournament-modal-close { position: absolute; top: 12px; right: 12px; }
 .tournament-modal-form { display: flex; flex-direction: column; gap: 8px; }
-.tournament-modal-divider { text-align: center; opacity: 0.6; font-size: 12px; }
+.tournament-modal-label {
+  margin: 0;
+  color: var(--color-text-soft);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.tournament-modal-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+.tournament-modal-divider::before,
+.tournament-modal-divider::after {
+  content: "";
+  height: 1px;
+  background: var(--hairline);
+}
 
 .tournament-vibe-card {
-  border-radius: 14px; padding: 12px 14px; background: rgba(120,110,255,0.12);
-  border: 1px solid rgba(120,110,255,0.25);
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(104, 216, 255, 0.16), transparent 60%),
+    var(--surface-frost);
+  box-shadow: var(--ring-inset);
 }
 .tournament-rules {
   list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0;
 }
 .tournament-rules li {
-  font-size: 11px; padding: 3px 8px; border-radius: 999px;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(235, 248, 255, 0.9);
+  color: #587084;
+  font-size: 11px;
+  font-weight: 850;
 }
 .tournament-room-body { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; }
 .tournament-players { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .tournament-player {
-  display: flex; align-items: center; gap: 8px; font-size: 13px;
-  padding: 4px 6px; border-radius: 10px; background: rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
 }
 .tournament-player img, .tournament-player .tournament-player-avatar {
   width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: 0 0 auto;
-  background: rgba(255,255,255,0.1); display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(235, 248, 255, 0.9); display: inline-flex; align-items: center; justify-content: center;
 }
-.tournament-player-state { margin-left: auto; font-size: 10px; opacity: 0.65; }
+.tournament-player-state {
+  margin-left: auto;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .tournament-countdown { font-variant-numeric: tabular-nums; font-weight: 700; }
 .tournament-room-cta { display: flex; gap: 10px; justify-content: flex-end; }
 

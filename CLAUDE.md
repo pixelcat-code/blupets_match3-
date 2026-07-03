@@ -94,7 +94,7 @@ stale files. The discipline:
   `index.html`, +1 each commit.
 
 Current versions (bump on change):
-- `styles.css` → `?v=20260703-tournament-realtime-1`
+- `styles.css` → `?v=20260704-tournament-design-1`
 - `src/main.js` → `?v=20260703-brand-ui-37`
 - `auth-config.js` → `?v=20260617-2`
 - `sync.js` import in `main.js` → `?v=20260703-tournament-realtime-2`

@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260703-tournament-realtime-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-1" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -135,9 +135,12 @@
         <div class="tournament-modal-backdrop" id="tournamentModalBackdrop"></div>
         <div class="tournament-modal-card">
           <button id="tournamentModalClose" class="icon-btn tournament-modal-close" type="button" aria-label="Close">✕</button>
-          <h2>Tournament Room</h2>
+          <div class="tournament-modal-head">
+            <div class="auth-modal-kicker">Tournament</div>
+            <h2 class="auth-modal-title">Tournament Room</h2>
+          </div>
           <form class="tournament-modal-form" id="tournamentModalCreateForm">
-            <h3>Create a room</h3>
+            <h3 class="tournament-modal-label">Create a room</h3>
             <input id="tournamentModalCreateTitle" class="auth-email-input" type="text" maxlength="60" placeholder="Discord Cup" />
             <select id="tournamentModalCreateDuration" class="auth-email-input">
               <option value="15">15 minutes</option>
@@ -148,7 +151,7 @@
           </form>
           <div class="tournament-modal-divider"><span>or</span></div>
           <form class="tournament-modal-form" id="tournamentModalJoinForm">
-            <h3>Join with a code</h3>
+            <h3 class="tournament-modal-label">Join with a code</h3>
             <input id="tournamentModalJoinCode" class="auth-email-input" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="A7K9Q" />
             <button class="btn btn--ghost" type="submit">Join room</button>
           </form>
