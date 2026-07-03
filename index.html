@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-8" />
+    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-9" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -24,6 +24,7 @@
             <span class="profile-chip-label">Profile</span>
             <span class="profile-chip-count" id="profileChipCount">0/36</span>
           </button>
+          <button class="start-help-btn" id="start-guide" type="button" aria-label="How to play" title="How to play">?</button>
         </div>
         <button id="startMuteBtn" class="hud-btn mute-btn start-mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
           <svg class="mute-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -62,6 +63,9 @@
             <button id="start-run" class="entry-btn" type="button">
               Enter Run
             </button>
+            <button id="start-tournament" class="btn btn--ghost start-lobby-btn" type="button">
+              Join Lobby
+            </button>
           </div>
           <div class="start-actions start-actions--secondary">
             <button id="start-collection" class="btn btn--ghost" type="button">
@@ -72,12 +76,6 @@
             </button>
             <button id="start-leaderboard" class="btn btn--ghost" type="button">
               Leaderboard
-            </button>
-            <button id="start-tournament" class="btn btn--ghost" type="button">
-              Join Lobby
-            </button>
-            <button id="start-guide" class="btn btn--ghost" type="button">
-              Guide
             </button>
           </div>
         </div>
@@ -516,12 +514,6 @@
         </button>
         <button class="mobile-nav-btn" type="button" data-mobile-nav="leaderboard" aria-label="Leaderboard">
           <span>Rank</span>
-        </button>
-        <button class="mobile-nav-btn" type="button" data-mobile-nav="tournament" aria-label="Tournament lobby">
-          <span>Lobby</span>
-        </button>
-        <button class="mobile-nav-btn" type="button" data-mobile-nav="guide" aria-label="Guide">
-          <span>Guide</span>
         </button>
       </nav>
     </div>

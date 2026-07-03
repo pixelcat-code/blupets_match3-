@@ -1032,6 +1032,29 @@ button {
   color: #2f80ff;
 }
 
+/* Compact "How to play" help affordance tucked under the profile chip. */
+.start-help-btn {
+  align-self: flex-end;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-frost);
+  color: var(--ink-soft);
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(40, 92, 150, 0.12);
+}
+
+.start-help-btn:hover {
+  color: var(--ink);
+}
+
 .entry-hero {
   position: relative;
   --start-art-lift: -25px;
@@ -1414,11 +1437,18 @@ h2 {
   justify-items: center;
 }
 
+/* Secondary CTA stacked under Enter Run — full-width to match the pill above. */
+.start-actions--primary .start-lobby-btn {
+  width: 100%;
+  min-height: 46px;
+  font-weight: 900;
+}
+
 .start-screen.has-meta-popup .start-actions--primary {
   display: none;
 }
 
-/* Secondary row under Enter Run: Guide + Leaderboard share the width evenly. */
+/* Secondary desktop nav row: Collection · Quests · Leaderboard share the width. */
 .start-actions--secondary {
   position: fixed;
   left: max(16px, env(safe-area-inset-left, 0px));
@@ -1429,7 +1459,7 @@ h2 {
   max-width: none;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 4px;
   border: 0;
@@ -5452,7 +5482,7 @@ body.mobile-perf-mode .modal-card {
   right: 0;
   z-index: 90;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 4px;
   height: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
