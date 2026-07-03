@@ -626,6 +626,7 @@ async function startTournamentAttempt() {
     if (app.tournamentChannel) {
       const u = app.authState.user;
       presenceTrack(app.tournamentChannel, {
+        id: u?.id || "",
         name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
         avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
         state: "playing",
@@ -1042,15 +1043,27 @@ async function openTournamentRoom(code) {
         },
         onEntry: () => { refreshTournamentLeaderboard().catch(() => {}); },
         onPresenceSync: (state) => {
-          app.tournamentPresence = Object.values(state || {})
-            .flat()
-            .map((m) => ({ name: m.name, avatar: m.avatar, state: m.state }));
+          // Everyone shares the room-code presence key, so metas arrive in one
+          // array — collapse to one row per user (id, falling back to name), and
+          // keep the most-progressed state so a stale lobby meta can't duplicate
+          // a user who is already playing/finished.
+          const rank = { finished: 3, playing: 2, lobby: 1 };
+          const byUser = new Map();
+          for (const m of Object.values(state || {}).flat()) {
+            const key = m.id || m.name || "?";
+            const prev = byUser.get(key);
+            if (!prev || (rank[m.state] || 0) > (rank[prev.state] || 0)) {
+              byUser.set(key, { name: m.name, avatar: m.avatar, state: m.state });
+            }
+          }
+          app.tournamentPresence = [...byUser.values()];
           renderTournamentPlayers();
         },
       });
       app.tournamentChannel = channel;
       const u = app.authState.user;
       presenceTrack(channel, {
+        id: u?.id || "",
         name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
         avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
         state: "lobby",

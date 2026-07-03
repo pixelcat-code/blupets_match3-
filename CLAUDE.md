@@ -95,7 +95,7 @@ stale files. The discipline:
 
 Current versions (bump on change):
 - `styles.css` → `?v=20260704-tournament-design-4`
-- `src/main.js` → `?v=20260703-brand-ui-38`
+- `src/main.js` → `?v=20260703-brand-ui-39`
 - `auth-config.js` → `?v=20260617-2`
 - `sync.js` import in `main.js` → `?v=20260703-tournament-realtime-2`
 - `auth.js` import in `main.js` → `?v=20260629-signin-guard-1`
