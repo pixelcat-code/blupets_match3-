@@ -99,6 +99,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const runId = String(body.runId ?? "");
+    const abandoned = body.abandoned === true;
     if (!runId) return json({ error: "missing_run_id" }, 400, cors);
 
     const { result, error: validationError } = validateResult(body.result);
@@ -128,7 +129,7 @@ Deno.serve(async (req) => {
 
     const room = Array.isArray(run.tournament_rooms) ? run.tournament_rooms[0] : run.tournament_rooms;
     if (!room) return json({ error: "room_not_found" }, 404, cors);
-    if (Date.now() > new Date(room.ends_at).getTime() + SUBMIT_GRACE_MS) {
+    if (room.ends_at && Date.now() > new Date(room.ends_at).getTime() + SUBMIT_GRACE_MS) {
       return json({ error: "room_ended" }, 422, cors);
     }
     if (Date.now() - new Date(run.created_at).getTime() < MIN_RUN_DURATION_MS) {
@@ -137,7 +138,8 @@ Deno.serve(async (req) => {
 
     const replay = replayRun(Number(run.seed) >>> 0, body.actions, tournamentOptions(room) as any);
     const replayedResult = getReplayResultSummary(replay.state);
-    if (!replayedResult?.complete) return json({ error: "run_not_complete" }, 422, cors);
+    if (!replayedResult) return json({ error: "run_not_complete" }, 422, cors);
+    if (!abandoned && !replayedResult.complete) return json({ error: "run_not_complete" }, 422, cors);
     if (!sameResult(result, replayedResult)) return json({ error: "replay_mismatch" }, 422, cors);
 
     const entry = {
@@ -151,7 +153,7 @@ Deno.serve(async (req) => {
       t4_partner: result.partnerColorId,
       t4_form_key: result.formKey,
       vibe: result.vibe,
-      validation_mode: "replay_verified",
+      validation_mode: abandoned ? "replay_verified_partial" : "replay_verified",
     };
 
     const { data: claimedRun, error: claimError } = await supabase
