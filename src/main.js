@@ -4303,6 +4303,8 @@ elements.mobileNav?.addEventListener("click", (e) => {
   const target = btn.dataset.mobileNav;
   if (target === "start") {
     goToStart();
+  } else if (target === "tournament") {
+    openTournamentModal();
   } else {
     openMetaSection(target === "leaderboard" ? "rank" : target, app.currentScreen);
   }

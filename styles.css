@@ -5452,7 +5452,7 @@ body.mobile-perf-mode .modal-card {
   right: 0;
   z-index: 90;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: center;
   gap: 4px;
   height: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
