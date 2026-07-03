@@ -152,7 +152,6 @@ export const elements = {
   tournamentTabJoin: document.querySelector("#tournamentTabJoin"),
   tournamentModalCreateForm: document.querySelector("#tournamentModalCreateForm"),
   tournamentModalCreateTitle: document.querySelector("#tournamentModalCreateTitle"),
-  tournamentModalCreateDuration: document.querySelector("#tournamentModalCreateDuration"),
   tournamentModalJoinForm: document.querySelector("#tournamentModalJoinForm"),
   tournamentModalJoinCode: document.querySelector("#tournamentModalJoinCode"),
   tournamentRoomCode: document.querySelector("#tournamentRoomCode"),

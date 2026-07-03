@@ -80,7 +80,7 @@ import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-pop
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260629-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
-import { elements } from "./ui/dom.js?v=20260704-1";
+import { elements } from "./ui/dom.js?v=20260704-2";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260629-2";
 import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260629-2";
@@ -1128,7 +1128,7 @@ async function handleModalCreate(event) {
   try {
     const data = await createTournamentRoom({
       title: elements.tournamentModalCreateTitle?.value,
-      durationMinutes: elements.tournamentModalCreateDuration?.value,
+      durationMinutes: 15,
     });
     const room = data.room ?? data;
     closeTournamentModal();
