@@ -72,6 +72,9 @@ import {
   syncCollectionSnapshot,
   syncProgressSnapshot,
   submitTrustedRun,
+  subscribeTournamentRoom,
+  unsubscribeTournamentRoom,
+  presenceTrack,
 } from "./sync.js?v=20260703-tournament-local-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
@@ -620,6 +623,14 @@ async function startTournamentAttempt() {
     ]);
     runProof = proof;
     app.tournamentRunProof = proof;
+    if (app.tournamentChannel) {
+      const u = app.authState.user;
+      presenceTrack(app.tournamentChannel, {
+        name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
+        avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
+        state: "playing",
+      });
+    }
     const rules = proof.rules && typeof proof.rules === "object" ? proof.rules : {};
     runRng = createSeededRng(proof.seed);
     app.state = createInitialState({
@@ -815,6 +826,8 @@ function formatTimeLeft(endValue) {
 }
 
 function stopTournamentPolling() {
+  unsubscribeTournamentRoom().catch(() => {});
+  app.tournamentChannel = null;
   stopTournamentCountdownTicker();
   if (tournamentPollTimer) {
     clearInterval(tournamentPollTimer);
@@ -1042,6 +1055,31 @@ async function openTournamentRoom(code) {
     app.tournamentStatus = "ready";
     startTournamentPolling();
     startTournamentCountdownTicker();
+    try {
+      const channel = await subscribeTournamentRoom(normalized, app.tournamentRoom.id, {
+        onRoom: (row) => {
+          app.tournamentRoom = { ...app.tournamentRoom, ...row };
+          renderTournamentRoom();
+        },
+        onEntry: () => { refreshTournamentLeaderboard().catch(() => {}); },
+        onPresenceSync: (state) => {
+          app.tournamentPresence = Object.values(state || {})
+            .flat()
+            .map((m) => ({ name: m.name, avatar: m.avatar, state: m.state }));
+          renderTournamentPlayers();
+        },
+      });
+      app.tournamentChannel = channel;
+      const u = app.authState.user;
+      presenceTrack(channel, {
+        name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
+        avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
+        state: "lobby",
+      });
+    } catch (error) {
+      console.error("[tournament] realtime subscribe failed:", error);
+      // Poll fallback (startTournamentPolling) keeps the room usable.
+    }
     render();
   } catch (error) {
     console.error("[tournament] room load failed:", error);
