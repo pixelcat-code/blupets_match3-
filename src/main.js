@@ -1324,7 +1324,13 @@ function spawnSaraiHeartPopup(message, complete = false) {
   const shellRect = _cachedShellRect ?? shell.getBoundingClientRect();
   const boardRect = _cachedBoardRect ?? board.getBoundingClientRect();
   const fixedToViewport = isMobilePopupLayout();
-  const mobilePos = fixedToViewport ? getMobileFxTopCenter() : null;
+  const saraiMobilePos = fixedToViewport && boardRect.width && boardRect.height
+    ? {
+      x: boardRect.left + boardRect.width / 2,
+      y: boardRect.top + Math.max(56, Math.min(boardRect.height * 0.18, 76)),
+    }
+    : null;
+  const mobilePos = fixedToViewport ? saraiMobilePos ?? getMobileFxTopCenter() : null;
   const x = mobilePos?.x ?? (boardRect.width
     ? (boardRect.left - shellRect.left) + boardRect.width / 2
     : shellRect.width / 2);
@@ -1333,7 +1339,7 @@ function spawnSaraiHeartPopup(message, complete = false) {
     : shellRect.height / 2);
 
   const el = document.createElement("div");
-  el.className = `fx-sarai-heart${complete ? " is-complete" : ""}`;
+  el.className = `fx-sarai-heart${complete ? " is-complete" : ""}${fixedToViewport ? " is-mobile" : ""}`;
   if (fixedToViewport) {
     el.style.position = "fixed";
     el.style.zIndex = "260";
