@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260704-tournament-design-4" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -350,6 +350,7 @@
             </button>
             <span id="tournamentTitle" class="tournament-kicker">Tournament</span>
             <p id="tournamentStatusText" class="tournament-status"></p>
+            <button id="tournamentCopyBtn" class="btn btn--ghost tournament-copy-btn" type="button" hidden>Copy invite</button>
           </header>
 
           <div class="tournament-room" id="tournamentRoomPanel" hidden>
@@ -358,14 +359,7 @@
                 <h3 id="tournamentRoomTitle"></h3>
                 <span class="tournament-status-badge" id="tournamentRoomCountdown"></span>
               </div>
-              <div class="tournament-room-metarow">
-                <p class="tournament-room-code">Room <strong id="tournamentRoomCode"></strong></p>
-                <button id="tournamentCopyBtn" class="btn btn--ghost" type="button">Copy invite</button>
-              </div>
             </div>
-
-            <div class="tournament-vibe-card" id="tournamentVibeCard"></div>
-            <ul class="tournament-rules" id="tournamentRules"></ul>
 
             <div class="tournament-room-body">
               <section class="tournament-players-panel">
@@ -548,6 +542,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260703-brand-ui-37"></script>
+    <script type="module" src="./src/main.js?v=20260703-brand-ui-38"></script>
   </body>
 </html>

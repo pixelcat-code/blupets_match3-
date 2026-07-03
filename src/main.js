@@ -932,13 +932,12 @@ function renderTournamentRoom() {
   }
   if (!elements.tournamentRoomPanel) return;
   elements.tournamentRoomPanel.hidden = !room;
+  // Copy invite lives in the always-visible header now, so toggle it with the room.
+  if (elements.tournamentCopyBtn) elements.tournamentCopyBtn.hidden = !room;
   if (!room) return;
 
   if (elements.tournamentRoomTitle) elements.tournamentRoomTitle.textContent = room.title || "Tournament Room";
-  if (elements.tournamentRoomCode) elements.tournamentRoomCode.textContent = room.code || "";
 
-  renderTournamentVibe(room);
-  renderTournamentRules(room);
   renderTournamentPlayers();
   renderTournamentCountdown();
 
@@ -967,26 +966,6 @@ function renderTournamentRoom() {
       !started ? "Waiting for host…" :
       app.tournamentStatus === "starting" ? "Starting…" : "Start Attempt";
   }
-}
-
-function renderTournamentVibe(room) {
-  if (!elements.tournamentVibeCard) return;
-  const vibe = getVibeById(room.vibe_id) ?? { label: "Neutral", blurb: "No bonuses." };
-  elements.tournamentVibeCard.innerHTML =
-    `<strong>Vibe · ${escapeHtml(vibe.label)}</strong>` +
-    `<div class="tournament-vibe-blurb">${escapeHtml(vibe.blurb || "No bonuses.")}</div>`;
-}
-
-function renderTournamentRules(room) {
-  if (!elements.tournamentRules) return;
-  const rules = room.rules && typeof room.rules === "object" ? room.rules : {};
-  const chips = [
-    "1 attempt",
-    rules.endlessRun !== false ? "Endless run" : "Fixed run",
-    rules.specialTiles !== false ? "Special tiles" : "No specials",
-    "No boosters",
-  ];
-  elements.tournamentRules.innerHTML = chips.map((c) => `<li>${escapeHtml(c)}</li>`).join("");
 }
 
 function renderTournamentPlayers() {
