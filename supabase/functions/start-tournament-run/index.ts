@@ -28,17 +28,35 @@ Deno.serve(async (req) => {
 
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
-      .select("id, code, title, status, starts_at, ends_at, seed, vibe_id, rules")
+      .select("id, code, title, status, started_at, ends_at, seed, vibe_id, rules")
       .eq("code", code)
       .single();
     if (roomError || !room) return json({ error: "room_not_found" }, 404, cors);
 
     const now = Date.now();
-    if (room.status !== "live" || now < new Date(room.starts_at).getTime()) {
+    if (room.status !== "live" || !room.started_at) {
       return json({ error: "room_not_live" }, 422, cors);
     }
-    if (now > new Date(room.ends_at).getTime()) {
+    if (room.ends_at && now > new Date(room.ends_at).getTime()) {
       return json({ error: "room_ended" }, 422, cors);
+    }
+
+    const ROOM_CAP = 50;
+    const { count: runCount, error: capError } = await supabase
+      .from("tournament_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("room_id", room.id);
+    if (capError) throw capError;
+    if ((runCount ?? 0) >= ROOM_CAP) {
+      // Existing competitors may still (re)claim their own run row; only block
+      // brand-new entrants once the room is full.
+      const { data: existing } = await supabase
+        .from("tournament_runs")
+        .select("id")
+        .eq("room_id", room.id)
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (!existing) return json({ error: "room_full" }, 409, cors);
     }
 
     const { data: run, error: runError } = await supabase
