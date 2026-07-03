@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260703-tournament-room-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260703-tournament-realtime-1" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -130,6 +130,30 @@
           </div>
         </div>
       </section>
+
+      <div class="tournament-modal" id="tournamentModal" hidden aria-modal="true" role="dialog" aria-label="Tournament room">
+        <div class="tournament-modal-backdrop" id="tournamentModalBackdrop"></div>
+        <div class="tournament-modal-card">
+          <button id="tournamentModalClose" class="icon-btn tournament-modal-close" type="button" aria-label="Close">✕</button>
+          <h2>Tournament Room</h2>
+          <form class="tournament-modal-form" id="tournamentModalCreateForm">
+            <h3>Create a room</h3>
+            <input id="tournamentModalCreateTitle" class="auth-email-input" type="text" maxlength="60" placeholder="Discord Cup" />
+            <select id="tournamentModalCreateDuration" class="auth-email-input">
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+            <button class="btn btn--primary" type="submit">Create room</button>
+          </form>
+          <div class="tournament-modal-divider"><span>or</span></div>
+          <form class="tournament-modal-form" id="tournamentModalJoinForm">
+            <h3>Join with a code</h3>
+            <input id="tournamentModalJoinCode" class="auth-email-input" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="A7K9Q" />
+            <button class="btn btn--ghost" type="submit">Join room</button>
+          </form>
+        </div>
+      </div>
 
       <section class="screen game-screen" id="gameScreen" hidden>
         <div class="game-frame">
@@ -327,44 +351,37 @@
             </div>
           </header>
 
-          <div class="tournament-grid">
-            <section class="tournament-panel">
-              <h3>Join by code</h3>
-              <form class="tournament-form" id="tournamentJoinForm">
-                <input id="tournamentCodeInput" class="auth-email-input" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="A7K9Q" />
-                <button id="tournamentJoinBtn" class="btn btn--primary" type="submit">Join</button>
-              </form>
-            </section>
-
-            <section class="tournament-panel">
-              <h3>Create room</h3>
-              <form class="tournament-form" id="tournamentCreateForm">
-                <input id="tournamentCreateTitle" class="auth-email-input" type="text" maxlength="60" placeholder="Discord Cup" />
-                <select id="tournamentCreateDuration" class="auth-email-input">
-                  <option value="15">15 minutes</option>
-                  <option value="30" selected>30 minutes</option>
-                  <option value="60">60 minutes</option>
-                  <option value="180">3 hours</option>
-                  <option value="1440">24 hours</option>
-                </select>
-                <button id="tournamentCreateBtn" class="btn btn--ghost" type="submit">Create</button>
-              </form>
-            </section>
-          </div>
-
-          <section class="tournament-room-panel" id="tournamentRoomPanel" hidden>
+          <div class="tournament-room" id="tournamentRoomPanel" hidden>
             <div class="tournament-room-head">
               <div>
                 <h3 id="tournamentRoomTitle"></h3>
-                <p id="tournamentRoomMeta"></p>
+                <p class="tournament-room-code">Room <strong id="tournamentRoomCode"></strong></p>
               </div>
               <div class="tournament-room-actions">
+                <span class="tournament-countdown" id="tournamentRoomCountdown"></span>
                 <button id="tournamentCopyBtn" class="btn btn--ghost" type="button">Copy invite</button>
-                <button id="tournamentStartBtn" class="btn btn--primary" type="button">Start Attempt</button>
               </div>
             </div>
-            <div id="tournamentLeaderboard" class="tournament-leaderboard" aria-live="polite"></div>
-          </section>
+
+            <div class="tournament-vibe-card" id="tournamentVibeCard"></div>
+            <ul class="tournament-rules" id="tournamentRules"></ul>
+
+            <div class="tournament-room-body">
+              <section class="tournament-players-panel">
+                <h4>Players</h4>
+                <ul class="tournament-players" id="tournamentPlayers" aria-live="polite"></ul>
+              </section>
+              <section class="tournament-board-panel">
+                <h4>Leaderboard</h4>
+                <div id="tournamentLeaderboard" class="tournament-leaderboard" aria-live="polite"></div>
+              </section>
+            </div>
+
+            <div class="tournament-room-cta">
+              <button id="tournamentHostStartBtn" class="btn btn--primary" type="button" hidden>Start Tournament</button>
+              <button id="tournamentStartBtn" class="btn btn--primary" type="button">Start Attempt</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -530,6 +547,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260703-tournament-local-1"></script>
+    <script type="module" src="./src/main.js?v=20260703-tournament-realtime-1"></script>
   </body>
 </html>
