@@ -94,10 +94,10 @@ stale files. The discipline:
   `index.html`, +1 each commit.
 
 Current versions (bump on change):
-- `styles.css` → `?v=20260629-start-loading-1`
-- `src/main.js` → `?v=20260629-brand-ui-35`
+- `styles.css` → `?v=20260703-tournament-realtime-1`
+- `src/main.js` → `?v=20260703-brand-ui-36`
 - `auth-config.js` → `?v=20260617-2`
-- `sync.js` import in `main.js` → `?v=20260629-guest-replay-1`
+- `sync.js` import in `main.js` → `?v=20260703-tournament-realtime-1`
 - `auth.js` import in `main.js` → `?v=20260629-signin-guard-1`
 
 ## Layout rules
