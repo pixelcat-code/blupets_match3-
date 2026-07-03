@@ -608,6 +608,7 @@ async function startTournamentAttempt() {
   gameoverRevealResult = null;
   gameoverRevealBatch = [];
   runProof = null;
+  _tournamentAbandonSent = false;
   app.tournamentRunProof = null;
 
   try {
@@ -1114,6 +1115,7 @@ async function copyTournamentInvite() {
 
 function backToTournamentRoom() {
   const code = app.tournamentRoom?.code;
+  submitTournamentAbandon();
   if (!code) {
     goToStart();
     return;
@@ -1281,6 +1283,7 @@ function isMobileViewport() {
 }
 
 function goToStart() {
+  submitTournamentAbandon();
   stopTutorialRun();
   stopTournamentPolling();
   closeMetaOverlay();
@@ -1546,6 +1549,50 @@ function submitTournamentResult(stateLike, formMeta = null) {
     });
 }
 
+let _tournamentAbandonSent = false;
+
+// Leaving an in-progress tournament run records the score reached so far.
+// Runs through the same replay-verified path (abandoned:true skips the
+// "complete" gate). Guarded so a normal finish + a later exit don't double-submit.
+function buildTournamentResultFromState(stateLike) {
+  if (!stateLike) return null;
+  const best = getBestRunForm(stateLike);
+  const colorId = best.colorId ?? getLeaderColorId(stateLike) ?? "blue";
+  return {
+    score: stateLike.score,
+    movesUsed: stateLike.movesUsed ?? 0,
+    formKey: best.formKey ?? "RUN_COMPLETE",
+    formName: best.formName ?? best.name ?? "Run Complete",
+    colorId,
+    partnerColorId: best.partnerColorId ?? colorId,
+    vibe: stateLike.vibe?.id ?? null,
+  };
+}
+
+function isTournamentRunInProgress() {
+  return Boolean(
+    runProof?.tournament && app.tournamentRunProof &&
+    app.state && !app.state.victory && !app.state.gameOver &&
+    Number(app.state.score) > 0,
+  );
+}
+
+async function submitTournamentAbandon() {
+  if (_tournamentAbandonSent) return;
+  if (!isTournamentRunInProgress()) return;
+  _tournamentAbandonSent = true;
+  const proof = runProof;
+  const result = buildTournamentResultFromState(app.state);
+  if (!result || !(Number(result.score) > 0)) return;
+  try {
+    await submitTournamentRun(proof.runId, result, proof.actions, { abandoned: true });
+  } catch (error) {
+    console.error("[tournament] abandon submit failed:", error);
+  } finally {
+    if (runProof === proof) clearRunProof();
+    app.tournamentRunProof = null;
+  }
+}
 
 // One color reached T4 during a soft-endless run. Celebrate in place (no screen
 // change). The actual run result is recorded only when moves run out.
@@ -4412,6 +4459,40 @@ window.addEventListener("popstate", (e) => {
   setScreen(screen);
   render();
   _inPopstate = false;
+});
+
+// Leaving/closing the tab mid-run records the score reached so far (best-effort:
+// the reliable path is the in-app exits which submit via the supabase client).
+window.addEventListener("pagehide", () => {
+  if (_tournamentAbandonSent || !isTournamentRunInProgress()) return;
+  _tournamentAbandonSent = true;
+  const proof = runProof;
+  const result = buildTournamentResultFromState(app.state);
+  if (!result || !(Number(result.score) > 0)) return;
+  const cfg = getSupabaseConfig();
+  if (!cfg.configured) return;
+  let token = app.authState?.session?.access_token;
+  if (!token) {
+    try {
+      const raw = localStorage.getItem("sb-yccfnorilbisrxbwtlwv-auth-token");
+      if (raw) token = JSON.parse(raw)?.access_token;
+    } catch (_) { /* best-effort */ }
+  }
+  if (!token) return;
+  try {
+    fetch(`${cfg.supabaseUrl}/functions/v1/submit-tournament-run`, {
+      method: "POST",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: cfg.supabaseAnonKey,
+      },
+      body: JSON.stringify({ runId: proof.runId, result, actions: proof.actions, abandoned: true }),
+    }).catch(() => {});
+  } catch (error) {
+    console.error("[tournament] unload beacon failed:", error);
+  }
 });
 
 // Capture any demo-screen request BEFORE the history.replaceState below strips
