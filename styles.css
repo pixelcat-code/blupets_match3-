@@ -76,7 +76,7 @@
 .tournament-panel,
 .tournament-room-panel {
   border: 1px solid rgba(88, 127, 170, 0.22);
-  border-radius: 14px;
+  border-radius: var(--r-md);
   background: rgba(255, 255, 255, 0.72);
   padding: 14px;
 }
@@ -5695,16 +5695,28 @@ body.mobile-perf-mode .modal-card {
     bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Mobile: sound joins the top-right cluster as a round button matching the
+     "?" help button — order becomes [sound] [profile] [guide]. */
   .start-screen .hud-btn.start-mute-btn {
-    --hud-h: 48px;
-    width: 88px;
-    left: calc(16px + env(safe-area-inset-left, 0px));
-    top: calc(22px + env(safe-area-inset-top, 0px));
+    position: static;
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 1px solid var(--hairline);
+    background: var(--surface-frost);
+    box-shadow: 0 8px 18px rgba(40, 92, 150, 0.12);
+    color: var(--ink-soft);
   }
 
   .start-screen .start-topright {
     right: calc(16px + env(safe-area-inset-right, 0px));
     top: calc(22px + env(safe-area-inset-top, 0px));
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .start-screen .start-help-btn {
+    align-self: center;
   }
 
   .start-screen .profile-chip {
@@ -9191,6 +9203,7 @@ button,
   }
 
   .start-screen .hud-btn.start-mute-btn {
+    position: fixed;
     left: clamp(24px, 3dvh, 36px);
     top: clamp(18px, 2.2dvh, 26px);
     bottom: auto;
