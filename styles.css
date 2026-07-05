@@ -253,7 +253,7 @@
   max-width: min(28vw, 220px);
   padding: 8px 12px;
   border: 1.5px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(229, 249, 255, 0.84)) padding-box,
     var(--holo-border) border-box;
@@ -660,7 +660,7 @@ button {
   /* Holographic iridescent edge — the signature DNA, now on every hero card
      (was a plain navy hairline; the rainbow only lived on modals/buttons). */
   border: 1.5px solid transparent;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-card);
   box-shadow: var(--color-shadow);
   backdrop-filter: blur(20px);
 }
@@ -750,7 +750,7 @@ button {
   height: 100%;
   padding: 26px 24px 22px;
   border: 1.5px solid transparent;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-card);
   box-shadow: var(--color-shadow);
   display: grid;
   justify-items: center;
@@ -826,7 +826,7 @@ button {
   justify-items: center;
   gap: 12px;
   padding: 22px 22px 20px;
-  border-radius: 26px;
+  border-radius: var(--r-card);
   border: 1px solid rgba(255, 255, 255, 0.7);
   background:
     radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.5) 46%, rgba(255, 255, 255, 0.32) 100%);
@@ -1025,7 +1025,7 @@ button {
   position: absolute;
   left: calc(14px + env(safe-area-inset-left, 0px));
   top: calc(14px + env(safe-area-inset-top, 0px));
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   z-index: 20;
   border: 2px solid #2f80ff;
   background:
@@ -1041,7 +1041,7 @@ button {
   align-self: flex-end;
   width: 38px;
   height: 38px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--hairline);
   background: var(--surface-frost);
   color: var(--ink-soft);
@@ -1293,7 +1293,7 @@ h2 {
   min-height: 72px;
   padding: 0 42px;
   border: 2px solid rgba(255, 255, 255, 0.92);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     linear-gradient(110deg, rgba(255, 255, 255, 0.98), rgba(232, 250, 255, 0.9), rgba(255, 245, 188, 0.86) 48%, rgba(255, 224, 250, 0.86) 68%, rgba(235, 249, 255, 0.9)) padding-box,
     linear-gradient(100deg, #5ce8ff, #fff0a8, #ff9be8, #6fcfff, #5ce8ff) border-box;
@@ -1378,7 +1378,7 @@ h2 {
   min-height: 42px;
   padding: 8px 18px;
   border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(225, 245, 255, 0.78));
   box-shadow:
@@ -1467,7 +1467,7 @@ h2 {
   gap: 8px;
   padding: 4px;
   border: 0;
-  border-radius: 18px;
+  border-radius: var(--r-md);
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
@@ -1518,7 +1518,7 @@ h2 {
 }
 
 .btn {
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   padding: 12px 18px;
   font-weight: 800;
   cursor: pointer;
@@ -1653,7 +1653,7 @@ h2 {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 18px;
+  border-radius: var(--r-md);
   border: 1px solid rgba(255, 255, 255, 0.9);
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7) 60%),
@@ -1733,7 +1733,7 @@ h2 {
 .stat-pill {
   position: relative;
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: var(--r-md);
   padding: 8px 12px;
   text-align: center;
   height: var(--hud-h);
@@ -1947,7 +1947,7 @@ h2 {
   display: none;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid rgba(255, 255, 255, 0.72);
   background: color-mix(in srgb, var(--ring-color, var(--color-accent)) 54%, #173555);
   color: #fff;
@@ -2030,7 +2030,7 @@ body.mobile-perf-mode .modal-card {
   place-items: center;
   overflow: hidden;
   padding: 6px;
-  border-radius: 30px;
+  border-radius: var(--r-card);
   /* Board uses the existing light sky-blue token (--acc-cyan-deep, #68d8ff) —
      a "голубой" field in the page-background family. It's the lightest blue
      project shade that stays reasonably distinct from the tiles (the cyan tile
@@ -2113,7 +2113,7 @@ body.mobile-perf-mode .modal-card {
   position: relative;
   aspect-ratio: 1;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   cursor: grab;
   background: transparent;
@@ -2145,7 +2145,7 @@ body.mobile-perf-mode .modal-card {
 .tile--empty::before,
 .tile--empty::after {
   inset: 7px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
 }
 
 .tile--empty::before {
@@ -2169,7 +2169,7 @@ body.mobile-perf-mode .modal-card {
   content: "";
   position: absolute;
   inset: 5px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   background: none;
   box-shadow: none;
   z-index: 0;
@@ -2181,7 +2181,7 @@ body.mobile-perf-mode .modal-card {
   content: "";
   position: absolute;
   inset: 5px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   border: 1px solid transparent;
   opacity: 0;
   z-index: 1;
@@ -2434,7 +2434,7 @@ body.mobile-perf-mode .modal-card {
   top: -18%;
   width: 3px;
   height: 136%;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     linear-gradient(180deg, transparent 0%, rgba(255, 68, 88, 0.08) 8%, #ff3346 33%, #ff3346 67%, rgba(255, 68, 88, 0.08) 92%, transparent 100%);
   box-shadow:
@@ -2448,7 +2448,7 @@ body.mobile-perf-mode .modal-card {
   top: 50%;
   width: 136%;
   height: 3px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     linear-gradient(90deg, transparent 0%, rgba(255, 68, 88, 0.08) 8%, #ff3346 33%, #ff3346 67%, rgba(255, 68, 88, 0.08) 92%, transparent 100%);
   box-shadow:
@@ -2580,7 +2580,7 @@ body.mobile-perf-mode .modal-card {
   place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   overflow: hidden;
   background: linear-gradient(180deg, #ffffff, #eef5ff);
   box-shadow:
@@ -2680,7 +2680,7 @@ body.mobile-perf-mode .modal-card {
   display: grid;
   place-items: center;
   padding: 24px 22px 22px;
-  border-radius: 30px;
+  border-radius: var(--r-card);
   border: 1.5px solid transparent;
   background:
     radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.14) 42%, transparent 62%),
@@ -3952,7 +3952,7 @@ body.mobile-perf-mode .modal-card {
   .global-meta-nav {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
-    border-radius: 18px;
+    border-radius: var(--r-md);
   }
 
   .global-meta-nav .meta-nav-btn {
@@ -4079,7 +4079,7 @@ body.mobile-perf-mode .modal-card {
 
   .leaderboard-tabs-host {
     margin-top: 10px;
-    border-radius: 12px;
+    border-radius: var(--r-sm);
   }
 }
 
@@ -4178,7 +4178,7 @@ body.mobile-perf-mode .modal-card {
 
 .coach-next {
   padding: 10px 22px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   font-size: 0.95rem;
   cursor: pointer;
 }
@@ -4330,7 +4330,7 @@ body.mobile-perf-mode .modal-card {
   top: 0;
   width: calc(var(--fx-cell, 48px) * 0.9);
   aspect-ratio: 1;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 13%, color-mix(in srgb, currentColor 74%, white) 14% 34%, transparent 35%),
     radial-gradient(circle, color-mix(in srgb, currentColor 52%, transparent) 0 48%, transparent 70%);
@@ -4355,7 +4355,7 @@ body.mobile-perf-mode .modal-card {
   top: 0;
   width: calc(var(--fx-cell, 48px) * 1.22);
   aspect-ratio: 1;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.96) 0 13%, rgba(255, 240, 152, 0.88) 14% 30%, rgba(255, 54, 78, 0.66) 31% 50%, transparent 51%),
     radial-gradient(circle, rgba(255, 255, 255, 0.45) 0 24%, transparent 25% 68%);
@@ -4371,7 +4371,7 @@ body.mobile-perf-mode .modal-card {
   position: absolute;
   left: 0;
   top: 0;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95) 44%, color-mix(in srgb, currentColor 72%, white) 50%, rgba(255, 255, 255, 0.88) 56%, transparent);
   box-shadow:
@@ -4435,7 +4435,7 @@ body.mobile-perf-mode .modal-card {
   max-width: min(88vw, 560px);
   padding: 8px 16px 9px 10px;
   border: 2px solid rgba(255, 205, 215, 0.94);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     linear-gradient(135deg, rgba(255, 248, 250, 0.98), rgba(255, 224, 232, 0.92)),
     radial-gradient(circle at 22% 30%, rgba(255, 255, 255, 0.9), transparent 42%);
@@ -4712,7 +4712,7 @@ body.mobile-perf-mode .modal-card {
   min-width: 170px;
   height: 58px;
   padding: 0 14px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--color-border);
   background: var(--color-surface-strong);
   color: var(--color-text);
@@ -4762,7 +4762,7 @@ body.mobile-perf-mode .modal-card {
   gap: 8px;
   width: 100%;
   padding: 10px;
-  border-radius: 18px;
+  border-radius: var(--r-md);
   border: 1px solid rgba(255, 255, 255, 0.58);
   background: rgba(255, 255, 255, 0.62);
   box-shadow:
@@ -4870,7 +4870,7 @@ body.mobile-perf-mode .modal-card {
   gap: 9px;
   min-height: 46px;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid rgba(255, 255, 255, 0.9);
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.72) 60%),
@@ -4945,7 +4945,7 @@ body.mobile-perf-mode .modal-card {
   gap: 9px;
   min-height: 42px;
   padding: 4px 8px 4px 4px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgba(255, 255, 255, 0.76);
 }
 
@@ -5135,7 +5135,7 @@ body.mobile-perf-mode .modal-card {
 .auth-error {
   margin: 0;
   padding: 8px 14px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   background: rgba(224, 79, 79, 0.1);
   border: 1px solid rgba(224, 79, 79, 0.25);
   color: #c0392b;
@@ -5360,7 +5360,7 @@ body.mobile-perf-mode .modal-card {
   min-width: 0;
   min-height: 30px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid rgba(0, 0, 0, 0.18);
   background: rgba(255, 255, 255, 0.9);
   color: var(--color-text);
@@ -5379,7 +5379,7 @@ body.mobile-perf-mode .modal-card {
   min-height: 30px;
   padding: 4px 10px;
   font-size: 12px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
 }
 
 .profile-status {
@@ -5547,7 +5547,7 @@ body.mobile-perf-mode .modal-card {
   bottom: 3px;
   width: 24px;
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgba(47, 102, 136, 0.34);
   box-shadow:
     0 0 12px rgba(255, 255, 255, 0.32),
@@ -5705,7 +5705,7 @@ body.mobile-perf-mode .modal-card {
     position: static;
     width: 38px;
     height: 38px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     border: 1px solid var(--hairline);
     background: var(--surface-frost);
     box-shadow: 0 8px 18px rgba(40, 92, 150, 0.12);
@@ -5782,7 +5782,7 @@ body.mobile-perf-mode .modal-card {
 
 .global-meta-nav .meta-nav-btn {
   min-height: 44px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   font-size: 10px;
 }
 
@@ -5985,7 +5985,7 @@ body.mobile-perf-mode .modal-card {
 .guide-hero-glow {
   position: absolute;
   inset: 13px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.96), transparent 38%),
     radial-gradient(circle, rgba(92, 232, 255, 0.48), transparent 70%);
@@ -6129,7 +6129,7 @@ body.mobile-perf-mode .modal-card {
   bottom: -18px;
   width: 72px;
   height: 72px;
-  border-radius: 18px;
+  border-radius: var(--r-md);
   background:
     conic-gradient(from 90deg, rgba(47, 83, 121, 0.1) 90deg, rgba(28, 52, 83, 0.1) 0 180deg, rgba(47, 83, 121, 0.1) 0 270deg, rgba(28, 52, 83, 0.1) 0) 0 0 / 18px 18px,
     rgba(92, 173, 255, 0.1);
@@ -6198,7 +6198,7 @@ body.mobile-perf-mode .modal-card {
   top: 0.55em;
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: linear-gradient(135deg, #5ce8ff, #ffe048);
   box-shadow: 0 0 8px rgba(92, 232, 255, 0.4);
 }
@@ -6210,7 +6210,7 @@ body.mobile-perf-mode .modal-card {
   gap: 12px;
   padding: 13px 15px;
   border: 1.5px solid rgba(255, 224, 72, 0.58);
-  border-radius: 18px;
+  border-radius: var(--r-md);
   background:
     radial-gradient(circle at 12% 50%, rgba(255, 224, 72, 0.32), transparent 30%),
     linear-gradient(180deg, rgba(255, 248, 190, 0.34), rgba(255, 255, 255, 0.46));
@@ -6225,7 +6225,7 @@ body.mobile-perf-mode .modal-card {
   height: 48px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: radial-gradient(circle, rgba(255, 248, 168, 0.9), rgba(255, 224, 72, 0.25) 58%, transparent 70%);
   box-shadow: 0 0 18px rgba(255, 224, 72, 0.38);
 }
@@ -6726,7 +6726,7 @@ body.mobile-perf-mode .modal-card {
   min-height: 0;
   overflow: hidden;
   padding: 8px;
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--hairline);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12)),
@@ -6794,7 +6794,7 @@ body.mobile-perf-mode .modal-card {
   top: 3px;
   right: 3px;
   padding: 1px 5px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   font-size: 10px;
   font-weight: 800;
   line-height: 1.3;
@@ -6837,7 +6837,7 @@ body.mobile-perf-mode .modal-card {
   margin: -6px -6px 8px;
   padding: 4px;
   border: 1px solid rgba(92, 173, 255, 0.14);
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   background: rgba(247, 252, 255, 0.7);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(12px);
@@ -6919,7 +6919,7 @@ body.mobile-perf-mode .modal-card {
   min-height: 96px;
   padding: 14px 18px;
   border: 1px solid rgba(53, 102, 132, 0.12);
-  border-radius: 18px;
+  border-radius: var(--r-md);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34)),
     var(--color-surface-strong);
@@ -6969,7 +6969,7 @@ body.mobile-perf-mode .modal-card {
   min-width: 0;
   padding: 10px 8px;
   border: 1px solid rgba(53, 102, 132, 0.12);
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.54);
   text-align: center;
 }
@@ -7300,7 +7300,7 @@ body.mobile-perf-mode .modal-card {
   min-height: 54px;
   padding: 8px 11px;
   border: 1px solid rgba(65, 104, 150, 0.12);
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.32));
   box-shadow:
@@ -7321,7 +7321,7 @@ body.mobile-perf-mode .modal-card {
   place-items: center;
   position: relative;
   border: 1px solid rgba(255, 224, 72, 0.42);
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   color: var(--color-text);
   background:
     radial-gradient(circle at 50% 34%, rgba(255, 248, 168, 0.62), transparent 58%),
@@ -7347,7 +7347,7 @@ body.mobile-perf-mode .modal-card {
   display: grid;
   place-items: center;
   padding: 0 4px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 1px solid rgba(255, 255, 255, 0.92);
   background: linear-gradient(180deg, #fff7a8, #ffe048);
   color: #0e2035;
@@ -7418,7 +7418,7 @@ body.mobile-perf-mode .modal-card {
 .quest-progress {
   height: 6px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgba(65, 104, 150, 0.11);
 }
 .quest-progress-fill {
@@ -7477,7 +7477,7 @@ body.mobile-perf-mode .modal-card {
   display: grid;
   place-items: center;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: rgba(14, 32, 53, 0.06);
   color: var(--color-text);
   font-size: 22px;
@@ -7636,7 +7636,7 @@ body.mobile-perf-mode .modal-card {
   height: 50px;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: radial-gradient(circle, rgba(255, 248, 168, 0.88), rgba(255, 224, 72, 0.24) 58%, transparent 70%);
   box-shadow: 0 0 18px rgba(255, 224, 72, 0.48);
 }
@@ -7753,7 +7753,7 @@ body.mobile-perf-mode .modal-card {
   position: absolute;
   width: 92px;
   height: 36px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: radial-gradient(circle, rgba(92, 232, 255, 0.48), transparent 68%);
   filter: blur(10px);
   transform: translateY(16px);
@@ -7781,7 +7781,7 @@ body.mobile-perf-mode .modal-card {
   inset: 4px 50%;
   z-index: -1;
   width: 148px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     radial-gradient(circle, var(--reveal-glow), transparent 64%),
     radial-gradient(circle, rgba(255, 255, 255, 0.8), transparent 42%);
@@ -7799,7 +7799,7 @@ body.mobile-perf-mode .modal-card {
   width: min(168px, 100%);
   padding: 9px 10px 10px;
   border: 2px solid color-mix(in srgb, var(--reveal-glow) 76%, white);
-  border-radius: 12px;
+  border-radius: var(--r-sm);
   background:
     radial-gradient(circle at 50% 8%, rgba(255, 255, 255, 0.72), transparent 54%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(238, 250, 255, 0.72));
@@ -7867,7 +7867,7 @@ body.mobile-perf-mode .modal-card {
   top: 50%;
   width: 5px;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--reveal-glow);
   opacity: 0;
   box-shadow: 0 0 10px var(--reveal-glow);
@@ -7905,7 +7905,7 @@ body.mobile-perf-mode .modal-card {
   position: absolute;
   width: 150px;
   height: 70px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.95), transparent 42%),
     radial-gradient(circle, var(--reveal-glow), transparent 70%);
@@ -7928,7 +7928,7 @@ body.mobile-perf-mode .modal-card {
   z-index: 2;
   width: 78px;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: #fff8a8;
   box-shadow:
     0 0 0 2px rgba(17, 80, 160, 0.18),
@@ -8002,7 +8002,7 @@ body.mobile-perf-mode .modal-card {
   position: absolute;
   left: 50%;
   top: 50%;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   pointer-events: none;
   transform: translate(-50%, -50%) scale(0.2);
 }
@@ -8080,7 +8080,7 @@ body.mobile-perf-mode .modal-card {
 .capsule-reveal-burst {
   position: absolute;
   inset: 16%;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   pointer-events: none;
 }
 .capsule-reveal-aura {
@@ -8138,7 +8138,7 @@ body.mobile-perf-mode .modal-card {
   top: 45%;
   width: min(94vw, 720px);
   height: min(54dvh, 460px);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   transform: translate(-50%, -50%);
   background:
     radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.72), transparent 20%),
@@ -8228,7 +8228,7 @@ body.mobile-perf-mode .modal-card {
   top: 46%;
   width: min(62vmin, 520px);
   aspect-ratio: 1;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 2px solid rgba(255, 255, 255, 0.18);
   transform: translate(-50%, -50%);
   box-shadow:
@@ -8254,7 +8254,7 @@ body.mobile-perf-mode .modal-card {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.16), transparent 56%),
     rgba(255, 255, 255, 0.04);
@@ -8285,7 +8285,7 @@ body.mobile-perf-mode .modal-card {
   min-width: 108px;
   min-height: 36px;
   padding: 0 18px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   border: 2px solid rgba(92, 173, 255, 0.44);
   color: #5cadff;
   background: rgba(255, 255, 255, 0.76);
@@ -8356,7 +8356,7 @@ body.mobile-perf-mode .modal-card {
   top: 48px;
   width: 108px;
   height: 108px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   transform: translateX(-50%);
   background:
     radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.92), transparent 0 24%, transparent 58%),
@@ -8391,7 +8391,7 @@ body.mobile-perf-mode .modal-card {
   width: 96px;
   height: 18px;
   align-self: start;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background:
     radial-gradient(ellipse at 50% 46%, rgba(255, 255, 255, 0.94), rgba(220, 247, 255, 0.62) 42%, transparent 70%),
     radial-gradient(ellipse at 50% 50%, var(--prize-glow), transparent 68%);
@@ -8421,7 +8421,7 @@ body.mobile-perf-mode .modal-card {
   align-self: start;
   min-height: 22px;
   padding: 5px 9px 4px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   color: #ffffff;
   background: var(--prize-accent);
   box-shadow:
@@ -8694,7 +8694,7 @@ body.mobile-perf-mode .modal-card {
 .gameover-score-wrap {
   width: min(100%, 360px);
   padding: 12px 22px 13px;
-  border-radius: 18px;
+  border-radius: var(--r-md);
 }
 
 .gameover-score {
@@ -9084,7 +9084,7 @@ button,
     gap: 12px;
     max-width: 380px;
     padding: 24px 30px 26px;
-    border-radius: var(--radius-lg, 30px);
+    border-radius: var(--r-card);
     background: var(--color-surface-strong, rgba(255, 255, 255, 0.98));
     border: 1px solid rgba(255, 255, 255, 0.9);
     box-shadow:
@@ -9518,7 +9518,7 @@ button,
     --hud-h: 58px;
     width: 108px;
     height: var(--hud-h);
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     border: 2px solid #2f80ff;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(238, 245, 255, 0.96));
     box-shadow:
@@ -9547,7 +9547,7 @@ button,
 
   .vibe-strip,
   .status-line {
-    border-radius: 18px;
+    border-radius: var(--r-md);
   }
 
   .vibe-strip {
@@ -9558,7 +9558,7 @@ button,
   .vibe-strip-badge {
     width: clamp(38px, 5.2dvh, 58px);
     height: clamp(38px, 5.2dvh, 58px);
-    border-radius: 12px;
+    border-radius: var(--r-sm);
   }
 
   .vibe-strip-text {
