@@ -8,9 +8,10 @@
 import { app } from "./store.js?v=20260629-5";
 import { elements } from "./dom.js?v=20260629-1";
 import { escapeHtml, safeImgSrc } from "./dom-safety.js?v=20260629-1";
-import { renderMetaNav } from "./render-meta.js?v=20260629-2";
+import { renderMetaNav } from "./render-meta.js?v=20260705-globalnav-1";
 import { getColor } from "../game.js?v=20260622-gameplay-20";
 import { TOTAL_INVENTORY_FORMS } from "../progress.js?v=20260628-guest-gating-1";
+import { renderTabHero } from "./render-tab-hero.js?v=20260705-3";
 
 // Defensive color lookup for persisted leaderboard entries: a legacy or partial
 // record (missing/renamed color field) must not crash the whole list render.
@@ -18,7 +19,7 @@ function colorLabel(id) {
   return getColor(id)?.label ?? "Unknown";
 }
 
-export function renderLeaderboardContent({ tabsHost, content }) {
+export function renderLeaderboardContent({ tabsHost, content, back = false }) {
   if (!content) return;
   const entries = app.remoteLeaderboard;
 
@@ -100,6 +101,7 @@ export function renderLeaderboardContent({ tabsHost, content }) {
 
   if (tabsHost) {
     tabsHost.innerHTML = `
+      ${renderTabHero("leaderboard", { back })}
       <div class="leaderboard-tabs" role="tablist" aria-label="Leaderboard category">
         ${tab("score", "Score")}
         ${tab("blupets", "Blupets")}
@@ -108,13 +110,9 @@ export function renderLeaderboardContent({ tabsHost, content }) {
   }
 
   const activeRows = app.leaderboardTab === "blupets" ? sortByBlupets : sortByScore;
-  const activeLabel = app.leaderboardTab === "blupets" ? "Blupets" : "Score";
 
   content.innerHTML = `
     <section class="leaderboard-column leaderboard-column--active" data-col="${app.leaderboardTab}">
-      <div class="leaderboard-column-head">
-        <h3>${activeLabel}</h3>
-      </div>
       <div class="leaderboard-list">
         ${renderRows(activeRows)}
       </div>
@@ -130,5 +128,6 @@ export function renderLeaderboard() {
   renderLeaderboardContent({
     tabsHost: elements.leaderboardTabsHost,
     content: elements.leaderboardContent,
+    back: true,
   });
 }

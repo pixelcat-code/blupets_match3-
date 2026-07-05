@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260705-blukit-canon-7" />
+    <link rel="stylesheet" href="./styles.css?v=20260705-blukit-canon-30" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -342,14 +342,23 @@
 
       <section class="screen tournament-screen" id="tournamentScreen" hidden>
         <div class="leaderboard-card tournament-card">
-          <header class="leaderboard-head tournament-head">
-            <button id="tournamentBackBtn" class="icon-btn" type="button" title="Back" aria-label="Back">
-              ←
-            </button>
-            <span id="tournamentTitle" class="tournament-kicker">Tournament</span>
-            <p id="tournamentStatusText" class="tournament-status"></p>
-            <button id="tournamentCopyBtn" class="btn btn--ghost tournament-copy-btn" type="button" hidden>Copy invite</button>
-          </header>
+          <section class="tab-hero hero-lobby">
+            <button id="tournamentBackBtn" class="tab-hero-back" type="button" title="Back" aria-label="Back">←</button>
+            <button id="tournamentCopyBtn" class="btn btn--ghost tab-hero-action tournament-copy-btn" type="button" hidden>Copy invite</button>
+            <div class="tab-hero-art" aria-hidden="true">
+              <span class="tab-hero-glow"></span>
+              <div class="versus">
+                <img class="pet v-left" src="./assets/evolution/heat/t2/00-fire.svg" alt="" />
+                <span class="vs"><b>VS</b></span>
+                <img class="pet v-right" src="./assets/evolution/frost/t2/00-ice.svg" alt="" />
+              </div>
+            </div>
+            <div class="tab-hero-copy">
+              <strong>Enter the lobby</strong>
+              <span>Go head-to-head in a live tournament.</span>
+            </div>
+          </section>
+          <p id="tournamentStatusText" class="tournament-status"></p>
 
           <div class="tournament-room" id="tournamentRoomPanel" hidden>
             <div class="tournament-room-head">
@@ -537,6 +546,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260703-brand-ui-42"></script>
+    <script type="module" src="./src/main.js?v=20260703-brand-ui-52"></script>
   </body>
 </html>

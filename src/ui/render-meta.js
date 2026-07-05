@@ -29,6 +29,30 @@ export function renderMetaNav(host, active) {
   }).join("");
 }
 
+// Desktop-only sweeping top navbar (blupix-style). Same routing ids as the
+// in-card meta-nav, plus a "Lobby" entry that opens the tournament modal. Kept
+// separate from META_NAV_ITEMS so adding Lobby here doesn't leak it into the
+// in-card strips.
+export const GLOBAL_NAV_ITEMS = Object.freeze([
+  ["collection", "Collection"],
+  ["quests", "Quests"],
+  ["rank", "Leaderboard"],
+  ["guide", "Guide"],
+  ["tournament", "Lobby"],
+]);
+
+export function renderGlobalNav(host, active) {
+  if (!host) return;
+  const normalized = active === "public-profile" ? "rank" : active;
+  host.innerHTML = GLOBAL_NAV_ITEMS.map(([id, label]) => {
+    const current = id === normalized;
+    return `
+      <button class="meta-nav-btn${current ? " is-active" : ""}" type="button" data-meta-nav="${id}" aria-current="${current ? "page" : "false"}">
+        <span>${escapeHtml(label)}</span>
+      </button>`;
+  }).join("");
+}
+
 export function metaTitle(section) {
   return {
     account: "Profile",

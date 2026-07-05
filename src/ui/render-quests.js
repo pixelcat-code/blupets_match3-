@@ -19,6 +19,7 @@ import {
   questSentenceText,
 } from "./quest-logic.js?v=20260629-1";
 import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-2";
+import { renderTabHero } from "./render-tab-hero.js?v=20260705-3";
 
 const QUEST_TYPES = [
   ["collection", "Collection", ["collection"]],
@@ -110,7 +111,7 @@ function renderQuestRow(quest) {
     </div>`;
 }
 
-export function renderQuestsSection() {
+export function renderQuestsSection({ back = false, inlineStats = false } = {}) {
   const badges = getQuestBadges().map((badge, index) => ({ ...badge, order: index }));
   const active = normalizeQuestTab(app.questTab);
   app.questTab = active;
@@ -122,14 +123,11 @@ export function renderQuestsSection() {
       questDifficultyTarget(a) - questDifficultyTarget(b) ||
       a.order - b.order,
     );
-  const unlocked = quests.filter(questIsComplete).length;
   return `
     <div class="quests-section">
+      ${renderTabHero("quests", { back })}
+      ${inlineStats ? renderQuestStatsHeader() : ""}
       ${renderQuestTabs(badges)}
-      <div class="quest-list-head">
-        <h3>${escapeHtml(QUEST_TYPE_LABEL[active])}</h3>
-        <span>${unlocked}/${quests.length}</span>
-      </div>
       <div class="quest-list">
         ${quests.map(renderQuestRow).join("")}
       </div>
@@ -138,13 +136,5 @@ export function renderQuestsSection() {
 
 export function renderQuestStatsHeader() {
   const { done, total } = questCompletionSummary();
-  const stat = (label, value) =>
-    `<div class="lifetime-stat"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`;
-  return `
-    <div class="lifetime-stats">
-      ${stat("Done", `${done}/${total}`)}
-      ${stat("Reveals", String(Math.max(0, Math.floor(Number(app.progress.capsules) || 0))))}
-    </div>
-    ${renderCollectionProgress(done, total, "Quest Progress", "Quests completed")}
-  `;
+  return renderCollectionProgress(done, total, "Quest Progress", "Quests completed");
 }

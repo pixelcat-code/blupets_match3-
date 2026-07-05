@@ -16,6 +16,7 @@ import {
   SHARDS_PER_CAPSULE,
 } from "../progress.js?v=20260628-guest-gating-1";
 import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-2";
+import { renderTabHero } from "./render-tab-hero.js?v=20260705-3";
 
 function renderCollectionCard(entry, { apex = false } = {}) {
   const apexKey = apex ? entry.key : getAscendedKeyByFormKey(entry.key) ?? entry.key;
@@ -96,7 +97,7 @@ function renderCollectionCapsuleShelf() {
 // Tier-grouped own-profile collection grid: capsule shelf + progress bar + one
 // section per collection tier. Distinct from renderOwnBlupetsCollection (the
 // flatter public/own gallery); this is the detailed in-profile view.
-export function renderCollectionGrid() {
+export function renderCollectionGrid({ back = false } = {}) {
   const entries = getCollectionTileEntries(app.progress);
   const card = (entry) => {
     const apexKey = getAscendedKeyByFormKey(entry.key) ?? entry.key;
@@ -127,6 +128,7 @@ export function renderCollectionGrid() {
   }).join("");
   return `
     <div class="collection-tiers">
+      ${renderTabHero("collection", { back })}
       ${renderCollectionCapsuleShelf()}
       ${renderCollectionProgress(collectionTileCount(app.progress), TOTAL_INVENTORY_FORMS, "Blupets", "Blupets opened")}
       ${sections}

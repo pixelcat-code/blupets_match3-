@@ -60,11 +60,12 @@
 }
 
 .tournament-status {
-  margin: 4px 0 0;
+  margin: 10px 0 0;
   color: #5c6d7d;
   font-weight: 700;
   font-size: 13px;
 }
+.tournament-status:empty { display: none; }
 
 .tournament-grid {
   display: grid;
@@ -1057,6 +1058,43 @@ button {
 
 .start-help-btn:hover {
   filter: saturate(1.08) brightness(1.02);
+}
+
+/* Mobile start-screen top cluster: shrink the sound / help / profile buttons
+   ~30% and lock them to one shared height (40px) so they read as a matched set.
+   Scoped to mobile; desktop keeps the base 58px sizing. */
+@media (max-width: 699px) {
+  .hud-btn.start-mute-btn {
+    --hud-h: 40px;
+    width: 76px;
+    box-shadow:
+      0 0 0 3px rgba(47, 128, 255, 0.12),
+      0 10px 20px rgba(48, 98, 168, 0.16);
+  }
+  .start-mute-btn .mute-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .start-help-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+    box-shadow:
+      0 0 0 3px rgba(47, 128, 255, 0.12),
+      0 8px 16px rgba(48, 98, 168, 0.16);
+  }
+  .profile-chip {
+    height: 40px;
+    padding: 0 10px 0 8px;
+    gap: 5px;
+  }
+  .profile-chip .profile-chip-icon {
+    width: 1.7rem;
+    height: 1.7rem;
+  }
+  .profile-chip-label {
+    font-size: 12px;
+  }
 }
 
 .entry-hero {
@@ -5490,7 +5528,10 @@ body.mobile-perf-mode .modal-card {
   gap: 4px;
   height: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
   padding: 8px max(10px, env(safe-area-inset-left, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-right, 0px));
-  background: transparent;
+  /* Solid white scrim that fades in at the top, so labels always sit on white
+     and page content (e.g. the profile blupets grid) never bleeds through —
+     matches the collection tab bar on every screen. */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.9) 32%, #ffffff 58%);
   border: 0;
   box-shadow: none;
   backdrop-filter: none;
@@ -5913,10 +5954,10 @@ body.mobile-perf-mode .modal-card {
 
 .guide-hero {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 16px;
+  gap: 30px;
   min-height: 132px;
   padding: 16px 18px;
   border: 1.5px solid rgba(92, 232, 255, 0.32);
@@ -5950,8 +5991,9 @@ body.mobile-perf-mode .modal-card {
 .guide-hero-art {
   position: relative;
   z-index: 1;
-  width: 104px;
-  height: 104px;
+  flex: none;
+  width: 170px;
+  height: 132px;
   display: grid;
   place-items: center;
 }
@@ -5970,8 +6012,8 @@ body.mobile-perf-mode .modal-card {
 .guide-hero-capsule {
   position: relative;
   z-index: 2;
-  width: 58px;
-  height: 58px;
+  width: 84px;
+  height: 84px;
   image-rendering: pixelated;
   filter: drop-shadow(0 12px 14px rgba(7, 59, 135, 0.22));
   animation: guide-float 3.2s ease-in-out infinite;
@@ -5980,8 +6022,8 @@ body.mobile-perf-mode .modal-card {
 .guide-hero-block {
   position: absolute;
   z-index: 1;
-  width: 34px;
-  height: 34px;
+  width: 50px;
+  height: 50px;
   image-rendering: pixelated;
   opacity: 0.82;
   filter: drop-shadow(0 8px 10px rgba(7, 59, 135, 0.16));
@@ -6009,6 +6051,10 @@ body.mobile-perf-mode .modal-card {
   position: relative;
   z-index: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
 }
 
 .guide-hero-copy strong,
@@ -6025,11 +6071,11 @@ body.mobile-perf-mode .modal-card {
 
 .guide-hero-copy span {
   margin-top: 7px;
-  max-width: 560px;
+  max-width: 340px;
   color: var(--color-text-soft);
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 850;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .guide-match-panel {
@@ -6241,14 +6287,530 @@ body.mobile-perf-mode .modal-card {
 }
 
 @media (max-width: 720px) {
-  .guide-hero {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    text-align: center;
-  }
+  .guide-hero { gap: 16px; }
 
   .guide-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Compact stacked hero, matching the tab-hero: small centered scene + title,
+     subtitle dropped so the header stays short. */
+  .guide-hero {
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .guide-hero-copy {
+    align-items: center;
+    text-align: center;
+  }
+  .guide-hero-copy strong { font-size: 1.3rem; }
+  .guide-hero-copy span { display: none; }
+  .guide-hero-art {
+    transform: scale(0.75);
+    transform-origin: center;
+    margin: -18px 0;
+  }
+}
+
+/* ---- shared tab hero banners (render-tab-hero.js) — clone of .guide-hero ---- */
+.tab-hero {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 30px;
+  margin-bottom: 14px;
+  padding: 16px 18px;
+  border: 1.5px solid rgba(92, 232, 255, 0.32);
+  border-radius: 20px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 248, 168, 0.34), transparent 30%),
+    radial-gradient(circle at 82% 18%, rgba(196, 151, 255, 0.22), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(234, 250, 255, 0.55));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 16px 36px rgba(20, 70, 120, 0.1);
+}
+
+/* Back button lives inside the hero (top-left) on the leaderboard/quests
+   screens; the old header bars that used to hold it are hidden below. */
+.tab-hero-back {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1.5px solid rgba(92, 232, 255, 0.45);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--color-text);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(20, 70, 120, 0.14);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.tab-hero-back:hover { background: #fff; }
+.tab-hero-back:active { transform: scale(0.92); }
+
+/* Top-right action inside a hero (e.g. lobby "Copy invite"). */
+.tab-hero-action {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+}
+
+@media (max-width: 520px) {
+  /* Lobby: shrink the "Copy invite" button and drop the VS scene below the
+     back/copy button row so nothing overlaps. */
+  .hero-lobby .tournament-copy-btn {
+    padding: 7px 12px;
+    font-size: 12px;
+    min-height: 32px;
+    border-radius: var(--r-pill);
+  }
+  .hero-lobby .tab-hero-art {
+    margin: 16px 0 -18px;
+  }
+}
+
+/* Hero now carries the title + back button, so drop the old header rows. */
+.leaderboard-screen .leaderboard-head { display: none; }
+#collectionScreen .mobile-screen-head,
+#questsScreen .mobile-screen-head,
+#guideScreen .mobile-screen-head { display: none; }
+/* Desktop meta-popup: hero carries title + back button, so drop the popup header
+   for the hero-bearing sections (account/public-profile keep theirs). */
+.meta-popup[data-section="rank"] .meta-popup-head,
+.meta-popup[data-section="quests"] .meta-popup-head,
+.meta-popup[data-section="guide"] .meta-popup-head,
+.meta-popup[data-section="account"] .meta-popup-head,
+.meta-popup[data-section="collection"] .meta-popup-head { display: none; }
+
+/* Account: back + Sign out now live inside the identity card (both desktop
+   popup and mobile screen), so the separate header row is redundant. */
+.profile-screen[data-section="account"] .profile-summary { display: none; }
+
+/* Mobile: the fixed bottom nav (Home / Collect / Quests / Rank) is present on
+   every tab screen, so the per-screen back button is redundant — remove it.
+   Scoped to ≤699px so desktop (which has no bottom nav) keeps every back
+   button. Deliberately NOT applied to the tournament room or the ✕/Continue
+   modals: those screens have no bottom nav, so their back would strand the user. */
+@media (max-width: 699px) {
+  #collectionScreen .tab-hero-back,
+  #questsScreen .tab-hero-back,
+  #guideScreen .tab-hero-back,
+  #leaderboardScreen .tab-hero-back,
+  #profileScreen .profile-back,
+  #profileScreen .account-back,
+  #publicProfileScreen .profile-back {
+    display: none;
+  }
+}
+
+.tab-hero::before {
+  content: "";
+  position: absolute;
+  inset: -60% -20%;
+  background:
+    repeating-conic-gradient(
+      from -18deg,
+      transparent 0deg 10deg,
+      rgba(92, 232, 255, 0.1) 11deg 15deg,
+      rgba(255, 255, 255, 0.24) 16deg 20deg,
+      transparent 21deg 34deg
+    );
+  opacity: 0.46;
+  pointer-events: none;
+}
+
+.tab-hero-art {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 168px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+}
+
+.hero-rank .tab-hero-art { width: 232px; height: 138px; }
+.hero-collection .tab-hero-art { width: 224px; }
+.hero-quests .tab-hero-art { width: 224px; }
+
+.tab-hero-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 58%, rgba(255, 236, 150, 0.55), transparent 58%),
+    radial-gradient(circle at 50% 40%, rgba(120, 200, 255, 0.45), transparent 62%);
+  filter: blur(10px);
+}
+
+.tab-hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+
+.tab-hero-copy strong {
+  color: var(--color-text);
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.tab-hero-copy span {
+  color: var(--color-text-soft);
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  max-width: 320px;
+}
+
+.tab-hero .pet {
+  image-rendering: pixelated;
+  display: block;
+  filter: drop-shadow(0 4px 5px rgba(20, 60, 110, 0.22));
+}
+
+/* ---- 1. LEADERBOARD: blupets stand on a real 3-step podium ---- */
+.tab-hero .podium {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 138px;
+}
+.tab-hero .col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+.tab-hero .col .pet { margin-bottom: 4px; }
+.tab-hero .col--1 .pet { width: 76px; height: 76px; }
+.tab-hero .col--2 .pet { width: 58px; height: 58px; }
+.tab-hero .col--3 .pet { width: 54px; height: 54px; }
+.tab-hero .block {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 7px 7px 3px 3px;
+  box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.5), 0 6px 12px rgba(20, 60, 110, 0.18);
+}
+.tab-hero .rank {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(90, 60, 10, 0.4);
+}
+.tab-hero .col--1 .block {
+  width: 62px;
+  height: 58px;
+  background: linear-gradient(180deg, #ffe07a, #f4a723);
+}
+.tab-hero .col--2 .block {
+  width: 56px;
+  height: 42px;
+  background: linear-gradient(180deg, #e2edf6, #9fb4c6);
+}
+.tab-hero .col--3 .block {
+  width: 54px;
+  height: 32px;
+  background: linear-gradient(180deg, #eeb877, #c07a34);
+}
+.tab-hero .crown {
+  position: absolute;
+  top: -15px;
+  width: 26px;
+  height: 15px;
+  background: linear-gradient(180deg, #ffd75e, #f4a723);
+  clip-path: polygon(0% 100%, 0% 28%, 25% 58%, 50% 0%, 75% 58%, 100% 28%, 100% 100%);
+  filter: drop-shadow(0 2px 3px rgba(180, 120, 10, 0.4));
+}
+
+/* ---- 2. COLLECTION: blupets as framed paintings ---- */
+.tab-hero .gallery {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding-top: 14px;
+}
+.tab-hero .rail {
+  position: absolute;
+  top: 6px;
+  left: -6px;
+  right: -6px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(53, 102, 132, 0.4), transparent);
+}
+.tab-hero .frame {
+  margin: 0;
+  position: relative;
+  padding: 5px;
+  border-radius: 6px;
+  background: linear-gradient(160deg, #ffe08a, #e0a83a);
+  box-shadow: 0 6px 12px rgba(90, 60, 10, 0.24), inset 0 0 0 1.5px rgba(255, 255, 255, 0.4);
+}
+.tab-hero .frame .wire {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  width: 1.5px;
+  height: 12px;
+  background: rgba(53, 102, 132, 0.5);
+  transform-origin: top;
+}
+.tab-hero .frame .mat {
+  display: grid;
+  place-items: center;
+  background: #fbf7ec;
+  border-radius: 3px;
+  padding: 6px;
+}
+.tab-hero .frame--a { transform: rotate(-3deg); margin-top: 6px; }
+.tab-hero .frame--a .wire { transform: rotate(4deg); }
+.tab-hero .frame--a .pet { width: 46px; height: 46px; }
+.tab-hero .frame--b { transform: translateY(-4px); }
+.tab-hero .frame--b .pet { width: 58px; height: 58px; }
+.tab-hero .frame--c { transform: rotate(3deg); margin-top: 6px; }
+.tab-hero .frame--c .wire { transform: rotate(-4deg); }
+.tab-hero .frame--c .pet { width: 46px; height: 46px; }
+
+/* ---- 3. QUESTS: blupet + checklist ---- */
+.tab-hero .quest-scene {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tab-hero .q-pet { width: 74px; height: 74px; }
+.tab-hero .checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(92, 173, 255, 0.3);
+  box-shadow: 0 6px 14px rgba(20, 60, 110, 0.12);
+}
+.tab-hero .q-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tab-hero .box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 2px solid rgba(53, 102, 132, 0.4);
+  background: #fff;
+  flex: none;
+  position: relative;
+}
+.tab-hero .bar {
+  width: 56px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(53, 102, 132, 0.28);
+}
+.tab-hero .bar--short { width: 38px; }
+.tab-hero .bar--mid { width: 48px; }
+.tab-hero .q-row.done .box {
+  background: var(--action, #2f80ff);
+  border-color: var(--action, #2f80ff);
+}
+.tab-hero .q-row.done .box::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(43deg);
+}
+.tab-hero .q-row.done .bar { background: rgba(53, 102, 132, 0.16); }
+
+/* ---- 4. LOBBY: versus ---- */
+.tab-hero .versus {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tab-hero .v-left { width: 74px; height: 74px; transform: rotate(6deg) translateY(2px); }
+.tab-hero .v-right { width: 74px; height: 74px; transform: rotate(-6deg) translateY(2px); }
+.tab-hero .vs {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  margin: 0 -2px;
+  z-index: 2;
+}
+.tab-hero .vs::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #ff8a3c, #ffd75e, #ff8a3c, #ffd75e, #ff8a3c);
+  clip-path: polygon(50% 0, 61% 35%, 100% 35%, 68% 57%, 79% 100%, 50% 72%, 21% 100%, 32% 57%, 0 35%, 39% 35%);
+  filter: drop-shadow(0 2px 4px rgba(200, 90, 10, 0.35));
+}
+.tab-hero .vs b {
+  position: relative;
+  font-size: 14px;
+  font-weight: 900;
+  color: #7a2f00;
+  z-index: 1;
+  letter-spacing: -0.5px;
+}
+
+/* ---- light scene animations (keeps heroes alive without being busy) ---- */
+@keyframes hero-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes hero-bob-sm {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes hero-glow-breathe {
+  0%, 100% { opacity: 0.82; transform: scale(0.98); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+@keyframes hero-twinkle {
+  0%, 100% { opacity: 0.88; transform: translateY(0) scale(1); }
+  50% { opacity: 1; transform: translateY(-2px) scale(1.08); }
+}
+@keyframes hero-vs-left {
+  0%, 100% { transform: rotate(6deg) translateY(2px); }
+  50% { transform: rotate(4deg) translateY(-2px); }
+}
+@keyframes hero-vs-right {
+  0%, 100% { transform: rotate(-6deg) translateY(2px); }
+  50% { transform: rotate(-4deg) translateY(-2px); }
+}
+@keyframes hero-vs-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.09); }
+}
+@keyframes hero-spin-slow { to { transform: rotate(360deg); } }
+@keyframes hero-bar-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* Shared glow breathes on every scene. */
+.tab-hero-glow { animation: hero-glow-breathe 3.8s ease-in-out infinite; }
+
+/* Leaderboard: pets bob on their steps, crown twinkles. */
+.tab-hero .col .pet { animation: hero-bob 3.4s ease-in-out infinite; }
+.tab-hero .col--1 .pet { animation-duration: 3s; }
+.tab-hero .col--2 .pet { animation-delay: -0.5s; }
+.tab-hero .col--3 .pet { animation-delay: -1.1s; }
+.tab-hero .crown { animation: hero-twinkle 2.6s ease-in-out infinite; }
+
+/* Collection: framed pets drift gently, staggered. */
+.tab-hero .frame .pet { animation: hero-bob-sm 3.2s ease-in-out infinite; }
+.tab-hero .frame--b .pet { animation-delay: -0.6s; }
+.tab-hero .frame--c .pet { animation-delay: -1.2s; }
+
+/* Quests: pet bobs, the in-progress bar shimmers. */
+.tab-hero .q-pet { animation: hero-bob 3.2s ease-in-out infinite; }
+.tab-hero .q-row:not(.done) .bar { animation: hero-bar-shimmer 1.9s ease-in-out infinite; }
+
+/* Lobby: fighters breathe toward each other, star pulses and slowly spins. */
+.tab-hero .v-left { animation: hero-vs-left 3.2s ease-in-out infinite; }
+.tab-hero .v-right { animation: hero-vs-right 3.2s ease-in-out infinite; }
+.tab-hero .vs { animation: hero-vs-pulse 2.4s ease-in-out infinite; }
+.tab-hero .vs::before { animation: hero-spin-slow 14s linear infinite; }
+
+/* Guide blocks float alongside the already-animated capsule. */
+.guide-hero-block--one { animation: guide-block-one 3.4s ease-in-out infinite; }
+.guide-hero-block--two { animation: guide-block-two 3.4s ease-in-out -0.7s infinite; }
+.guide-hero-block--three { animation: guide-block-three 3.4s ease-in-out -1.4s infinite; }
+@keyframes guide-block-one {
+  0%, 100% { transform: rotate(-8deg) translateY(0); }
+  50% { transform: rotate(-8deg) translateY(-3px); }
+}
+@keyframes guide-block-two {
+  0%, 100% { transform: rotate(8deg) translateY(0); }
+  50% { transform: rotate(8deg) translateY(-4px); }
+}
+@keyframes guide-block-three {
+  0%, 100% { transform: rotate(-5deg) translateY(0); }
+  50% { transform: rotate(-5deg) translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-hero-glow,
+  .tab-hero .col .pet,
+  .tab-hero .crown,
+  .tab-hero .frame .pet,
+  .tab-hero .q-pet,
+  .tab-hero .q-row .bar,
+  .tab-hero .v-left,
+  .tab-hero .v-right,
+  .tab-hero .vs,
+  .tab-hero .vs::before,
+  .guide-hero-block--one,
+  .guide-hero-block--two,
+  .guide-hero-block--three { animation: none; }
+}
+
+@media (max-width: 520px) {
+  /* Compact stacked hero on phones: a small centered scene + the title only.
+     The flavor subtitle is dropped and the scene is scaled down so the header
+     stays short instead of eating half the screen. */
+  .tab-hero {
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .tab-hero-copy {
+    align-items: center;
+    text-align: center;
+    max-width: 100%;
+  }
+  .tab-hero-copy strong { font-size: 21px; }
+  .tab-hero-copy span { display: none; }
+  .tab-hero-art {
+    transform: scale(0.75);
+    transform-origin: center;
+    margin: -18px 0; /* reclaim the vertical space freed by the scale-down */
   }
 }
 
@@ -6412,15 +6974,17 @@ body.mobile-perf-mode .modal-card {
 }
 
 @media (max-width: 520px) {
+  /* Stack on phones: full-width copy row on top, three equal buttons below.
+     This gives the title/subtitle room so they stop truncating. */
   .collection-capsule-shelf {
-    grid-template-columns: minmax(0, 1fr) max-content;
-    gap: 8px;
-    min-height: 70px;
-    padding: 10px;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    min-height: 0;
+    padding: 12px;
   }
 
   .collection-capsule-copy {
-    gap: 9px;
+    gap: 10px;
   }
 
   .collection-capsule-icon {
@@ -6432,22 +6996,24 @@ body.mobile-perf-mode .modal-card {
   .collection-capsule-copy strong,
   .collection-capsule-copy small {
     max-width: 100%;
+    white-space: normal;
   }
 
   .collection-capsule-copy small {
-    white-space: normal;
-    line-height: 1.1;
+    line-height: 1.15;
   }
 
   .collection-capsule-actions {
-    gap: 6px;
+    justify-content: stretch;
+    gap: 8px;
   }
 
   .collection-capsule-actions .capsule-btn {
-    min-width: 64px;
-    min-height: 36px;
-    padding: 7px 10px;
-    font-size: 10px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
+    padding: 9px 8px;
+    font-size: 11px;
   }
 }
 
@@ -6887,7 +7453,9 @@ body.mobile-perf-mode .modal-card {
 
 .account-profile {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* back | avatar | name | actions — back + Sign out fold into this card so
+     the redundant header row above it is hidden. */
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: 16px;
   align-items: center;
   min-height: 96px;
@@ -6909,6 +7477,62 @@ body.mobile-perf-mode .modal-card {
   object-fit: cover;
   border: 3px solid rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 22px rgba(20, 50, 74, 0.18);
+}
+
+.account-back {
+  flex-shrink: 0;
+}
+
+.account-actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Mobile (≤699px): the back button is hidden (bottom nav covers navigation),
+   so the card is a single row — avatar | name | Sign out — across the whole
+   mobile range. (Base 4-col grid above is for desktop, where back is shown.) */
+@media (max-width: 699px) {
+  .account-profile {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: none;
+    gap: 12px;
+    padding: 14px 16px;
+    min-height: 0;
+  }
+  .account-avatar {
+    width: 52px;
+    height: 52px;
+    border-width: 2px;
+  }
+  .account-profile strong {
+    font-size: 20px;
+  }
+  .account-actions .btn {
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+}
+
+/* Very narrow phones: shrink further so "avatar | name | Sign out" stays one
+   row without the username collapsing to an ellipsis. */
+@media (max-width: 400px) {
+  .account-profile {
+    gap: 9px;
+    padding: 12px;
+  }
+  .account-avatar {
+    width: 46px;
+    height: 46px;
+  }
+  .account-profile strong {
+    font-size: 17px;
+  }
+  .account-actions .btn {
+    padding: 8px 11px;
+    font-size: 12px;
+  }
 }
 
 .account-profile strong {
@@ -7172,51 +7796,67 @@ body.mobile-perf-mode .modal-card {
 }
 
 .quests-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-top: 0;
 }
+.quests-section .tab-hero,
+.quests-section .quest-type-tabs { margin-bottom: 0; }
 .quest-type-tabs {
+  /* Four even chip-cards rather than text floating in one big pill box. */
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  margin: 0 0 10px;
-  padding: 3px;
-  background: var(--surface-icy);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-pill);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
   overflow: visible;
 }
 .quest-type-tab {
   min-width: 0;
-  min-height: 34px;
-  padding: 5px 8px;
-  border: none;
-  border-radius: var(--r-pill);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 7px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 15px;
   color: var(--ink-soft);
-  background: transparent;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(233, 246, 255, 0.72));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 2px 8px rgba(20, 70, 120, 0.07);
   font: inherit;
   cursor: pointer;
   transition:
     background var(--t-fast) var(--ease-out),
     color var(--t-fast) var(--ease-out),
     border-color var(--t-fast) var(--ease-out),
-    box-shadow var(--t-fast) var(--ease-out);
+    box-shadow var(--t-fast) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+.quest-type-tab:hover:not(.is-active) {
+  border-color: rgba(92, 173, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 12px rgba(20, 70, 120, 0.12);
 }
 .quest-type-tab span,
 .quest-type-tab small {
   display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .quest-type-tab span {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.01em;
 }
 .quest-type-tab small {
-  margin-top: 2px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   color: var(--color-text-soft);
   font-variant-numeric: tabular-nums;
@@ -7225,17 +7865,19 @@ body.mobile-perf-mode .modal-card {
 @media (max-width: 520px) {
   .quest-type-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
+    gap: 8px;
   }
 
   .quest-type-tab {
-    min-height: 38px;
+    min-height: 52px;
   }
 }
 .quest-type-tab.is-active {
   color: #fff;
-  background: var(--action);
-  box-shadow: 0 2px 10px rgba(29, 111, 232, 0.38);
+  background: linear-gradient(180deg, #45a0ff, var(--action));
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(29, 111, 232, 0.4);
+  transform: translateY(-1px);
 }
 .quest-type-tab.is-active small {
   color: rgba(255, 255, 255, 0.85);
@@ -8959,8 +9601,11 @@ body.mobile-perf-mode .modal-card {
   /* Cancel the inherited .leaderboard-content margin-top — the profile grid gap
      already spaces this from the section head, so 18px+gap doubled the gap. */
   margin-top: 0;
-  /* Headroom so the gallery cards' hover lift/glow isn't clipped at the edges. */
-  padding: 6px;
+  /* Headroom so the gallery cards' hover lift/glow isn't clipped at the edges.
+     Bottom pad reserves space for the fixed mobile bottom-nav so the gallery's
+     last row scrolls clear of the bar instead of bleeding behind it — matches
+     the .mobile-screen nav clearance the other tabs already use. */
+  padding: 6px 6px calc(72px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Leaderboard: clickable user row ───────────────────────────────────── */
@@ -9185,14 +9830,187 @@ button,
     padding-bottom: clamp(116px, 14dvh, 150px);
   }
 
+  /* The "?" help entry now lives in the top navbar (Guide), so drop the floating
+     help button on desktop. */
+  .start-screen .start-help-btn {
+    display: none;
+  }
+
+  /* Sound (left) + profile (right) sink to the very bottom corners of the
+     screen, and stay lifted above the section popups (z 85 > .meta-popup z 72)
+     so windows never cover them. */
   .start-screen .start-topleft {
     left: clamp(24px, 3dvh, 36px);
-    top: clamp(18px, 2.2dvh, 26px);
+    top: auto;
+    bottom: clamp(20px, 3dvh, 34px);
+    z-index: 85;
   }
 
   .start-screen .start-topright {
     right: clamp(24px, 3dvh, 36px);
-    top: clamp(18px, 2.2dvh, 26px);
+    top: auto;
+    bottom: clamp(20px, 3dvh, 34px);
+    z-index: 85;
+  }
+
+  /* Sweeping top navbar (blupix-style, ref #35): transparent horizontal text
+     menu with an underline under the active section. Floats above the section
+     popups so it stays visible/clickable on every desktop screen. Mobile keeps
+     it hidden via the base `display:none !important`. */
+  .global-meta-nav {
+    display: flex !important;
+    position: fixed;
+    top: clamp(14px, 1.8dvh, 22px);
+  }
+
+  /* The controller sets [hidden] on the gameplay/result screens (game, victory,
+     gameover). That [hidden] must beat the display:flex !important above —
+     without this the navbar leaks over the game board. (The Lobby room keeps the
+     navbar visible so you navigate in/out of it like the section popups.) */
+  .global-meta-nav[hidden] {
+    display: none !important;
+  }
+
+  .global-meta-nav {
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform: translateX(-50%);
+    width: auto;
+    max-width: calc(100vw - 340px);
+    flex-wrap: nowrap;
+    grid-template-columns: none;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(16px, 2.2vw, 38px);
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    z-index: 86;
+  }
+
+  .global-meta-nav .meta-nav-btn {
+    position: relative;
+    width: auto;
+    min-height: 0;
+    padding: 6px 2px 10px;
+    border-radius: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: clamp(13px, 1.4vw, 16px);
+    font-weight: 900;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+  }
+
+  .global-meta-nav .meta-nav-btn span {
+    overflow: visible;
+  }
+
+  .global-meta-nav .meta-nav-btn:hover {
+    color: var(--ink);
+  }
+
+  .global-meta-nav .meta-nav-btn.is-active {
+    color: var(--ink);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .global-meta-nav .meta-nav-btn.is-active::after {
+    content: "";
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: 2px;
+    height: 3px;
+    border-radius: 3px;
+    background: #2f80ff;
+  }
+
+  /* Clear the top navbar, then let the card stretch down almost to the bottom
+     edge of the screen (no reserved mobile-nav gutter on desktop). */
+  .meta-popup {
+    padding:
+      clamp(66px, 8dvh, 94px)
+      max(12px, env(safe-area-inset-right, 0px))
+      clamp(18px, 3dvh, 40px)
+      max(12px, env(safe-area-inset-left, 0px));
+  }
+
+  .meta-popup-card {
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+  }
+
+  /* The Lobby Create/Join dialog keeps its original compact form — the base
+     .tournament-modal-card (min(420px), holographic edge) is exactly right, so
+     it takes NO desktop override. */
+
+  /* The tournament ROOM is dressed as a full modal so it reads identically to
+     the section popups (Leaderboard / Quests): it covers the shell like
+     .meta-popup (absolute inset:0 + sky scrim), clears the top navbar, and
+     centers the same card skin. The top navbar + corner buttons stay visible
+     above it (z 86 / 85 > 72) — you navigate in and out of the room through the
+     same navigation, instead of the room hiding it. */
+  .tournament-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 72;
+    width: auto;
+    height: auto;
+    max-width: none;
+    min-height: 0;
+    aspect-ratio: auto;
+    margin: 0;
+    justify-content: center;
+    align-items: center;
+    padding:
+      clamp(66px, 8dvh, 94px)
+      max(12px, env(safe-area-inset-right, 0px))
+      clamp(18px, 3dvh, 40px)
+      max(12px, env(safe-area-inset-left, 0px));
+    background: none;
+  }
+
+  /* Transparent scrim over the (still-visible) start screen — identical to
+     .meta-popup::before — so the room's backdrop is the same start-screen art
+     seen behind every other popup, not a flat fill. */
+  .tournament-screen::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.5), transparent 32%),
+      rgba(7, 95, 175, 0.12);
+    pointer-events: none;
+  }
+
+  .tournament-screen .tournament-card {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 780px);
+    max-width: 780px;
+    max-height: 100%;
+    overflow-y: auto;
+    border: 1px solid rgba(92, 173, 255, 0.2);
+    border-radius: var(--r-card);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 251, 255, 0.9));
+    box-shadow:
+      0 24px 64px rgba(17, 79, 139, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
+
+  /* The section links + Join Lobby now live in the top navbar, so drop the
+     redundant bottom start-screen buttons on desktop. Enter Run stays. */
+  .start-screen .start-actions--secondary,
+  .start-screen .start-lobby-btn {
+    display: none;
   }
 
   .profile-card {

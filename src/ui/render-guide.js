@@ -3,7 +3,10 @@
 // the start-screen meta overlay's "guide" section.
 import { escapeHtml } from "./dom-safety.js?v=20260629-1";
 
-export function renderGuideSection() {
+export function renderGuideSection({ back = false } = {}) {
+  const backBtn = back
+    ? `<button class="tab-hero-back" type="button" data-hero-back aria-label="Back">←</button>`
+    : "";
   const section = (title, icon, items) => `
     <section class="guide-section">
       <div class="guide-section-head">
@@ -24,6 +27,7 @@ export function renderGuideSection() {
   return `
     <div class="guide-panel" aria-label="Game guide">
       <section class="guide-hero">
+        ${backBtn}
         <div class="guide-hero-art" aria-hidden="true">
           <span class="guide-hero-glow"></span>
           <img class="guide-hero-capsule" src="./assets/blocks/origin.svg" alt="" />

@@ -82,15 +82,15 @@ import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
 import { elements } from "./ui/dom.js?v=20260704-2";
 import { app } from "./ui/store.js?v=20260629-5";
-import { renderMetaNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260629-2";
-import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260629-2";
+import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260705-globalnav-1";
+import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260705-3";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
-import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260629-3";
-import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260629-3";
-import { renderGuideSection } from "./ui/render-guide.js?v=20260629-1";
+import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260705-4";
+import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260705-1";
+import { renderGuideSection } from "./ui/render-guide.js?v=20260705-1";
 import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260629-1";
-import { renderAccountSection } from "./ui/render-account.js?v=20260629-3";
+import { renderAccountSection } from "./ui/render-account.js?v=20260705-2";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
@@ -108,7 +108,7 @@ import {
   renderQuestStatsHeader,
   questCompletionSummary,
   normalizeQuestTab,
-} from "./ui/render-quests.js?v=20260629-2";
+} from "./ui/render-quests.js?v=20260705-4";
 
 // Global pacing multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
@@ -429,7 +429,10 @@ function setScreen(screen) {
       stopMusic();
     }
   }
-  elements.startScreen.hidden = screen !== "start" && screen !== "gameover";
+  // Keep the start screen painted behind the Lobby room too: the room is dressed
+  // as an overlay modal (like the section popups), so its backdrop must be the
+  // same start-screen art seen everywhere, not a flat fill.
+  elements.startScreen.hidden = screen !== "start" && screen !== "gameover" && screen !== "tournament";
   elements.startScreen.classList.toggle("is-end-backdrop", screen === "gameover");
   document.body.classList.toggle("is-gameover-backdrop", screen === "gameover");
   elements.gameScreen.hidden = screen !== "game";
@@ -469,6 +472,16 @@ function setScreen(screen) {
       btn.setAttribute("aria-current", active ? "page" : "false");
       btn.setAttribute("aria-disabled", locked ? "true" : "false");
     });
+  }
+  // Desktop sweeping top navbar: shown on the non-gameplay screens AND on the
+  // Lobby room, so the room wears the same top nav as the section popups (you
+  // tab in/out of it through the same navigation). Mobile keeps it display:none
+  // via CSS regardless. On the room, "Lobby" is the active tab; elsewhere the
+  // active section is tracked by activeMetaOverlay (renderStartMetaTabs keeps it
+  // in sync when overlays open/close).
+  if (elements.globalMetaNav) {
+    elements.globalMetaNav.hidden = !(_mobileNavScreens.has(screen) || screen === "tournament");
+    renderGlobalNav(elements.globalMetaNav, screen === "tournament" ? "tournament" : activeMetaOverlay);
   }
 }
 
@@ -1186,6 +1199,10 @@ function renderStartMetaTabs(active = activeMetaOverlay) {
     elements.startRun.disabled = Boolean(active);
   }
   elements.startScreen?.classList.toggle("has-meta-popup", Boolean(active));
+  // Refresh the desktop top navbar's active underline (desktop tracks the open
+  // section via activeMetaOverlay). Visibility is owned by the screen-change
+  // block + CSS media query.
+  renderGlobalNav(elements.globalMetaNav, active);
   const map = [
     [elements.startCollection, "collection"],
     [elements.startQuests, "quests"],
@@ -1285,9 +1302,6 @@ function closeMetaOverlay() {
     elements.metaPopup.hidden = true;
     elements.metaPopup.setAttribute("aria-hidden", "true");
     delete elements.metaPopup.dataset.section;
-  }
-  if (elements.globalMetaNav) {
-    elements.globalMetaNav.hidden = true;
   }
   renderStartMetaTabs(null);
 }
@@ -3470,33 +3484,34 @@ let victoryShareData = null;
 function renderCollectionScreen() {
   if (!elements.collectionScreen || elements.collectionScreen.hidden) return;
   if (elements.collectionContent) {
-    elements.collectionContent.innerHTML = renderCollectionGrid();
+    // Back button lives inside the hero (like quests/leaderboard); the separate
+    // mobile-screen-head is hidden via CSS so we don't double up.
+    elements.collectionContent.innerHTML = renderCollectionGrid({ back: true });
   }
 }
 
 function renderQuestsScreen() {
   if (!elements.questsScreen || elements.questsScreen.hidden) return;
+  // Stats (progress bar) are folded into the section below the hero so the hero
+  // sits at the very top; the separate stats slot stays hidden on this screen.
   if (elements.questsStats) {
-    elements.questsStats.innerHTML = renderQuestStatsHeader();
-    elements.questsStats.hidden = false;
+    elements.questsStats.innerHTML = "";
+    elements.questsStats.hidden = true;
   }
   if (elements.questsContent) {
-    elements.questsContent.innerHTML = renderQuestsSection();
+    elements.questsContent.innerHTML = renderQuestsSection({ back: true, inlineStats: true });
   }
 }
 
 function renderGuideScreen() {
   if (!elements.guideScreen || elements.guideScreen.hidden) return;
   if (elements.guideContent) {
-    elements.guideContent.innerHTML = renderGuideSection();
+    elements.guideContent.innerHTML = renderGuideSection({ back: true });
   }
 }
 
 function renderMetaOverlay() {
   const section = activeMetaOverlay;
-  if (elements.globalMetaNav) {
-    elements.globalMetaNav.hidden = true;
-  }
   renderStartMetaTabs(section);
   if (!section || !elements.metaPopup || elements.metaPopup.hidden) return;
   elements.metaPopup.dataset.section = section;
@@ -3530,28 +3545,28 @@ function renderMetaOverlay() {
           app.metaPublicProfile.storedCollectionTiles ?? null,
         )
       : null;
-    elements.metaPopupStats.hidden = section !== "quests" && !publicHtml;
-    elements.metaPopupStats.innerHTML =
-      section === "quests" ? renderQuestStatsHeader() :
-      publicHtml ? publicHtml.stats :
-      "";
+    // Quest stats (progress bar) are now folded into the section below the hero
+    // so the hero sits at the very top; keep the separate slot only for public profiles.
+    elements.metaPopupStats.hidden = !publicHtml;
+    elements.metaPopupStats.innerHTML = publicHtml ? publicHtml.stats : "";
   }
   if (elements.metaPopupTabsHost) {
     elements.metaPopupTabsHost.innerHTML = "";
   }
   if (!elements.metaPopupContent) return;
   elements.metaPopupContent.innerHTML =
-    section === "quests" ? renderQuestsSection() :
+    section === "quests" ? renderQuestsSection({ back: true, inlineStats: true }) :
     section === "account" ? renderAccountSection() :
     section === "capsules" ? renderCapsulesSection() :
-    section === "guide" ? renderGuideSection() :
+    section === "guide" ? renderGuideSection({ back: true }) :
     section === "public-profile" ? renderMetaPublicProfileContent() :
     section === "rank" ? "" :
-    renderCollectionGrid();
+    renderCollectionGrid({ back: true });
   if (section === "rank") {
     renderLeaderboardContent({
       tabsHost: elements.metaPopupTabsHost,
       content: elements.metaPopupContent,
+      back: true,
     });
   }
 }
@@ -4261,6 +4276,23 @@ bindClick(elements.collectionBackBtn, () => { if (_historyDepth > 0) history.bac
 bindClick(elements.questsBackBtn, () => { if (_historyDepth > 0) history.back(); else setScreen("start"); });
 bindClick(elements.guideBackBtn, () => { if (_historyDepth > 0) history.back(); else setScreen("start"); });
 bindClick(elements.metaPopupClose, handleMetaPopupClose);
+// Back button now lives inside the tab-hero on the leaderboard/quests screens
+// (the old header bars are hidden); route its click to the same close actions.
+elements.leaderboardTabsHost?.addEventListener("click", (e) => {
+  if (e.target.closest("[data-hero-back]")) closeLeaderboard();
+});
+elements.questsContent?.addEventListener("click", (e) => {
+  if (e.target.closest("[data-hero-back]")) { if (_historyDepth > 0) history.back(); else setScreen("start"); }
+});
+elements.guideContent?.addEventListener("click", (e) => {
+  if (e.target.closest("[data-hero-back]")) { if (_historyDepth > 0) history.back(); else setScreen("start"); }
+});
+// Desktop meta-popup: the hero back button closes the popup (its own header is hidden).
+const closePopupFromHeroBack = (e) => {
+  if (e.target.closest("[data-hero-back]")) handleMetaPopupClose();
+};
+elements.metaPopupContent?.addEventListener("click", closePopupFromHeroBack);
+elements.metaPopupTabsHost?.addEventListener("click", closePopupFromHeroBack);
 // Tabs now live in their own host above the scroll container, so switching
 // categories doesn't scroll with (or get hidden by) the list of record cards.
 elements.leaderboardTabsHost?.addEventListener("click", (e) => {
@@ -4293,7 +4325,19 @@ elements.globalMetaNav?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-meta-nav]");
   if (!btn?.dataset.metaNav) return;
   sfx("ui");
-  openMetaSection(btn.dataset.metaNav, "global");
+  const target = btn.dataset.metaNav;
+  // Navigating from inside the live Lobby room: tear it down cleanly first (same
+  // path as the room's back button) so a switch never stacks a section over an
+  // active tournament.
+  if (app.currentScreen === "tournament") {
+    if (target === "tournament") return; // already in the Lobby room — no-op
+    goToStart();
+  }
+  if (target === "tournament") {
+    openTournamentModal();
+    return;
+  }
+  openMetaSection(target, "global");
 });
 elements.mobileNav?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-mobile-nav]");
@@ -4341,6 +4385,7 @@ elements.metaPopupContent?.addEventListener("click", (e) => {
   }
   const action = e.target.closest("[data-account-action]")?.dataset.accountAction;
   if (!action) return;
+  if (action === "back") handleMetaPopupClose();
   if (action === "signin") openAuthModal({ force: true });
   if (action === "signout") handleAuthLogout();
   if (action === "guide") startRun({ guided: true });
@@ -4362,6 +4407,7 @@ elements.profileContent?.addEventListener("click", handleCapsuleAction);
 elements.profileContent?.addEventListener("click", (e) => {
   const action = e.target.closest("[data-account-action]")?.dataset.accountAction;
   if (!action) return;
+  if (action === "back") closeProfile();
   if (action === "signin") openAuthModal({ force: true });
   if (action === "signout") handleAuthLogout();
   if (action === "guide") startRun({ guided: true });
