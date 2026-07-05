@@ -1,27 +1,31 @@
 @import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@500;600;700;800;900&display=swap");
 
 :root {
+  /* Legacy token names — now ALIASES of the canonical BluKit tokens (defined in
+     the second :root below). Nothing references a literal here anymore except the
+     few concepts BluKit has no equivalent for (page bg, subtle border, track).
+     New work should reference the BluKit tokens directly. */
   --color-bg: #eef5fb;
   --color-bg-soft: #f8fbfe;
-  --color-surface: rgba(255, 255, 255, 0.8);
-  --color-surface-strong: rgba(255, 255, 255, 0.98);
+  --color-surface: var(--surface-glass);
+  --color-surface-strong: var(--surface-frost);
   --color-border: rgba(17, 77, 134, 0.08);
-  --color-text: #0f2742;
-  --color-text-soft: #607e9f;
-  --color-accent: #1f7dff;
-  --color-accent-soft: rgba(31, 125, 255, 0.12);
+  --color-text: var(--ink);
+  --color-text-soft: var(--ink-faint);
+  --color-accent: var(--action);
+  --color-accent-soft: var(--action-soft);
   --color-track: rgba(15, 39, 66, 0.08);
   --color-shadow: 0 28px 64px rgba(24, 76, 126, 0.12);
-  --radius-sm: 14px;
-  --radius-md: 22px;
-  --radius-lg: 30px;
-  --ease-slow: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-card);
+  --ease-slow: var(--ease-soft);
   --ui-font: "Nunito Sans", "Nunito", system-ui, sans-serif;
 
-  /* BluKit shared palette (cyan / cream / pink) — reused by glows, bursts, auras. */
-  --accent-cyan: #5ce8ff;
-  --accent-cream: #fff0a8;
-  --accent-pink: #ff9be8;
+  /* BluKit shared palette (cyan / cream / pink) — aliases of the canonical --acc-* tokens. */
+  --accent-cyan: var(--acc-cyan);
+  --accent-cream: var(--acc-yellow);
+  --accent-pink: var(--acc-pink);
 
   /* Shared pastel "ready" fill (e.g. the rotate-lock medallion). */
   --ready-fill:
