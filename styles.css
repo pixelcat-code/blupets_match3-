@@ -5699,31 +5699,6 @@ body.mobile-perf-mode .modal-card {
     bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Mobile: sound joins the top-right cluster as a round button matching the
-     "?" help button — order becomes [sound] [profile] [guide]. */
-  .start-screen .hud-btn.start-mute-btn {
-    position: static;
-    width: 38px;
-    height: 38px;
-    border-radius: var(--r-pill);
-    border: 1px solid var(--hairline);
-    background: var(--surface-frost);
-    box-shadow: 0 8px 18px rgba(40, 92, 150, 0.12);
-    color: var(--ink-soft);
-  }
-
-  .start-screen .start-topright {
-    left: calc(16px + env(safe-area-inset-left, 0px));
-    right: calc(16px + env(safe-area-inset-right, 0px));
-    top: calc(22px + env(safe-area-inset-top, 0px));
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .start-screen .start-help-btn {
-    align-self: center;
-  }
 
   .start-screen .profile-chip {
     min-width: 132px;
@@ -9209,26 +9184,13 @@ button,
   }
 
   .start-screen .hud-btn.start-mute-btn {
-    position: static;
-    width: 38px;
-    height: 38px;
-    border-radius: var(--r-pill);
-    border: 1px solid var(--hairline);
-    background: var(--surface-frost);
-    box-shadow: 0 8px 18px rgba(40, 92, 150, 0.12);
-    color: var(--ink-soft);
+    left: clamp(24px, 3dvh, 36px);
+    top: clamp(18px, 2.2dvh, 26px);
   }
 
   .start-screen .start-topright {
     right: clamp(24px, 3dvh, 36px);
     top: clamp(18px, 2.2dvh, 26px);
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .start-screen .start-help-btn {
-    align-self: center;
   }
 
   .profile-card {
