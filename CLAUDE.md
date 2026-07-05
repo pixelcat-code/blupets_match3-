@@ -94,7 +94,7 @@ stale files. The discipline:
   `index.html`, +1 each commit.
 
 Current versions (bump on change):
-- `styles.css` → `?v=20260705-blukit-canon-2`
+- `styles.css` → `?v=20260705-blukit-canon-3`
 - `src/main.js` → `?v=20260703-brand-ui-42`
 - `auth-config.js` → `?v=20260617-2`
 - `sync.js` import in `main.js` → `?v=20260703-tournament-realtime-2`
