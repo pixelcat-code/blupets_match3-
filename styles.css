@@ -334,10 +334,11 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  padding: 4px;
+  padding: 3px;
   border: 1px solid var(--hairline);
   border-radius: var(--r-pill);
-  background: rgba(235, 248, 255, 0.9);
+  background: var(--surface-icy);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 .tournament-modal-tab {
   appearance: none;
@@ -355,9 +356,9 @@
     box-shadow 160ms var(--ease-out);
 }
 .tournament-modal-tab.is-active {
-  background: #ffffff;
-  color: var(--ink);
-  box-shadow: 0 1px 4px rgba(10, 33, 64, 0.12);
+  background: var(--action);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(29, 111, 232, 0.38);
 }
 
 .tournament-vibe-card {
@@ -1373,29 +1374,6 @@ h2 {
   pointer-events: none;
 }
 
-.tournament-entry-btn {
-  width: min(100%, 240px);
-  min-height: 42px;
-  padding: 8px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  border-radius: var(--r-pill);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(225, 245, 255, 0.78));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.8),
-    0 8px 22px rgba(24, 88, 150, 0.16);
-  color: #075faf;
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 0;
-  cursor: pointer;
-}
-
-.tournament-entry-btn:hover {
-  transform: translateY(-1px);
-}
-
-
 @keyframes entry-btn-spin {
   to {
     transform: rotate(360deg);
@@ -1611,14 +1589,21 @@ h2 {
     0 10px 22px rgba(40, 92, 150, 0.1);
 }
 
+/* Canonical round icon button (BluKit): frost surface, hairline edge,
+   ink-soft glyph. Shared look with .start-help-btn and .hud-btn; only the
+   size varies per context. */
 .icon-btn {
   width: 42px;
   height: 42px;
   border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: var(--surface-frost);
+  color: var(--ink-soft);
   display: grid;
   place-items: center;
   cursor: pointer;
   font-size: 18px;
+  box-shadow: 0 8px 18px rgba(40, 92, 150, 0.12);
 }
 
 .topbar {
@@ -1653,19 +1638,15 @@ h2 {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: var(--r-md);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7) 60%),
-    var(--color-surface-strong);
-  color: var(--color-accent);
-  font-size: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: var(--surface-frost);
+  color: var(--ink-soft);
+  font-size: 22px;
   font-weight: 800;
   line-height: 1;
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 10px 22px rgba(40, 92, 150, 0.12);
+  box-shadow: 0 8px 18px rgba(40, 92, 150, 0.12);
   transition:
     transform 320ms var(--ease-slow),
     box-shadow 320ms var(--ease-slow),
@@ -3067,41 +3048,43 @@ body.mobile-perf-mode .modal-card {
   backdrop-filter: none;
 }
 
+/* Segmented selector — canonical BluKit tab (shared look with .auth-tab and
+   .tournament-modal-tab): pill track, active = solid blue fill + white text. */
 .leaderboard-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 4px;
+  padding: 3px;
+  background: var(--surface-icy);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .leaderboard-tab {
   appearance: none;
-  min-height: 36px;
-  border: 1px solid rgba(53, 102, 132, 0.12);
-  background: rgba(255, 255, 255, 0.44);
+  min-height: 34px;
+  border: none;
+  background: transparent;
   color: var(--ink-soft);
   font: inherit;
   font-weight: 900;
   font-size: 12px;
   letter-spacing: 0.02em;
-  padding: 7px 10px;
-  border-radius: 8px;
+  padding: 6px 10px;
+  border-radius: var(--r-pill);
   cursor: pointer;
   transition:
     background var(--t-fast) var(--ease-out),
     color var(--t-fast) var(--ease-out),
-    border-color var(--t-fast) var(--ease-out),
     box-shadow var(--t-fast) var(--ease-out),
     transform var(--t-fast) var(--ease-out);
 }
 
 .leaderboard-tab.is-active {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(232, 250, 255, 0.78));
-  border-color: rgba(92, 173, 255, 0.32);
-  color: var(--ink);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    0 4px 12px rgba(20, 50, 74, 0.08);
+  background: var(--action);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(29, 111, 232, 0.38);
 }
 
 .leaderboard-column-head {
@@ -5801,7 +5784,7 @@ body.mobile-perf-mode .modal-card {
   gap: 10px;
   padding: 12px;
   border: 1px solid rgba(92, 173, 255, 0.2);
-  border-radius: 24px;
+  border-radius: var(--r-card);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 251, 255, 0.9));
   box-shadow:
@@ -9381,7 +9364,7 @@ button,
   .game-frame .topbar-left .hud-btn {
     width: 40px;
     height: 40px;
-    border-radius: 13px;
+    border-radius: 50%;
   }
 
   /* Stat cards stack vertically down the left column, reference-style. */
