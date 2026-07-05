@@ -153,6 +153,9 @@
 }
 .tournament-copy-btn { margin-left: auto; }
 .tournament-copy-btn[hidden] { display: none; }
+/* Desktop-only "Leave lobby" affordance — hidden on mobile (which keeps the
+   hero back arrow); the desktop rule below shows + positions it. */
+.tournament-leave-btn { display: none; }
 .tournament-room { display: grid; gap: 16px; }
 
 .tournament-room-head {
@@ -718,6 +721,8 @@ button {
   transform: translate(-50%, -45%) scale(0.96, 0.92);
   transform-origin: 50% 76%;
   animation: entry-rays-breathe 4.2s ease-in-out infinite;
+  /* Soften the ray edges into a glow (design pass: blur background rays). */
+  filter: blur(8px);
   mask-image: radial-gradient(ellipse at 50% 76%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
   pointer-events: none;
   z-index: 0;
@@ -783,6 +788,8 @@ button {
   transform: translate(-50%, -45%) scale(0.96, 0.92);
   transform-origin: 50% 76%;
   animation: entry-rays-breathe 4.2s ease-in-out infinite;
+  /* Soften the ray edges into a glow (design pass: blur background rays). */
+  filter: blur(8px);
   mask-image: radial-gradient(ellipse at 50% 76%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
   pointer-events: none;
 }
@@ -1016,6 +1023,8 @@ button {
   transform: translate(-50%, -45%) scale(0.96, 0.92);
   transform-origin: 50% 76%;
   animation: entry-rays-breathe 4.2s ease-in-out infinite;
+  /* Soften the ray edges into a glow (design pass: blur background rays). */
+  filter: blur(8px);
   mask-image: radial-gradient(ellipse at 50% 76%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
   pointer-events: none;
 }
@@ -2735,6 +2744,8 @@ body.mobile-perf-mode .modal-card {
   transform: translate(-50%, -45%) scale(0.96, 0.92);
   transform-origin: 50% 76%;
   animation: entry-rays-breathe 5.2s ease-in-out infinite;
+  /* Soften the ray edges into a glow (design pass: blur background rays). */
+  filter: blur(8px);
   mask-image: radial-gradient(ellipse at 50% 76%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
   pointer-events: none;
 }
@@ -5664,6 +5675,8 @@ body.mobile-perf-mode .modal-card {
   transform: translate(-50%, -45%) scale(0.96, 0.92);
   transform-origin: 50% 76%;
   animation: entry-rays-breathe 4.2s ease-in-out infinite;
+  /* Soften the ray edges into a glow (design pass: blur background rays). */
+  filter: blur(8px);
   mask-image: radial-gradient(ellipse at 50% 76%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
   pointer-events: none;
 }
@@ -5972,20 +5985,10 @@ body.mobile-perf-mode .modal-card {
     0 16px 36px rgba(20, 70, 120, 0.1);
 }
 
+/* Rays removed to match the other hero banners — only the radial glow remains. */
 .guide-hero::before {
-  content: "";
-  position: absolute;
-  inset: -60% -20%;
-  background:
-    repeating-conic-gradient(
-      from -18deg,
-      transparent 0deg 10deg,
-      rgba(92, 232, 255, 0.1) 11deg 15deg,
-      rgba(255, 255, 255, 0.24) 16deg 20deg,
-      transparent 21deg 34deg
-    );
-  opacity: 0.46;
-  pointer-events: none;
+  content: none;
+  display: none;
 }
 
 .guide-hero-art {
@@ -6418,20 +6421,11 @@ body.mobile-perf-mode .modal-card {
   }
 }
 
+/* Hero banners carry no conic sunburst of their own — the soft radial
+   .tab-hero-glow is the only in-card light. (Rays removed per design pass.) */
 .tab-hero::before {
-  content: "";
-  position: absolute;
-  inset: -60% -20%;
-  background:
-    repeating-conic-gradient(
-      from -18deg,
-      transparent 0deg 10deg,
-      rgba(92, 232, 255, 0.1) 11deg 15deg,
-      rgba(255, 255, 255, 0.24) 16deg 20deg,
-      transparent 21deg 34deg
-    );
-  opacity: 0.46;
-  pointer-events: none;
+  content: none;
+  display: none;
 }
 
 .tab-hero-art {
@@ -9824,6 +9818,26 @@ button,
     padding: clamp(24px, 3dvh, 36px);
   }
 
+  /* ── Desktop: drop the console-card frame. The body sky (var(--blupets-sky-
+     background)) is the real full-screen backdrop and already reaches every
+     edge behind .app-shell, so removing the card border/shadow/rounding — and
+     the card's own gradient fill on the sky screens — turns the app edge-to-
+     edge while the content stays centered. Mirrors the mobile treatment at
+     `@media (max-width: 699px)`. Game board keeps its own bg + ::before art. */
+  .start-card,
+  .game-frame,
+  .leaderboard-card {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .start-card,
+  .leaderboard-card {
+    background: none;
+    backdrop-filter: none;
+  }
+
   .start-screen .start-card {
     grid-template-rows: minmax(0, 1fr) auto;
     padding-top: clamp(78px, 9dvh, 110px);
@@ -9836,21 +9850,59 @@ button,
     display: none;
   }
 
-  /* Sound (left) + profile (right) sink to the very bottom corners of the
-     screen, and stay lifted above the section popups (z 85 > .meta-popup z 72)
-     so windows never cover them. */
-  .start-screen .start-topleft {
-    left: clamp(24px, 3dvh, 36px);
-    top: auto;
-    bottom: clamp(20px, 3dvh, 34px);
-    z-index: 85;
+  /* Blupix-style top bar: nav links sit at the LEFT, and the sound + profile
+     controls form the RIGHT cluster on the same top row (z 87 > .meta-popup so
+     windows never cover them). The profile pill is pinned to a fixed width so the
+     sound button can anchor a deterministic 10px gap to its left — the two are
+     independently-positioned absolute clusters, not one flex row. */
+  .start-screen .start-topright {
+    position: fixed;
+    right: clamp(24px, 3vw, 40px);
+    top: clamp(14px, 1.8dvh, 22px);
+    bottom: auto;
+    z-index: 87;
+    align-items: center;
   }
 
-  .start-screen .start-topright {
-    right: clamp(24px, 3dvh, 36px);
-    top: auto;
-    bottom: clamp(20px, 3dvh, 34px);
-    z-index: 85;
+  .start-screen .start-topleft {
+    position: fixed;
+    left: auto;
+    right: calc(clamp(24px, 3vw, 40px) + 142px);
+    top: clamp(14px, 1.8dvh, 22px);
+    bottom: auto;
+    z-index: 87;
+    align-items: center;
+  }
+
+  /* Compact circular sound icon (was a 108×58 pill) to match the blupix
+     right-cluster icon buttons. */
+  .start-screen .hud-btn.start-mute-btn {
+    --hud-h: 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .start-screen .start-mute-btn .mute-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Compact profile pill — fixed 132px width so the sound button's right-offset
+     above lands it flush to the pill's left (132 + 10px gap = 142). */
+  .start-screen .profile-chip {
+    min-width: 0;
+    width: 132px;
+    height: 44px;
+    padding: 0 14px 0 10px;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .start-screen .profile-chip .profile-chip-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .start-screen .profile-chip-label {
+    font-size: 13px;
   }
 
   /* Sweeping top navbar (blupix-style, ref #35): transparent horizontal text
@@ -9872,18 +9924,18 @@ button,
   }
 
   .global-meta-nav {
-    left: 50%;
+    left: clamp(20px, 2.4vw, 40px);
     right: auto;
     bottom: auto;
-    transform: translateX(-50%);
+    transform: none;
     width: auto;
-    max-width: calc(100vw - 340px);
+    max-width: calc(100vw - 360px);
     flex-wrap: nowrap;
     grid-template-columns: none;
     align-items: center;
-    justify-content: center;
-    gap: clamp(16px, 2.2vw, 38px);
-    padding: 6px 12px;
+    justify-content: flex-start;
+    gap: clamp(14px, 1.8vw, 30px);
+    padding: 6px 4px;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -9941,22 +9993,99 @@ button,
       max(12px, env(safe-area-inset-left, 0px));
   }
 
+  /* ── Desktop: the section "popups" are now full-screen PAGES, not a floating
+     modal card. Drop the sky scrim, the centered card frame (border/radius/
+     shadow/white fill) and the 780px cap. The body sky is the page backdrop;
+     the section content flows in a centered readable column, top-aligned below
+     the navbar, and the whole page scrolls. ─────────────────────────────── */
+  .meta-popup::before {
+    display: none;
+  }
+
+  .meta-popup {
+    place-items: start center;
+    padding:
+      clamp(72px, 9dvh, 104px)
+      max(16px, env(safe-area-inset-right, 0px))
+      clamp(24px, 4dvh, 48px)
+      max(16px, env(safe-area-inset-left, 0px));
+    overflow-y: auto;
+    pointer-events: auto;
+    /* Opaque sky so the page fully covers the still-mounted start-screen art
+       behind it — a real page, not a see-through overlay. */
+    background: var(--blupets-sky-background);
+  }
+
   .meta-popup-card {
-    height: 100%;
+    width: min(100%, 900px);
+    height: auto;
     max-height: none;
     min-height: 0;
+    grid-template-rows: auto auto auto auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .meta-popup-content {
+    overflow: visible;
+  }
+
+  /* ── Step 4 · Apple-HIG rhythm on the desktop section/lobby PAGES. An 8pt
+     vertical grid, the title promoted to HIG "Large Title" scale, and a roomier
+     sub-line line-height so each page reads as a proper page intro. Scoped to
+     the page contexts (.meta-popup / .tournament-screen) only — mobile screens
+     and the start/game screens keep the compact base type. Colours are left on
+     the BluKit tokens untouched. ─────────────────────────────────────────── */
+
+  /* Page column breathes on an 8pt grid (base card gap is 10px). */
+  .meta-popup-card {
+    gap: 24px;
+  }
+
+  /* Hero: more air on an 8pt padding grid; the surrounding gap owns the rhythm
+     below it on the section pages, while the lobby (no card gap) keeps a 24px
+     step to its status/room block. */
+  .meta-popup .tab-hero,
+  .tournament-screen .tab-hero {
+    gap: 32px;
+    padding: 24px 28px;
+  }
+  .meta-popup .tab-hero {
+    margin-bottom: 0;
+  }
+  .tournament-screen .tab-hero {
+    margin-bottom: 24px;
+  }
+
+  /* HIG "Large Title" for the page heading; comfortable body for the sub-line. */
+  .meta-popup .tab-hero-copy strong,
+  .tournament-screen .tab-hero-copy strong {
+    font-size: clamp(28px, 2.4vw, 34px);
+    line-height: 1.1;
+  }
+  .meta-popup .tab-hero-copy span,
+  .tournament-screen .tab-hero-copy span {
+    font-size: 16px;
+    line-height: 1.45;
+    max-width: 380px;
   }
 
   /* The Lobby Create/Join dialog keeps its original compact form — the base
      .tournament-modal-card (min(420px), holographic edge) is exactly right, so
      it takes NO desktop override. */
 
-  /* The tournament ROOM is dressed as a full modal so it reads identically to
-     the section popups (Leaderboard / Quests): it covers the shell like
-     .meta-popup (absolute inset:0 + sky scrim), clears the top navbar, and
-     centers the same card skin. The top navbar + corner buttons stay visible
-     above it (z 86 / 85 > 72) — you navigate in and out of the room through the
-     same navigation, instead of the room hiding it. */
+  /* The tournament ROOM is a full-screen PAGE, exactly like the section pages
+     (Leaderboard / Quests): it covers the shell (absolute inset:0), paints an
+     opaque sky so the still-mounted start art is fully hidden, clears the top
+     navbar, and flows its content in a centered readable column top-aligned
+     below the navbar. Only the Create/Join dialog (#tournamentModal) stays a
+     modal. The top navbar + corner buttons stay visible above it
+     (z 86 / 85 > 72) — you navigate in and out of the room through the same
+     navigation. */
   .tournament-screen {
     position: absolute;
     inset: 0;
@@ -9967,43 +10096,38 @@ button,
     min-height: 0;
     aspect-ratio: auto;
     margin: 0;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
+    overflow-y: auto;
     padding:
-      clamp(66px, 8dvh, 94px)
-      max(12px, env(safe-area-inset-right, 0px))
-      clamp(18px, 3dvh, 40px)
-      max(12px, env(safe-area-inset-left, 0px));
-    background: none;
+      clamp(72px, 9dvh, 104px)
+      max(16px, env(safe-area-inset-right, 0px))
+      clamp(24px, 4dvh, 48px)
+      max(16px, env(safe-area-inset-left, 0px));
+    /* Opaque sky so the page fully covers the start-screen art behind it. */
+    background: var(--blupets-sky-background);
   }
 
-  /* Transparent scrim over the (still-visible) start screen — identical to
-     .meta-popup::before — so the room's backdrop is the same start-screen art
-     seen behind every other popup, not a flat fill. */
   .tournament-screen::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.5), transparent 32%),
-      rgba(7, 95, 175, 0.12);
-    pointer-events: none;
+    display: none;
   }
 
+  /* Frameless: the card border/radius/shadow/white fill are dropped so the
+     room reads as a page on the sky, not a floating card. Content sits in a
+     centered ≤900px column. */
   .tournament-screen .tournament-card {
     position: relative;
     z-index: 1;
-    width: min(100%, 780px);
-    max-width: 780px;
-    max-height: 100%;
-    overflow-y: auto;
-    border: 1px solid rgba(92, 173, 255, 0.2);
-    border-radius: var(--r-card);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 251, 255, 0.9));
-    box-shadow:
-      0 24px 64px rgba(17, 79, 139, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+    width: min(100%, 900px);
+    max-width: 900px;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
   }
 
   /* The section links + Join Lobby now live in the top navbar, so drop the
@@ -10011,6 +10135,79 @@ button,
   .start-screen .start-actions--secondary,
   .start-screen .start-lobby-btn {
     display: none;
+  }
+
+  /* ── Full-screen animated sunburst on EVERY desktop page. The rays fan up from
+     just below the viewport and reach every edge (no 1260px cap), and the same
+     layer is re-enabled on the section/lobby pages (whose ::before was cleared
+     above) so the animated backdrop repeats across the whole app. z-index:-1 sits
+     it above each page's opaque sky fill but below all content. Fixed → it stays
+     put while a page scrolls. Mobile keeps the base compact .start-card rays. ── */
+  .start-card::before,
+  .meta-popup::before,
+  .tournament-screen::before {
+    content: "";
+    display: block;
+    position: fixed;
+    left: 50%;
+    right: auto;
+    top: 40%;
+    bottom: auto;
+    width: 210vw;
+    height: 150vh;
+    max-width: none;
+    transform: translate(-50%, -45%);
+    transform-origin: 50% 78%;
+    background:
+      radial-gradient(ellipse at 50% 78%, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.14) 18%, transparent 42%),
+      repeating-conic-gradient(
+        from -22deg at 50% 78%,
+        transparent 0deg 4.4deg,
+        rgba(255, 255, 255, 0.14) 5.4deg 8.2deg,
+        rgba(255, 255, 255, 0.42) 8.2deg 11.8deg,
+        rgba(255, 255, 255, 0.12) 11.8deg 14.4deg,
+        transparent 14.4deg 24deg
+      );
+    opacity: 0.72;
+    animation: entry-rays-breathe 4.2s ease-in-out infinite;
+    /* Soften the ray edges into a glow (design pass: blur background rays). */
+    filter: blur(8px);
+    mask-image: radial-gradient(ellipse at 50% 78%, #000 0%, rgba(0, 0, 0, 0.95) 48%, transparent 78%);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  /* The lobby card is a .leaderboard-card, which carries its OWN centred ::before
+     sunburst anchored to the card — kill it so only the full-screen page rays show
+     (otherwise a second, smaller burst stacks in the middle of the room). */
+  .tournament-screen .tournament-card::before {
+    display: none;
+  }
+
+  /* Navigation off every desktop page is via the top navbar (Home) + the browser
+     Back button, so the in-page back/close affordances are removed everywhere
+     EXCEPT the game screen's Menu button (#back-to-start, a .hud-btn — unaffected). */
+  .tab-hero-back,
+  #metaPopupClose,
+  .profile-back {
+    display: none !important;
+  }
+
+  /* The Lobby keeps ONE explicit exit — the labelled "Leave lobby" pill (top-left
+     of the hero, where the removed back arrow used to sit). It fully leaves the
+     room so the next Lobby entry re-shows the create/join modal. */
+  .tournament-leave-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 3;
+    padding: 7px 14px;
+    min-height: 32px;
+    border-radius: var(--r-pill);
+    font-size: 13px;
   }
 
   .profile-card {
