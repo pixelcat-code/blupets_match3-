@@ -78,7 +78,7 @@ import {
 } from "./sync.js?v=20260703-tournament-realtime-2";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
-import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260629-1";
+import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
 import { elements } from "./ui/dom.js?v=20260706-1";
 import { app } from "./ui/store.js?v=20260629-5";
@@ -89,7 +89,7 @@ import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollec
 import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260705-1";
 import { renderGuideSection } from "./ui/render-guide.js?v=20260706-hero-unify-1";
 import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
-import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260629-1";
+import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260706-nopedestal-1";
 import { renderAccountSection } from "./ui/render-account.js?v=20260706-profile-reveal-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";

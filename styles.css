@@ -9100,7 +9100,7 @@ body.mobile-perf-mode .modal-card {
   --prize-accent: #5cadff;
   position: relative;
   display: grid;
-  grid-template-rows: 92px 18px minmax(32px, auto) 22px;
+  grid-template-rows: 92px minmax(32px, auto) 22px;
   justify-items: center;
   align-items: end;
   min-height: 172px;
@@ -9153,21 +9153,6 @@ body.mobile-perf-mode .modal-card {
   height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
-}
-
-.capsule-reveal-pedestal {
-  position: relative;
-  z-index: 0;
-  width: 96px;
-  height: 18px;
-  align-self: start;
-  border-radius: var(--r-pill);
-  background:
-    radial-gradient(ellipse at 50% 46%, rgba(255, 255, 255, 0.94), rgba(220, 247, 255, 0.62) 42%, transparent 70%),
-    radial-gradient(ellipse at 50% 50%, var(--prize-glow), transparent 68%);
-  box-shadow:
-    0 8px 18px rgba(29, 105, 164, 0.18),
-    0 0 22px var(--prize-glow);
 }
 
 .capsule-reveal-prize strong {
@@ -9303,7 +9288,7 @@ body.mobile-perf-mode .modal-card {
   }
 
   .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-prize {
-    grid-template-rows: 56px 11px minmax(24px, auto) 16px;
+    grid-template-rows: 56px minmax(24px, auto) 16px;
     min-height: 112px;
     padding-top: 6px;
   }
@@ -9317,11 +9302,6 @@ body.mobile-perf-mode .modal-card {
     top: 28px;
     width: 66px;
     height: 66px;
-  }
-
-  .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-pedestal {
-    width: 58px;
-    height: 11px;
   }
 
   .capsule-reveal-modal[data-bulk="1"] .capsule-reveal-prize strong {

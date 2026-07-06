@@ -114,7 +114,7 @@ export async function renderShareCard(data) {
   ctx.shadowBlur = 10;
   ctx.shadowOffsetY = 3;
   ctx.font = `900 34px ${FONT}`;
-  const brandText = "B L U P E T S";
+  const brandText = "B L U P E T S   M A T C H";
   const brandTextW = ctx.measureText(brandText).width;
   const markSize = 44;
   const markGap = 18;
@@ -180,10 +180,10 @@ export async function renderShareCard(data) {
   ctx.stroke();
   ctx.fillStyle = "#8497ad";
   ctx.font = `900 28px ${FONT}`;
-  ctx.fillText("SCORE", cx, scoreY - 18);
+  ctx.fillText("SCORE", cx, scoreY - 34);
   ctx.fillStyle = "#16324a";
   ctx.font = `900 82px ${FONT}`;
-  ctx.fillText(scoreText, cx, scoreY + 62);
+  ctx.fillText(scoreText, cx, scoreY + 32);
 
   // Collection progress as a quiet share-worthy secondary stat.
   ctx.fillStyle = "rgba(255,255,255,0.72)";

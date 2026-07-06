@@ -26,7 +26,6 @@ export function renderCapsuleRevealOutput(results) {
       <div class="capsule-reveal-art">
         <img src="${escapeHtml(result.tile.asset)}" alt="${escapeHtml(result.tile.name)}" />
       </div>
-      <div class="capsule-reveal-pedestal" aria-hidden="true"></div>
       <strong>${escapeHtml(result.tile.name)}</strong>
       ${result.duplicate ? `<span class="capsule-reveal-shard">+1 shard</span>` : `<span class="capsule-reveal-new">New</span>`}
     </div>`;
