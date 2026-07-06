@@ -284,6 +284,24 @@ Deno.serve(async (req) => {
       serverCollectionTiles: collectionTilesEntry,
     };
 
+    // Claim the run FIRST — flip submitted_at while it is still null. A run can
+    // only be claimed once, so a duplicate/retry submission of an already-claimed
+    // run bails here with 409 BEFORE user_progress is touched. This must precede
+    // the user_progress upsert: mergeRunResult bumps runs on every call, so if the
+    // upsert ran before the claim, each re-submit inflated user_progress.runs
+    // without ever inserting a leaderboard row (the 166-vs-180 drift).
+    const { data: claimedRun, error: claimError } = await supabase
+      .from("game_runs")
+      .update({ submitted_at: new Date().toISOString() })
+      .eq("id", runId)
+      .eq("user_id", user.id)
+      .is("submitted_at", null)
+      .select("id")
+      .single();
+    if (claimError || !claimedRun) {
+      return json({ error: "Run already submitted" }, 409, cors);
+    }
+
     const { error: progressError } = await supabase.from("user_progress").upsert(
       {
         user_id: user.id,
@@ -298,18 +316,6 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" },
     );
     if (progressError) throw progressError;
-
-    const { data: claimedRun, error: claimError } = await supabase
-      .from("game_runs")
-      .update({ submitted_at: new Date().toISOString() })
-      .eq("id", runId)
-      .eq("user_id", user.id)
-      .is("submitted_at", null)
-      .select("id")
-      .single();
-    if (claimError || !claimedRun) {
-      return json({ error: "Run already submitted" }, 409, cors);
-    }
 
     const { error: entryError } = await supabase.from("leaderboard_entries").insert(entry);
     if (entryError) throw entryError;
