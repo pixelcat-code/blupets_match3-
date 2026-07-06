@@ -413,11 +413,16 @@ function setScreen(screen) {
   app.currentScreen = screen;
   if (changed && !_inPopstate) {
     const hash = screen === "start" ? "" : screen;
+    // Drop an invite deep-link's `/t/CODE` prefix the moment we navigate to any
+    // real screen — the code was captured at load, so it must not cling to every
+    // subsequent URL. Safety net for paths that don't go through the room open
+    // (e.g. a guest who dismisses the auth modal and taps a nav tab).
+    const path = location.pathname.startsWith("/t/") ? "/" : location.pathname;
     // Record this entry's depth as `idx` so popstate can recover the true
     // depth on BOTH back and forward navigation (a blind decrement would
     // desync on forward — see popstate handler).
     _historyDepth++;
-    history.pushState({ screen, idx: _historyDepth }, "", location.pathname + (hash ? "#" + hash : ""));
+    history.pushState({ screen, idx: _historyDepth }, "", path + (hash ? "#" + hash : ""));
   }
   // Keep the Blupix ambience through the menu, active run, and result screens. Only poke the
   // audio layer on a real screen change — render() calls setScreen() every
@@ -1218,7 +1223,7 @@ async function handleModalCreate(event) {
   try {
     const data = await createTournamentRoom({
       title: elements.tournamentModalCreateTitle?.value,
-      durationMinutes: 15,
+      durationMinutes: 10,
     });
     const room = data.room ?? data;
     closeTournamentModal();
@@ -2349,6 +2354,7 @@ async function initializeAuth() {
         if (returnTo === "game") startRun();
         if (consumeAfterAuthAction() === "lobby") enterTournament();
       }
+      handleInviteDeepLink();
     },
   });
   app.authState.loading = false;
@@ -2372,6 +2378,9 @@ async function initializeAuth() {
     if (returnTo === "game") startRun();
     if (consumeAfterAuthAction() === "lobby") enterTournament();
   }
+  // Invite deep-link: open the room for a signed-in visitor, or gate a guest
+  // behind the auth modal. (onChange also calls this; the latch dedupes.)
+  handleInviteDeepLink();
 }
 
 function consumeReturnTo() {
@@ -2400,6 +2409,31 @@ function consumeAfterAuthAction() {
     const item = JSON.parse(raw);
     return item.exp && Date.now() < item.exp ? item.v : null;
   } catch { return null; }
+}
+
+// Invite deep-link gate. When the page was opened via `/t/CODE`
+// (`_initialTournamentCode` set), route based on auth state ONCE it's known:
+//   • signed-in  → drop straight into that lobby room;
+//   • guest      → force the auth modal first, then open the room the moment
+//                  they sign in (this fn is re-run from the auth onChange).
+// The `_inviteHandled` latch fires the room-open exactly once even though both
+// the initial auth resolve and onChange call this. Survives the OAuth reload
+// because the code is re-parsed from the still-present `/t/CODE` pathname.
+let _inviteHandled = false;
+function handleInviteDeepLink() {
+  if (_inviteHandled || !_initialTournamentCode || app.authState.loading) return;
+  if (app.authState.user) {
+    _inviteHandled = true;
+    // Clean the landing history entry so the room (and Back to it) no longer
+    // carry `/t/CODE`. The code is already captured above; this is lossless and
+    // runs only after any OAuth reload has re-parsed the code from the URL.
+    if (location.pathname.startsWith("/t/")) {
+      history.replaceState(history.state, "", "/");
+    }
+    openTournamentRoom(_initialTournamentCode);
+  } else {
+    openAuthModal({ force: true });
+  }
 }
 
 async function handleAuthProvider(provider) {
@@ -4805,9 +4839,12 @@ if (!_hasOAuthCode && !/access_token|error_description/.test(location.hash)) {
   // Restore navigable screens from the URL hash on page refresh.
   // Game/victory/gameover can't be restored (no persisted game state) — fall back to start.
   const hashScreen = location.hash.replace(/^#/, "") || "start";
-  const initialScreen = _initialTournamentCode
-    ? "tournament"
-    : (["profile", "leaderboard"].includes(hashScreen) ? hashScreen : "start");
+  // A `/t/CODE` invite does NOT jump straight to the room anymore — it lands on
+  // the start screen and lets `handleInviteDeepLink()` (run once auth resolves)
+  // either open the room for a signed-in user or gate a guest behind the auth
+  // modal first. Keeping the backdrop on `start` means dismissing the modal
+  // leaves the guest on the normal home screen, not an empty lobby panel.
+  const initialScreen = ["profile", "leaderboard"].includes(hashScreen) ? hashScreen : "start";
   if (initialScreen === "leaderboard") lastScreenBeforeLeaderboard = "start";
   if (initialScreen === "profile") lastScreenBeforeProfile = "start";
   app.currentScreen = initialScreen;
@@ -4822,9 +4859,9 @@ updateProfileChip();
 initializeAuth();
 
 render();
-if (_initialTournamentCode) {
-  openTournamentRoom(_initialTournamentCode);
-}
+// Invite deep-link (`/t/CODE`) is handled by handleInviteDeepLink() once auth
+// state is known (called from initializeAuth) — not here — so guests see the
+// auth modal first and land in the room only after signing in.
 
 // ── Demo shortcut ─────────────────────────────────────────────────────────
 // Jump straight to an end screen with sample data so the design can be reviewed

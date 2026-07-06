@@ -95,7 +95,7 @@ stale files. The discipline:
 
 Current versions (bump on change):
 - `styles.css` → `?v=20260706-hero-unify-91`
-- `src/main.js` → `?v=20260706-nav-actions-13`
+- `src/main.js` → `?v=20260706-nav-actions-14`
 - `render-quests.js` import in `main.js` → `?v=20260706-hero-unify-1`
 - `render-leaderboard.js` import in `main.js` → `?v=20260706-navorder-1`
 - `dom.js` import in `main.js` → `?v=20260706-1`
