@@ -1,6 +1,6 @@
 // Shared meta-navigation + meta-overlay text, extracted from main.js.
 //
-// `renderMetaNav` paints the in-app section tab strip (Collection / Quests /
+// `renderMetaNav` paints the in-app section tab strip (Quests /
 // Leaderboard / Guide) into whichever host element it's handed. Both the
 // leaderboard and profile screens render this same nav, so it lives in a shared
 // module that those render clusters import — it reads no controller state, only
@@ -12,7 +12,6 @@ import { app } from "./store.js?v=20260629-5";
 import { SHARDS_PER_CAPSULE } from "../progress.js?v=20260628-guest-gating-1";
 
 export const META_NAV_ITEMS = Object.freeze([
-  ["collection", "Collection"],
   ["quests", "Quests"],
   ["rank", "Leaderboard"],
   ["guide", "Guide"],
@@ -34,11 +33,11 @@ export function renderMetaNav(host, active) {
 // separate from META_NAV_ITEMS so adding Lobby here doesn't leak it into the
 // in-card strips.
 export const GLOBAL_NAV_ITEMS = Object.freeze([
-  ["collection", "Collection"],
+  ["home", "Home"],
+  ["tournament", "Lobby"],
   ["quests", "Quests"],
   ["rank", "Leaderboard"],
   ["guide", "Guide"],
-  ["tournament", "Lobby"],
 ]);
 
 export function renderGlobalNav(host, active) {

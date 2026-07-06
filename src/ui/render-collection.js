@@ -16,7 +16,7 @@ import {
   SHARDS_PER_CAPSULE,
 } from "../progress.js?v=20260628-guest-gating-1";
 import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-2";
-import { renderTabHero } from "./render-tab-hero.js?v=20260705-3";
+import { renderTabHero } from "./render-tab-hero.js?v=20260706-hero-unify-1";
 
 function renderCollectionCard(entry, { apex = false } = {}) {
   const apexKey = apex ? entry.key : getAscendedKeyByFormKey(entry.key) ?? entry.key;
@@ -48,7 +48,11 @@ export function renderOwnBlupetsCollection() {
         <div class="collection-grid">${tierEntries.map((entry) => renderCollectionCard(entry)).join("")}</div>
       </section>`;
   }).join("");
-  return `<section class="profile-blupets" aria-label="Blupets collection">${sections}</section>`;
+  return `
+    <section class="profile-blupets" aria-label="Blupets collection">
+      ${renderCollectionCapsuleShelf()}
+      ${sections}
+    </section>`;
 }
 
 export function renderPublicBlupetsCollection(collectionTiles) {

@@ -8,15 +8,13 @@
 // isolation against a fabricated state.
 //
 // getLeaderColorId is exported because main.js's victory/share builders also
-// rank the leading color; getQueuePrompt stays private to renderStatus.
+// rank the leading color.
 import { elements } from "./dom.js?v=20260629-1";
 import { escapeHtml } from "./dom-safety.js?v=20260629-1";
 import { getBlockAsset } from "./block-assets.js?v=20260629-1";
 import {
   COLORS,
-  getColor,
   getProgressPercent,
-  getBestProgressSummary,
 } from "../game.js?v=20260622-gameplay-20";
 
 // The leading color this run: highest evolution tier, then most matches, then
@@ -150,37 +148,8 @@ export function renderVibeStrip(stateLike) {
   elements.vibeStripPerks.textContent = vibe.blurb || "No extra perks";
 }
 
-// The prompt shown while an evolution is waiting on a player choice (fusion
-// partner / form pick). Private to renderStatus.
-function getQueuePrompt(stateLike) {
-  const queueItem = stateLike.pendingEvolutionQueue[0];
-  if (!queueItem) {
-    return "";
-  }
-
-  const color = getColor(queueItem.colorId);
-  if (queueItem.tier === 2 && queueItem.step !== "form") {
-    return `Choose a fusion partner for ${color.label} to unlock T2.`;
-  }
-
-  const partnerColorId =
-    stateLike.evolutionFusions[queueItem.colorId]?.partnerColorId ?? queueItem.colorId;
-  const partner = getColor(partnerColorId);
-  return `Choose the ${color.label} + ${partner.label} form for T${queueItem.tier}.`;
-}
-
 export function renderStatus(stateLike) {
-  let message = stateLike.status;
-
-  if (stateLike.pendingEvolutionQueue.length > 0) {
-    message = getQueuePrompt(stateLike);
-  } else if (stateLike.gameOver) {
-    message = `${getBestProgressSummary(stateLike)} Start a new run to try again.`;
-  } else if (stateLike._lastResolution?.cleared) {
-    message = `Last clear: ${stateLike._lastResolution.cleared} tiles in ${stateLike._lastResolution.cascades} cascade${stateLike._lastResolution.cascades === 1 ? "" : "s"}.`;
-  } else {
-    message = `Match 3 or more to grow your leading color toward its next evolution.`;
-  }
-
-  elements.statusText.textContent = message;
+  if (!elements.statusText) return;
+  elements.statusText.textContent = "";
+  elements.statusText.hidden = true;
 }

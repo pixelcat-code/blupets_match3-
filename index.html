@@ -10,30 +10,14 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260706-blukit-canon-44" />
+    <link rel="stylesheet" href="./styles.css?v=20260706-hero-unify-91" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
     <div class="app-shell">
       <section class="screen start-screen" id="startScreen" hidden>
         <div class="start-topleft">
-        <button id="startMuteBtn" class="hud-btn mute-btn start-mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
-          <svg class="mute-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-          </svg>
-        </button>
           <button class="start-help-btn" id="start-guide" type="button" aria-label="How to play" title="How to play">?</button>
-        </div>
-        <div class="start-topright">
-          <button class="profile-chip" id="profileChip" type="button" aria-label="Open your profile">
-            <span class="profile-chip-icon" aria-hidden="true">
-              <img id="profileChipAvatar" src="./assets/blu-logo.png" alt="" />
-            </span>
-            <span class="profile-chip-label">Profile</span>
-            <span class="profile-chip-count" id="profileChipCount">0/36</span>
-          </button>
         </div>
         <div class="start-card">
           <div class="bg-sparks" aria-hidden="true">
@@ -65,14 +49,8 @@
             <button id="start-run" class="entry-btn" type="button">
               Enter Run
             </button>
-            <button id="start-tournament" class="btn btn--ghost start-lobby-btn" type="button">
-              Join Lobby
-            </button>
           </div>
           <div class="start-actions start-actions--secondary">
-            <button id="start-collection" class="btn btn--ghost" type="button">
-              Collection
-            </button>
             <button id="start-quests" class="btn btn--ghost" type="button">
               Quests
             </button>
@@ -142,8 +120,8 @@
             <h2 class="auth-modal-title">Tournament Room</h2>
           </div>
           <div class="tournament-modal-tabs" role="tablist" aria-label="Create or join">
-            <button id="tournamentTabCreate" class="tournament-modal-tab is-active" type="button" role="tab" aria-selected="true">Create</button>
-            <button id="tournamentTabJoin" class="tournament-modal-tab" type="button" role="tab" aria-selected="false">Join</button>
+            <button id="tournamentTabJoin" class="tournament-modal-tab is-active" type="button" role="tab" aria-selected="true">Join</button>
+            <button id="tournamentTabCreate" class="tournament-modal-tab" type="button" role="tab" aria-selected="false">Create</button>
           </div>
           <form class="tournament-modal-form" id="tournamentModalCreateForm">
             <input id="tournamentModalCreateTitle" class="auth-email-input" type="text" maxlength="60" placeholder="Discord Cup" />
@@ -163,6 +141,10 @@
               <button id="back-to-start" class="hud-btn" type="button" title="Menu" aria-label="Back to menu">
                 ←
               </button>
+              <div class="topbar-title" id="tournamentTitleBar" hidden>
+                <strong id="tournamentTitleText"></strong>
+                <span class="topbar-title-meta">1 attempt</span>
+              </div>
               <button id="muteBtnGame" class="hud-btn mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
                 <svg class="mute-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -179,6 +161,10 @@
               <div class="stat-pill stat-pill--score">
                 <span class="stat-kicker">Score</span>
                 <strong id="scoreValue">0</strong>
+              </div>
+              <div class="stat-pill stat-pill--timer" id="timerPill" hidden>
+                <span class="stat-kicker">Time</span>
+                <strong id="timerValue">--:--</strong>
               </div>
               <div class="stat-pill stat-pill--combo">
                 <span class="stat-kicker">Combo</span>
@@ -202,7 +188,7 @@
                 <span class="vibe-strip-perks" id="vibeStripPerks"></span>
               </div>
             </div>
-            <div class="status-line" id="statusText"></div>
+            <div class="status-line" id="statusText" hidden></div>
           </div>
 
           <div class="board-shell">
@@ -344,8 +330,6 @@
         <div class="leaderboard-card tournament-card">
           <section class="tab-hero hero-lobby">
             <button id="tournamentBackBtn" class="tab-hero-back" type="button" title="Back" aria-label="Back">←</button>
-            <button id="tournamentLeaveBtn" class="btn btn--ghost tournament-leave-btn" type="button">← Leave lobby</button>
-            <button id="tournamentCopyBtn" class="btn btn--ghost tab-hero-action tournament-copy-btn" type="button" hidden>Copy invite</button>
             <div class="tab-hero-art" aria-hidden="true">
               <span class="tab-hero-glow"></span>
               <div class="versus">
@@ -366,6 +350,7 @@
               <div class="tournament-room-headline">
                 <h3 id="tournamentRoomTitle"></h3>
                 <span class="tournament-status-badge" id="tournamentRoomCountdown"></span>
+                <button id="tournamentCopyBtn" class="btn btn--ghost tournament-copy-btn" type="button" hidden>Invite</button>
               </div>
             </div>
 
@@ -383,6 +368,7 @@
             <div class="tournament-room-cta">
               <button id="tournamentHostStartBtn" class="btn btn--primary" type="button" hidden>Start Tournament</button>
               <button id="tournamentStartBtn" class="btn btn--primary" type="button">Start Attempt</button>
+              <button id="tournamentLeaveBtn" class="btn btn--ghost tournament-leave-btn" type="button">← Leave lobby</button>
             </div>
           </div>
         </div>
@@ -432,6 +418,22 @@
       </section>
 
       <nav class="global-meta-nav" id="globalMetaNav" aria-label="Main sections"></nav>
+      <div class="global-nav-actions" id="globalNavActions" aria-label="Player actions">
+        <button id="startMuteBtn" class="hud-btn mute-btn start-mute-btn" type="button" title="Sound on/off" aria-label="Toggle sound">
+          <svg class="mute-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+        </button>
+        <button class="profile-chip" id="profileChip" type="button" aria-label="Open your profile">
+          <span class="profile-chip-icon" aria-hidden="true">
+            <img id="profileChipAvatar" src="./assets/blu-logo.png" alt="" />
+          </span>
+          <span class="profile-chip-label">Profile</span>
+          <span class="profile-chip-count" id="profileChipCount">0/36</span>
+        </button>
+      </div>
 
       <div class="vibe-intro" id="vibeIntro" hidden>
         <div class="vibe-intro-card">
@@ -518,14 +520,14 @@
         <button class="mobile-nav-btn" type="button" data-mobile-nav="start" aria-label="Home">
           <span>Home</span>
         </button>
-        <button class="mobile-nav-btn" type="button" data-mobile-nav="collection" aria-label="Collection">
-          <span>Collect</span>
-        </button>
         <button class="mobile-nav-btn" type="button" data-mobile-nav="quests" aria-label="Quests">
           <span>Quests</span>
         </button>
         <button class="mobile-nav-btn" type="button" data-mobile-nav="leaderboard" aria-label="Leaderboard">
           <span>Rank</span>
+        </button>
+        <button class="mobile-nav-btn" type="button" data-mobile-nav="tournament" aria-label="Lobby">
+          <span>Lobby</span>
         </button>
       </nav>
     </div>
@@ -547,6 +549,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260703-brand-ui-58"></script>
+    <script type="module" src="./src/main.js?v=20260706-nav-actions-13"></script>
   </body>
 </html>

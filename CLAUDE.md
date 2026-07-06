@@ -94,8 +94,12 @@ stale files. The discipline:
   `index.html`, +1 each commit.
 
 Current versions (bump on change):
-- `styles.css` → `?v=20260705-blukit-canon-30`
-- `src/main.js` → `?v=20260703-brand-ui-52`
+- `styles.css` → `?v=20260706-hero-unify-91`
+- `src/main.js` → `?v=20260706-nav-actions-13`
+- `render-quests.js` import in `main.js` → `?v=20260706-hero-unify-1`
+- `render-leaderboard.js` import in `main.js` → `?v=20260706-navorder-1`
+- `dom.js` import in `main.js` → `?v=20260706-1`
+- `render-meta.js` import in `main.js` → `?v=20260706-navorder-1`
 - `auth-config.js` → `?v=20260617-2`
 - `sync.js` import in `main.js` → `?v=20260703-tournament-realtime-2`
 - `auth.js` import in `main.js` → `?v=20260629-signin-guard-1`

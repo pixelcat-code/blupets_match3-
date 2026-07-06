@@ -1680,6 +1680,51 @@ h2 {
   gap: 10px;
 }
 
+/* Tournament title bar — a rounded card that fills the topbar width to the
+   right of the back button. Hidden outside tournament runs. Styled to match
+   the SCORE / MOVES stat cards (border, surface, inner highlight). */
+.topbar-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--hud-h);
+  padding: 8px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--hairline);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(125, 247, 255, 0.12), transparent 60%),
+    var(--color-surface-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 4px 14px rgba(20, 50, 74, 0.08);
+  overflow: hidden;
+}
+.topbar-title[hidden] {
+  display: none;
+}
+.topbar-title strong {
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-title-meta {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-soft);
+  white-space: nowrap;
+}
+
 /* Back button parked on the left edge of the HUD. */
 .hud-btn {
   width: var(--hud-h);
@@ -1800,6 +1845,17 @@ h2 {
   background:
     radial-gradient(circle at 50% 0%, rgba(255, 214, 136, 0.16), transparent 54%),
     var(--color-surface-strong);
+}
+
+/* TIME card — only shown during tournament runs (toggled via [hidden] in JS). */
+.stat-pill--timer {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(125, 247, 255, 0.18), transparent 54%),
+    var(--color-surface-strong);
+}
+.stat-pill--timer strong {
+  color: #1f9bb8;
+  font-variant-numeric: tabular-nums;
 }
 
 /* COMBO is a desktop-only stat card — revealed inside @media (min-width:700px).
@@ -2018,19 +2074,9 @@ h2 {
   transition: none;
 }
 
+/* "Ready to evolve" aura removed per request — no glow behind the roster. */
 .color-roster.is-evolve::before {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  z-index: -1;
-  border-radius: 20px;
-  background:
-    radial-gradient(circle at 28% 50%, var(--accent-cyan), transparent 52%),
-    radial-gradient(circle at 72% 50%, var(--accent-pink), transparent 52%),
-    radial-gradient(circle at 50% 50%, var(--accent-cream), transparent 58%);
-  opacity: 0.5;
-  animation: tile-aura-liquid 6s ease-in-out infinite;
-  pointer-events: none;
+  display: none;
 }
 
 @media (max-width: 699px) {
@@ -2653,6 +2699,7 @@ body.mobile-perf-mode .modal-card {
 }
 
 .status-line {
+  display: none !important;
   min-height: 40px;
   padding: 9px 14px;
   border-radius: 16px;
@@ -2664,7 +2711,6 @@ body.mobile-perf-mode .modal-card {
   font-size: 12px;
   font-weight: 700;
   line-height: 1.4;
-  display: flex;
   align-items: center;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.8),
@@ -2974,20 +3020,26 @@ body.mobile-perf-mode .modal-card {
 
 .modal-options {
   margin-top: 16px;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  align-items: stretch;
   justify-content: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .partner-card,
 .form-card {
   min-width: 84px;
+  width: 100%;
+  min-height: 84px;
   padding: 12px 10px;
   border-radius: var(--r-md);
   border: 1px solid var(--color-border);
   background: var(--color-bg-soft);
   cursor: pointer;
+  display: grid;
+  align-content: center;
+  justify-items: center;
   transition:
     transform 360ms var(--ease-slow),
     background 360ms var(--ease-slow),
@@ -2999,10 +3051,12 @@ body.mobile-perf-mode .modal-card {
 }
 
 .partner-dot {
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
+  display: block;
   margin: 0 auto 8px;
-  background: var(--partner-color);
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .partner-name,
@@ -4052,7 +4106,25 @@ body.mobile-perf-mode .modal-card {
   }
 
   .game-frame {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 10px;
+  }
+
+  .game-screen,
+  .game-screen .game-frame,
+  .game-screen .topbar,
+  .game-screen .roster-row,
+  .game-screen .board-shell {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .game-screen .topbar {
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .entry-hero {
@@ -4075,6 +4147,53 @@ body.mobile-perf-mode .modal-card {
 
   .topbar-stats {
     gap: 8px;
+  }
+
+  /* Tournament run reflow: back+title bar on row 1 (full width), the stat cards
+     (MOVES · SCORE · TIME) on row 2. Keyed on the visible title bar. */
+  .game-frame .topbar:has(.topbar-title:not([hidden])) {
+    --hud-h: 52px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .topbar-left {
+    grid-column: 1;
+    grid-row: 1;
+    gap: 8px;
+  }
+
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .topbar-right {
+    display: none;
+  }
+
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .topbar-stats {
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .stat-pill {
+    height: 52px;
+    min-height: 52px;
+    padding: 7px 6px;
+    border-radius: 18px;
+  }
+
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .stat-kicker {
+    font-size: 9px;
+    line-height: 1;
+  }
+
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .stat-pill strong {
+    font-size: 20px;
+  }
+
+  .topbar-title strong {
+    font-size: 14px;
   }
 
   .stat-pill {
@@ -5330,7 +5449,20 @@ body.mobile-perf-mode .modal-card {
 
 #publicProfileScreen .profile-summary {
   grid-template-columns: auto 56px minmax(0, 1fr);
-  min-height: 76px;
+  gap: 16px;
+  min-height: 96px;
+  padding: 14px 18px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(53, 102, 132, 0.12);
+  /* Match the personal profile's identity card (.account-profile): a solid,
+     clearly-visible block instead of the faint translucent summary that
+     vanished on the bright desktop gradient. */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34)),
+    var(--color-surface-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 8px 22px rgba(20, 70, 120, 0.08);
 }
 
 #publicProfileScreen .profile-avatar {
@@ -5796,7 +5928,10 @@ body.mobile-perf-mode .modal-card {
   padding: 4px;
   border: 1px solid rgba(92, 173, 255, 0.16);
   border-radius: 16px;
-  background: rgba(248, 253, 255, 0.88);
+  /* Fully opaque bottom nav on mobile — content must not show through it in the
+     profile / leaderboard tabs (scrolling content behind a translucent bar read
+     as clutter). */
+  background: #f8fdff;
   box-shadow:
     0 14px 34px rgba(14, 67, 117, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.88);
@@ -5916,6 +6051,29 @@ body.mobile-perf-mode .modal-card {
 
 .meta-popup-head:has(.meta-popup-public-avatar) {
   grid-template-columns: 42px auto minmax(0, 1fr);
+  /* Public-profile identity reads as a solid card (matching the personal
+     account identity card `.account-profile`), just without the edit / camera /
+     Sign-out buttons. */
+  gap: 16px;
+  min-height: 96px;
+  padding: 14px 18px;
+  border: 1px solid rgba(53, 102, 132, 0.12);
+  border-radius: var(--r-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.34)),
+    var(--color-surface-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 8px 22px rgba(20, 70, 120, 0.08);
+}
+
+.meta-popup-head:has(.meta-popup-public-avatar) .meta-popup-public-avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.meta-popup-head:has(.meta-popup-public-avatar) .meta-popup-title-wrap h2 {
+  font-size: clamp(22px, 3dvh, 30px);
 }
 
 .meta-popup-head:has(.meta-popup-public-avatar) .meta-popup-actions {
@@ -5965,54 +6123,21 @@ body.mobile-perf-mode .modal-card {
   padding-bottom: 8px;
 }
 
-.guide-hero {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 30px;
-  min-height: 132px;
-  padding: 16px 18px;
-  border: 1.5px solid rgba(92, 232, 255, 0.32);
-  border-radius: 20px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 30%, rgba(255, 248, 168, 0.34), transparent 30%),
-    radial-gradient(circle at 82% 18%, rgba(196, 151, 255, 0.22), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(234, 250, 255, 0.52));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 16px 36px rgba(20, 70, 120, 0.1);
-}
-
-/* Rays removed to match the other hero banners — only the radial glow remains. */
-.guide-hero::before {
-  content: none;
-  display: none;
-}
-
-.guide-hero-art {
+/* Guide hero art (capsule + 3 orbiting blocks). The guide screen now renders the
+   SHARED .tab-hero via renderTabHero("guide"), so it inherits the same frame,
+   padding, title scale, and desktop rhythm as leaderboard/quests/lobby. Only this
+   scene-specific art remains, kept in a fixed 170×132 inner box so the composition
+   stays tight and centered inside the unified .tab-hero-art panel. */
+.tab-hero .guide-scene {
   position: relative;
   z-index: 1;
-  flex: none;
   width: 170px;
   height: 132px;
   display: grid;
   place-items: center;
 }
 
-.guide-hero-glow {
-  position: absolute;
-  inset: 13px;
-  border-radius: var(--r-pill);
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.96), transparent 38%),
-    radial-gradient(circle, rgba(92, 232, 255, 0.48), transparent 70%);
-  filter: blur(10px);
-  animation: guide-glow 3.2s ease-in-out infinite;
-}
-
-.guide-hero-capsule {
+.tab-hero .g-capsule {
   position: relative;
   z-index: 2;
   width: 84px;
@@ -6022,7 +6147,7 @@ body.mobile-perf-mode .modal-card {
   animation: guide-float 3.2s ease-in-out infinite;
 }
 
-.guide-hero-block {
+.tab-hero .g-block {
   position: absolute;
   z-index: 1;
   width: 50px;
@@ -6032,54 +6157,9 @@ body.mobile-perf-mode .modal-card {
   filter: drop-shadow(0 8px 10px rgba(7, 59, 135, 0.16));
 }
 
-.guide-hero-block--one {
-  left: 4px;
-  top: 12px;
-  transform: rotate(-8deg);
-}
-
-.guide-hero-block--two {
-  right: 3px;
-  top: 18px;
-  transform: rotate(8deg);
-}
-
-.guide-hero-block--three {
-  right: 20px;
-  bottom: 4px;
-  transform: rotate(-5deg);
-}
-
-.guide-hero-copy {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-}
-
-.guide-hero-copy strong,
-.guide-hero-copy span {
-  display: block;
-}
-
-.guide-hero-copy strong {
-  color: var(--color-text);
-  font-size: clamp(1.35rem, 4vw, 2rem);
-  font-weight: 900;
-  line-height: 1;
-}
-
-.guide-hero-copy span {
-  margin-top: 7px;
-  max-width: 340px;
-  color: var(--color-text-soft);
-  font-size: 14.5px;
-  font-weight: 850;
-  line-height: 1.3;
-}
+.tab-hero .g-block--1 { left: 4px; top: 12px; transform: rotate(-8deg); }
+.tab-hero .g-block--2 { right: 3px; top: 18px; transform: rotate(8deg); }
+.tab-hero .g-block--3 { right: 20px; bottom: 4px; transform: rotate(-5deg); }
 
 .guide-match-panel {
   display: grid;
@@ -6290,36 +6370,17 @@ body.mobile-perf-mode .modal-card {
 }
 
 @media (max-width: 720px) {
-  .guide-hero { gap: 16px; }
-
   .guide-grid {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 520px) {
-  /* Compact stacked hero, matching the tab-hero: small centered scene + title,
-     subtitle dropped so the header stays short. */
-  .guide-hero {
-    flex-direction: column;
-    gap: 6px;
-    padding: 12px 14px;
-    text-align: center;
-  }
-  .guide-hero-copy {
-    align-items: center;
-    text-align: center;
-  }
-  .guide-hero-copy strong { font-size: 1.3rem; }
-  .guide-hero-copy span { display: none; }
-  .guide-hero-art {
-    transform: scale(0.75);
-    transform-origin: center;
-    margin: -18px 0;
-  }
-}
+/* The guide screen now renders the shared .tab-hero, so its mobile compaction is
+   handled by the .tab-hero @media (max-width: 520px) block below — no separate
+   .guide-hero rules needed. */
 
-/* ---- shared tab hero banners (render-tab-hero.js) — clone of .guide-hero ---- */
+/* ---- shared tab hero banners (render-tab-hero.js) — used by guide, leaderboard,
+   collection, quests, and the tournament lobby ---- */
 .tab-hero {
   position: relative;
   display: flex;
@@ -6419,6 +6480,37 @@ body.mobile-perf-mode .modal-card {
   #publicProfileScreen .profile-back {
     display: none;
   }
+
+  /* With the back button hidden on mobile, the public-profile identity card is
+     left with just [avatar, name]. The desktop 3-column template
+     (`auto 56px minmax(0,1fr)`) would then drop avatar+name into the first two
+     narrow tracks and strand the wide 1fr track empty — boxing the name into
+     56px so it ellipsised ("KS…") with the whole card empty beside it. Give the
+     two remaining children their own 2-column track so the name fills the row. */
+  #publicProfileScreen .profile-summary {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  /* On mobile the WHOLE public profile scrolls as one page (identity card +
+     stats + collection together), instead of pinning the header and scrolling
+     only the collection in an inner box. Make the screen itself the scroll
+     container and let the card grow with its content. Scoped to
+     #publicProfileScreen so the leaderboard / personal-profile inner-scroll
+     layouts are untouched. */
+  #publicProfileScreen {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #publicProfileScreen .profile-card {
+    height: auto;
+    min-height: 100%;
+    grid-template-rows: none;
+  }
+
+  #publicProfileScreen .profile-content {
+    overflow: visible;
+  }
 }
 
 /* Hero banners carry no conic sunburst of their own — the soft radial
@@ -6428,19 +6520,19 @@ body.mobile-perf-mode .modal-card {
   display: none;
 }
 
+/* One art-panel geometry for EVERY hero scene (podium / gallery / checklist /
+   versus / guide capsule). Content is centered inside, so each scene keeps its own
+   composition while all banners share the same height — a single grid across tabs.
+   224×140 comfortably fits the widest scene (podium ≈188×138). */
 .tab-hero-art {
   position: relative;
   z-index: 1;
   flex: none;
-  width: 168px;
-  height: 132px;
+  width: 224px;
+  height: 140px;
   display: grid;
   place-items: center;
 }
-
-.hero-rank .tab-hero-art { width: 232px; height: 138px; }
-.hero-collection .tab-hero-art { width: 224px; }
-.hero-quests .tab-hero-art { width: 224px; }
 
 .tab-hero-glow {
   position: absolute;
@@ -6752,9 +6844,9 @@ body.mobile-perf-mode .modal-card {
 .tab-hero .vs::before { animation: hero-spin-slow 14s linear infinite; }
 
 /* Guide blocks float alongside the already-animated capsule. */
-.guide-hero-block--one { animation: guide-block-one 3.4s ease-in-out infinite; }
-.guide-hero-block--two { animation: guide-block-two 3.4s ease-in-out -0.7s infinite; }
-.guide-hero-block--three { animation: guide-block-three 3.4s ease-in-out -1.4s infinite; }
+.tab-hero .g-block--1 { animation: guide-block-one 3.4s ease-in-out infinite; }
+.tab-hero .g-block--2 { animation: guide-block-two 3.4s ease-in-out -0.7s infinite; }
+.tab-hero .g-block--3 { animation: guide-block-three 3.4s ease-in-out -1.4s infinite; }
 @keyframes guide-block-one {
   0%, 100% { transform: rotate(-8deg) translateY(0); }
   50% { transform: rotate(-8deg) translateY(-3px); }
@@ -6779,9 +6871,10 @@ body.mobile-perf-mode .modal-card {
   .tab-hero .v-right,
   .tab-hero .vs,
   .tab-hero .vs::before,
-  .guide-hero-block--one,
-  .guide-hero-block--two,
-  .guide-hero-block--three { animation: none; }
+  .tab-hero .g-capsule,
+  .tab-hero .g-block--1,
+  .tab-hero .g-block--2,
+  .tab-hero .g-block--3 { animation: none; }
 }
 
 @media (max-width: 520px) {
@@ -7447,9 +7540,10 @@ body.mobile-perf-mode .modal-card {
 
 .account-profile {
   display: grid;
-  /* back | avatar | name | actions — back + Sign out fold into this card so
-     the redundant header row above it is hidden. */
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  /* avatar | name | actions — the in-card back arrow is removed (desktop
+     navigates via the top navbar + browser Back), so the avatar + name hug the
+     card's left edge. Sign out stays folded in at the right. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 16px;
   align-items: center;
   min-height: 96px;
@@ -7474,7 +7568,7 @@ body.mobile-perf-mode .modal-card {
 }
 
 .account-back {
-  flex-shrink: 0;
+  display: none;
 }
 
 .account-actions {
@@ -7880,6 +7974,48 @@ body.mobile-perf-mode .modal-card {
   outline: 2px solid rgba(92, 232, 255, 0.7);
   outline-offset: 2px;
 }
+
+/* Desktop only: collapse the four chip-cards into ONE segmented pill track that
+   matches the leaderboard Score/Blupets toggle — a light icy track with flat
+   segments and a solid-blue active pill. Mobile keeps the individual cards. */
+@media (min-width: 700px) {
+  .quest-type-tabs {
+    gap: 4px;
+    padding: 3px;
+    background: var(--surface-icy);
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-pill);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    overflow: hidden;
+  }
+
+  .quest-type-tab {
+    min-height: 44px;
+    gap: 1px;
+    border: none;
+    border-radius: var(--r-pill);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .quest-type-tab:hover:not(.is-active) {
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.5);
+    box-shadow: none;
+  }
+
+  .quest-type-tab.is-active {
+    background: var(--action);
+    border-color: transparent;
+    box-shadow: 0 2px 10px rgba(29, 111, 232, 0.38);
+    transform: none;
+  }
+
+  .quest-type-tab span {
+    font-size: 13px;
+  }
+}
+
 .quest-list-head {
   display: flex;
   align-items: baseline;
@@ -10118,8 +10254,10 @@ button,
   .tournament-screen .tournament-card {
     position: relative;
     z-index: 1;
-    width: min(100%, 900px);
-    max-width: 900px;
+    /* Match the other tabs' content column (meta-popup / leaderboard = 960) so the
+       lobby doesn't render ~60px narrower than every sibling page. */
+    width: min(100%, 960px);
+    max-width: 960px;
     height: auto;
     max-height: none;
     min-height: 0;
@@ -10413,7 +10551,9 @@ button,
   .game-frame .stat-pill--combo { display: grid; }
   .game-frame .stat-pill--score { order: 1; }
   .game-frame .stat-pill--moves { order: 2; }
-  .game-frame .stat-pill--combo { order: 3; }
+  /* TIME card (tournament only) stacks directly under MOVES; COMBO trails it. */
+  .game-frame .stat-pill--timer { order: 3; }
+  .game-frame .stat-pill--combo { order: 4; }
 
   .game-frame .topbar-stats .stat-pill {
     height: auto;
@@ -10472,6 +10612,21 @@ button,
     animation: score-bump 420ms var(--ease-out);
   }
 
+  /* Tournament runs add a 4th stat card (TIME) plus the title bar to the left
+     column. Compress the stat stack so SCORE/MOVES/TIME/COMBO + roster +
+     status + mute still fit the frame height without clipping the bottom. */
+  .game-frame .topbar:has(.topbar-title:not([hidden])) + .roster-row,
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .topbar-stats {
+    gap: clamp(8px, 1dvh, 12px);
+  }
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .topbar-stats .stat-pill {
+    min-height: clamp(52px, 6dvh, 82px);
+    padding: clamp(8px, 1.1dvh, 14px) clamp(18px, 2.2dvw, 30px);
+  }
+  .game-frame .topbar:has(.topbar-title:not([hidden])) .topbar-stats .stat-pill strong {
+    font-size: clamp(28px, 3.6dvh, 46px);
+  }
+
   .game-frame .roster-row {
     grid-column: 1;
     grid-row: 2;
@@ -10495,6 +10650,13 @@ button,
     grid-column: 2;
     grid-row: 1 / -1;
     padding: clamp(8px, 1.2dvh, 16px);
+    container-type: size;
+  }
+
+  .game-frame .board {
+    width: min(100cqw, 100cqh);
+    max-width: 100%;
+    aspect-ratio: 1;
   }
 
   .game-frame .game-footer {
@@ -10680,4 +10842,1426 @@ button,
     padding-bottom: 0;
   }
 
+}
+
+/* ============================================================================
+   UX/UI polish pass — keeps BluKit tokens, fixes layout rhythm and states.
+   ========================================================================== */
+
+.start-card,
+.leaderboard-card,
+.game-frame,
+.victory-card,
+.gameover-card,
+.mobile-screen,
+.meta-popup,
+.tournament-screen {
+  isolation: isolate;
+}
+
+.app-shell {
+  overflow: hidden;
+}
+
+.start-card .bg-sparks {
+  z-index: 1;
+}
+
+.start-card > :not(.bg-sparks),
+.leaderboard-card > *,
+.mobile-screen > * {
+  position: relative;
+  z-index: 2;
+}
+
+.screen:not([hidden]),
+.meta-popup:not([hidden]),
+.tournament-screen:not([hidden]),
+.mobile-screen:not([hidden]) {
+  animation: screen-soft-in 320ms var(--ease-out) both;
+}
+
+.tournament-screen.has-room:not([hidden]),
+.tournament-screen.has-room .tournament-card,
+.tournament-screen.has-room .tournament-room,
+.tournament-screen.has-room .tournament-room-cta {
+  animation: none !important;
+  transform: none !important;
+}
+
+@keyframes screen-soft-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.btn,
+.icon-btn,
+.hud-btn,
+.auth-btn,
+.auth-tab,
+.tournament-modal-tab,
+.leaderboard-tab,
+.meta-nav-btn,
+.mobile-nav-btn,
+.profile-chip,
+.partner-card,
+.form-card,
+.capsule-reveal-close {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn,
+.auth-btn,
+.leaderboard-tab,
+.auth-tab,
+.tournament-modal-tab,
+.meta-nav-btn,
+.mobile-nav-btn,
+.partner-card,
+.form-card {
+  min-width: 0;
+}
+
+.btn,
+.auth-btn,
+.entry-btn,
+.capsule-reveal-close,
+.gameover-save-btn {
+  contain: paint;
+  text-wrap: balance;
+}
+
+.btn:hover,
+.auth-btn:hover,
+.leaderboard-tab:hover,
+.auth-tab:hover,
+.tournament-modal-tab:hover,
+.meta-nav-btn:hover,
+.mobile-nav-btn:hover,
+.partner-card:hover,
+.form-card:hover {
+  filter: saturate(1.06) brightness(1.02);
+}
+
+.entry-btn::before,
+.btn--primary::before,
+.auth-btn--email::before,
+.gameover-save-btn::before {
+  inset: 0;
+}
+
+.btn:disabled,
+.auth-btn:disabled,
+.entry-btn:disabled,
+.hud-btn:disabled,
+.icon-btn:disabled,
+.mobile-nav-btn:disabled {
+  box-shadow: none;
+}
+
+.auth-email-input,
+.profile-name-input {
+  caret-color: var(--action);
+}
+
+.auth-email-input:disabled,
+.profile-name-input:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
+.leaderboard-card,
+.profile-card,
+.tournament-card,
+.meta-popup-card,
+.mobile-screen-content,
+.leaderboard-content {
+  min-width: 0;
+}
+
+.leaderboard-row,
+.tournament-player,
+.guide-section,
+.guide-match-chip,
+.victory-share-card,
+.gameover-run-form,
+.profile-summary,
+.tournament-room-panel,
+.tournament-players-panel,
+.tournament-board-panel {
+  transition:
+    transform var(--t-fast) var(--ease-out),
+    box-shadow var(--t-fast) var(--ease-out),
+    border-color var(--t-fast) var(--ease-out),
+    background var(--t-fast) var(--ease-out);
+}
+
+.guide-section:hover,
+.guide-match-chip:hover,
+.tournament-player:hover,
+.profile-summary:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--action) 28%, var(--hairline));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 12px 26px rgba(20, 70, 120, 0.1);
+}
+
+.leaderboard-content,
+.mobile-screen-content,
+.meta-popup,
+.meta-popup-content {
+  scrollbar-gutter: stable;
+}
+
+.leaderboard-title,
+.leaderboard-meta,
+.profile-name,
+.profile-status,
+.tournament-room-headline h3,
+.tournament-room-code,
+.guide-section h3,
+.guide-section li,
+.collection-name {
+  overflow-wrap: anywhere;
+}
+
+.board-shell {
+  contain: layout paint;
+}
+
+.board {
+  width: min(100%, 100cqw, 100cqh);
+  max-width: 100%;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  padding: clamp(4px, 1.1vw, 7px);
+}
+
+.tile {
+  min-width: 0;
+  overflow: visible;
+}
+
+.tile-art {
+  inset: 8%;
+  width: 84%;
+  height: 84%;
+  transform: scale(1);
+}
+
+.tile:hover .tile-art,
+.tile.selected .tile-art,
+.tile.drag-target .tile-art {
+  transform: scale(1.08);
+}
+
+.mobile-nav {
+  border-top: 1px solid rgba(92, 173, 255, 0.1);
+}
+
+.mobile-nav-btn span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta-popup-card,
+.tournament-card {
+  container-type: inline-size;
+}
+
+@container (max-width: 520px) {
+  .guide-match-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .tournament-room-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 699px) {
+  .screen:not([hidden]),
+  .mobile-screen:not([hidden]) {
+    animation-duration: 240ms;
+  }
+
+  .start-card {
+    padding-inline: max(16px, env(safe-area-inset-left, 16px)) max(16px, env(safe-area-inset-right, 16px));
+  }
+
+  .start-topleft,
+  .start-topright {
+    top: max(10px, env(safe-area-inset-top, 10px));
+  }
+
+  .board-shell {
+    container-type: size;
+  }
+
+  .board {
+    width: min(100%, calc(100dvh - 246px), 92vw);
+  }
+
+  .leaderboard-row {
+    border-radius: 16px;
+  }
+
+  .victory-actions,
+  .end-actions {
+    width: 100%;
+  }
+
+  .victory-actions .btn,
+  .end-actions .btn {
+    flex: 1 1 148px;
+  }
+
+  .auth-modal,
+  .tournament-modal,
+  .vibe-intro {
+    padding: max(14px, env(safe-area-inset-top, 14px)) max(14px, env(safe-area-inset-right, 14px)) max(14px, env(safe-area-inset-bottom, 14px)) max(14px, env(safe-area-inset-left, 14px));
+  }
+}
+
+@media (min-width: 700px) {
+  .start-card .bg-sparks {
+    position: fixed;
+    inset: 0;
+  }
+
+  .start-actions--primary {
+    transition:
+      opacity 220ms var(--ease-out),
+      transform 260ms var(--ease-out);
+  }
+
+  .start-card:has(.entry-hero:hover) .start-actions--primary,
+  .start-card:has(.start-actions--primary:hover) .start-actions--primary,
+  .start-card:focus-within .start-actions--primary {
+    transform: translateX(-50%) translateY(-2px);
+  }
+
+  .meta-popup-card,
+  .tournament-screen .tournament-card {
+    width: min(100%, 960px);
+  }
+
+  .meta-popup .tab-hero,
+  .tournament-screen .tab-hero {
+    border-radius: 24px;
+  }
+
+  .start-card::before,
+  .meta-popup::before,
+  .tournament-screen::before {
+    width: 100vw;
+    height: 100vh;
+    top: 50%;
+  }
+
+  .tournament-room-body {
+    grid-template-columns: minmax(260px, 0.86fr) minmax(0, 1.34fr);
+    align-items: start;
+  }
+
+  .tournament-players-panel,
+  .tournament-board-panel {
+    min-height: 220px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-md);
+    background:
+      radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.6), transparent 62%),
+      rgba(255, 255, 255, 0.62);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.78),
+      0 14px 34px rgba(40, 92, 150, 0.1);
+  }
+
+  .tournament-players-panel,
+  .tournament-board-panel {
+    padding: 16px;
+  }
+
+  .tournament-players-panel h4,
+  .tournament-board-panel h4 {
+    margin: 0 0 12px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen:not([hidden]),
+  .meta-popup:not([hidden]),
+  .tournament-screen:not([hidden]),
+  .mobile-screen:not([hidden]) {
+    animation: none !important;
+  }
+
+  .tile:hover .tile-art,
+  .tile.selected .tile-art,
+  .tile.drag-target .tile-art {
+    transform: scale(1.04);
+  }
+}
+
+/* Follow-up UX fixes: centered start CTA, shared animated tab backdrop, nav after
+   removing the duplicate Collection entry. */
+:root {
+  --blupets-page-background:
+    radial-gradient(circle at 18% 14%, rgba(255, 255, 255, 0.92), transparent 18%),
+    radial-gradient(circle at 82% 22%, rgba(255, 240, 168, 0.34), transparent 16%),
+    radial-gradient(circle at 68% 10%, rgba(92, 232, 255, 0.28), transparent 16%),
+    var(--blupets-sky-background);
+}
+
+body,
+.meta-popup,
+.tournament-screen,
+.mobile-screen,
+.leaderboard-card {
+  background: var(--blupets-page-background);
+}
+
+.leaderboard-card {
+  position: relative;
+}
+
+.meta-popup {
+  position: absolute;
+  inset: 0;
+}
+
+.tournament-screen {
+  position: absolute;
+  inset: 0;
+}
+
+.mobile-screen {
+  position: fixed;
+  inset: 0;
+}
+
+.meta-popup::after,
+.tournament-screen::after,
+.mobile-screen::after,
+.leaderboard-card::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 8% 70%, rgba(255, 255, 255, 0.54) 0 2px, transparent 3px),
+    radial-gradient(circle at 17% 32%, rgba(255, 255, 255, 0.44) 0 2px, transparent 3px),
+    radial-gradient(circle at 29% 88%, rgba(255, 255, 255, 0.38) 0 2px, transparent 3px),
+    radial-gradient(circle at 44% 11%, rgba(255, 255, 255, 0.4) 0 2px, transparent 3px),
+    radial-gradient(circle at 58% 52%, rgba(255, 255, 255, 0.52) 0 2px, transparent 3px),
+    radial-gradient(circle at 71% 24%, rgba(255, 255, 255, 0.36) 0 2px, transparent 3px),
+    radial-gradient(circle at 84% 78%, rgba(255, 255, 255, 0.5) 0 2px, transparent 3px),
+    radial-gradient(circle at 96% 43%, rgba(255, 255, 255, 0.42) 0 2px, transparent 3px);
+  opacity: 0.7;
+  animation: tab-sparks-float 10s ease-in-out infinite;
+}
+
+@keyframes tab-sparks-float {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.56;
+  }
+  50% {
+    transform: translate3d(0, -18px, 0);
+    opacity: 0.82;
+  }
+}
+
+.meta-popup-card,
+.tournament-screen .tournament-card,
+.leaderboard-card > *,
+.mobile-screen > * {
+  position: relative;
+  z-index: 2;
+}
+
+.mobile-nav {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.start-actions--secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.start-screen .start-actions--primary {
+  position: absolute !important;
+  left: 50%;
+  right: auto;
+  top: auto;
+  width: min(340px, calc(100vw - 48px));
+  max-width: 340px;
+  transform: translateX(-50%);
+  justify-items: stretch;
+}
+
+.start-screen .start-actions--primary .entry-btn,
+.start-screen .start-actions--primary .start-lobby-btn {
+  max-width: none;
+}
+
+.start-card:has(.entry-hero:hover) .start-actions--primary,
+.start-card:has(.start-actions--primary:hover) .start-actions--primary,
+.start-card:focus-within .start-actions--primary {
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.leaderboard-tabs-host:not(:empty),
+.meta-popup[data-section="rank"] .leaderboard-tabs-host:not(:empty) {
+  margin-top: clamp(16px, 2dvh, 24px);
+}
+
+.leaderboard-tabs-host .tab-hero + .leaderboard-tabs {
+  margin-top: clamp(16px, 2dvh, 24px);
+}
+
+.meta-popup[data-section="rank"] .meta-popup-card,
+#leaderboardScreen .leaderboard-card {
+  --leaderboard-page-width: min(100%, 960px);
+}
+
+.meta-popup[data-section="rank"] .meta-popup-card,
+.meta-popup[data-section="rank"] .leaderboard-tabs-host,
+.meta-popup[data-section="rank"] .leaderboard-content,
+.meta-popup[data-section="rank"] .leaderboard-column--active,
+#leaderboardScreen .leaderboard-card,
+#leaderboardScreen .leaderboard-tabs-host,
+#leaderboardScreen .leaderboard-content,
+#leaderboardScreen .leaderboard-column--active {
+  width: var(--leaderboard-page-width);
+  max-width: var(--leaderboard-page-width);
+}
+
+.meta-popup[data-section="rank"] .leaderboard-row,
+#leaderboardScreen .leaderboard-row {
+  width: 100%;
+}
+
+.meta-popup[data-section="rank"] .leaderboard-content,
+#leaderboardScreen .leaderboard-content {
+  padding-inline: 0;
+}
+
+.meta-popup[data-section="rank"] .leaderboard-column--active,
+#leaderboardScreen .leaderboard-column--active {
+  max-width: none;
+}
+
+.mobile-nav {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.global-nav-actions {
+  display: none;
+}
+
+.global-nav-actions[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 699px) {
+  .global-nav-actions {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 12px));
+    right: max(14px, env(safe-area-inset-right, 14px));
+    z-index: 132;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .global-nav-actions .hud-btn.start-mute-btn {
+    display: none;
+  }
+
+  .global-nav-actions .profile-chip {
+    min-width: 0;
+    width: auto;
+    height: 44px;
+    padding: 0 14px 0 10px;
+    gap: 8px;
+    border-color: rgba(255, 255, 255, 0.58);
+    background: rgba(255, 255, 255, 0.76);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 8px 20px rgba(40, 92, 150, 0.12);
+    color: var(--ink);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  .global-nav-actions .profile-chip .profile-chip-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .global-nav-actions .profile-chip-label {
+    display: inline;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 950;
+  }
+
+  .tournament-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 72;
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    min-height: 100dvh;
+    margin: 0;
+    padding:
+      max(18px, env(safe-area-inset-top, 18px))
+      max(14px, env(safe-area-inset-right, 14px))
+      calc(82px + env(safe-area-inset-bottom, 0px))
+      max(14px, env(safe-area-inset-left, 14px));
+    align-items: stretch;
+    justify-content: flex-start;
+    overflow-y: auto;
+    background: var(--blupets-page-background);
+  }
+
+  .tournament-screen .tournament-card {
+    width: 100%;
+    max-width: none;
+    min-height: calc(100dvh - 100px - env(safe-area-inset-bottom, 0px));
+    height: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .tournament-screen .tab-hero {
+    margin: 0 0 14px;
+  }
+
+  .tournament-screen.has-room {
+    background: var(--blupets-page-background);
+    background-attachment: fixed;
+  }
+
+  .tournament-screen.has-room .tournament-card {
+    display: block;
+    min-height: 0;
+    /* .leaderboard-card ships height:100% + overflow:hidden — on mobile that
+       clamps the room to one viewport and clips the leaderboard/CTA. Let the
+       card grow with content so the .tournament-screen scroll container can
+       reach the whole room. */
+    height: auto;
+    overflow: visible;
+  }
+
+  .tournament-screen.has-room .hero-lobby {
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border-radius: 22px;
+    box-sizing: border-box;
+    gap: 6px;
+  }
+
+  .tournament-screen.has-room .hero-lobby .tab-hero-art {
+    height: 132px;
+    margin: -18px 0;
+    transform: scale(0.75);
+  }
+
+  .tournament-screen.has-room .hero-lobby .tab-hero-copy strong {
+    font-size: 21px;
+    line-height: 1.04;
+  }
+
+  .tournament-screen.has-room .tournament-copy-btn {
+    position: static;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 82px;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 14px;
+    border-radius: var(--r-pill);
+    font-size: 13px;
+    font-weight: 950;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .tournament-screen.has-room .tournament-room {
+    gap: 14px;
+    /* Content-level bottom clearance. The .tournament-screen scroll container's
+       own padding-bottom isn't counted in scrollHeight, so the Leave button
+       ended up flush against the bottom browser chrome and couldn't be scrolled
+       into view. Pad the content itself instead. */
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tournament-screen.has-room .tournament-room-head {
+    padding: 0;
+  }
+
+  .tournament-screen.has-room .tournament-room-headline {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+    min-height: 58px;
+    padding: 8px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.58);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.82),
+      0 8px 18px rgba(20, 70, 120, 0.08);
+  }
+
+  .tournament-screen.has-room .tournament-room-headline h3 {
+    font-size: clamp(22px, 6vw, 26px);
+    line-height: 1;
+  }
+
+  .tournament-screen.has-room .tournament-status-badge {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.78);
+  }
+
+  .tournament-screen.has-room .tournament-room-body {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .tournament-screen.has-room .tournament-players-panel,
+  .tournament-screen.has-room .tournament-board-panel {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .tournament-screen.has-room .tournament-players-panel h4,
+  .tournament-screen.has-room .tournament-board-panel h4 {
+    margin: 0 0 10px;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 950;
+    line-height: 1.1;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .tournament-screen.has-room .tournament-player {
+    min-height: 0;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.72);
+    font-size: 16px;
+    justify-content: center;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.86),
+      0 8px 18px rgba(20, 70, 120, 0.08);
+  }
+
+  .tournament-screen.has-room .tournament-player img,
+  .tournament-screen.has-room .tournament-player .tournament-player-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .tournament-screen.has-room .tournament-player-state {
+    font-size: 11px;
+  }
+
+  .tournament-screen.has-room .tournament-players {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 44px);
+    justify-content: start;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tournament-screen.has-room .tournament-empty {
+    padding: 0;
+    border: 0;
+    color: var(--ink-faint);
+    font-size: 14px;
+    font-weight: 800;
+    text-align: left;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard {
+    margin-top: 0;
+  }
+
+  /* Compact rows (lobby only) — smaller than the main leaderboard tab so more
+     entries fit and the room stays short. */
+  .tournament-screen.has-room .tournament-leaderboard .leaderboard-list {
+    gap: 6px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row {
+    min-height: 48px;
+    padding: 6px 12px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-title {
+    font-size: 15px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-meta {
+    font-size: 11px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-value {
+    font-size: 20px;
+  }
+
+  .tournament-screen.has-room .tournament-room-cta {
+    margin-top: 4px;
+    gap: 10px;
+  }
+
+  .tournament-screen.has-room .tournament-room-cta .btn {
+    width: 100%;
+    min-height: 52px;
+    justify-content: center;
+  }
+
+  .tournament-screen.has-room .tournament-leave-btn {
+    display: inline-flex;
+    position: static;
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .tournament-screen.has-room .tournament-room-cta .btn:disabled {
+    opacity: 0.68;
+  }
+
+  .tournament-screen .tab-hero-back {
+    display: none !important;
+  }
+
+}
+
+@media (min-width: 700px) {
+  .tournament-screen.has-room .tournament-card {
+    display: grid;
+    /* Natural height: the room grows with the leaderboard and the page scrolls,
+       rather than a bounded 1fr track + max-height that forced a fixed-height
+       inner scroll area. flex:none stops the fixed-height .tournament-screen
+       (position:absolute; inset:0) flex parent from shrinking the card down to
+       one viewport (which clipped the leaderboard) — the screen scrolls instead. */
+    flex: none;
+    grid-template-rows: auto auto;
+    height: auto;
+    gap: clamp(14px, 1.8dvh, 20px);
+  }
+
+  .tournament-screen.has-room .hero-lobby {
+    flex: none;
+    margin-bottom: 0;
+  }
+
+  .tournament-screen.has-room .tournament-room {
+    display: grid;
+    grid-template-rows: auto auto auto;
+    gap: clamp(12px, 1.6dvh, 18px);
+    min-height: 0;
+  }
+
+  .tournament-screen.has-room .tournament-room-headline {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+    padding: 10px 14px 10px 18px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-md);
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.84),
+      0 12px 28px rgba(20, 70, 120, 0.08);
+  }
+
+  .tournament-screen.has-room .tournament-room-headline h3 {
+    min-width: 0;
+    font-size: clamp(22px, 2vw, 30px);
+  }
+
+  .tournament-screen.has-room .tournament-copy-btn {
+    position: static;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    min-height: 42px;
+    margin: 0;
+    padding: 0 18px;
+    border-radius: var(--r-pill);
+    font-size: 14px;
+    font-weight: 950;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .tournament-screen.has-room .tournament-room-body {
+    grid-template-columns: minmax(260px, 0.86fr) minmax(0, 1.34fr);
+    /* No fixed height — the body fills its bounded 1fr track (from the card /
+       room grids) and the leaderboard scrolls inside it. A hard height here
+       overflowed the track and slid under the CTA buttons. */
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .tournament-screen.has-room .tournament-players-panel,
+  .tournament-screen.has-room .tournament-board-panel {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .tournament-screen.has-room .tournament-board-panel {
+    display: grid;
+    grid-template-rows: auto auto;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard {
+    min-height: 0;
+    margin-top: 0;
+    /* Grows with its rows so the container expands as the lobby fills; the page
+       scrolls if the room gets tall, instead of an inner scrollbar. */
+    overflow: visible;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard .leaderboard-list {
+    gap: 6px;
+  }
+
+  /* Compact rows (lobby only) — fit more entries before the page needs to scroll. */
+  .tournament-screen.has-room .tournament-leaderboard-row {
+    min-height: 44px;
+    padding: 5px 12px;
+    gap: 10px;
+    border-radius: 12px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-title {
+    font-size: 15px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-meta {
+    font-size: 11px;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard-row .leaderboard-value {
+    font-size: clamp(17px, 1.5vw, 22px);
+  }
+
+  .tournament-screen.has-room .tournament-players {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 44px);
+    justify-content: start;
+    align-items: start;
+    gap: 8px;
+  }
+
+  .tournament-screen.has-room .tournament-player {
+    width: 44px;
+    height: 44px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+  }
+
+  .tournament-screen.has-room .tournament-player img,
+  .tournament-screen.has-room .tournament-player .tournament-player-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .tournament-screen.has-room .tournament-room-cta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 0;
+  }
+
+  .tournament-screen.has-room .tournament-room-cta .btn {
+    width: 100%;
+    min-height: 48px;
+    justify-content: center;
+  }
+
+  .tournament-screen.has-room .tournament-leave-btn {
+    position: static;
+    display: inline-flex;
+    margin: 0;
+    font-size: 16px;
+  }
+
+  :root {
+    --desktop-topnav-w: min(80vw, 960px);
+    --desktop-topnav-h: 56px;
+    --desktop-topnav-top: clamp(28px, 4dvh, 42px);
+    /* Kept for spacing tokens; the nav is a single connected centered bar. */
+    --desktop-nav-inset: clamp(20px, 3.4vw, 48px);
+  }
+
+  /* Full-width connected top bar: nav links on the left, profile/sound actions
+     flush at the right. Fully transparent at the top of the page — the glass
+     strip only appears once scrolled (body.is-page-scrolled). */
+  .global-meta-nav {
+    left: var(--desktop-nav-inset);
+    right: var(--desktop-nav-inset);
+    top: var(--desktop-topnav-top);
+    width: auto;
+    max-width: none;
+    min-height: var(--desktop-topnav-h);
+    transform: none;
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start;
+    gap: clamp(16px, 1.8vw, 28px);
+    padding: 8px 248px 8px 24px;
+    border: 1px solid transparent;
+    border-radius: var(--r-pill);
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    z-index: 130;
+    transition:
+      top 220ms var(--ease-out),
+      min-height 220ms var(--ease-out),
+      border-color 220ms var(--ease-out),
+      background 220ms var(--ease-out),
+      box-shadow 220ms var(--ease-out);
+  }
+
+  .global-meta-nav .meta-nav-btn {
+    min-height: 36px;
+    padding: 8px 0 10px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 15px;
+    font-weight: 950;
+    text-shadow: 0 1px 10px rgba(8, 62, 120, 0.2);
+  }
+
+  .global-meta-nav .meta-nav-btn:hover,
+  .global-meta-nav .meta-nav-btn.is-active {
+    color: #ffffff;
+  }
+
+  .global-meta-nav .meta-nav-btn.is-active::after {
+    left: 50%;
+    right: auto;
+    bottom: 4px;
+    width: 28px;
+    height: 4px;
+    transform: translateX(-50%);
+    background: #ffffff;
+    box-shadow: 0 0 14px rgba(255, 255, 255, 0.44);
+  }
+
+  .global-nav-actions {
+    position: fixed;
+    top: calc(var(--desktop-topnav-top) + 6px);
+    right: calc(var(--desktop-nav-inset) + 18px);
+    z-index: 132;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    transition:
+      top 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+  }
+
+  .global-nav-actions .hud-btn.start-mute-btn,
+  .global-nav-actions .profile-chip {
+    height: 44px;
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    box-shadow: none;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    text-shadow: 0 1px 10px rgba(8, 62, 120, 0.22);
+    transition:
+      background 220ms var(--ease-out),
+      border-color 220ms var(--ease-out),
+      box-shadow 220ms var(--ease-out),
+      transform 180ms var(--ease-out);
+  }
+
+  .global-nav-actions .hud-btn.start-mute-btn {
+    --hud-h: 44px;
+    width: 44px;
+    padding: 0;
+  }
+
+  .global-nav-actions .start-mute-btn .mute-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .global-nav-actions .profile-chip {
+    min-width: 0;
+    width: 138px;
+    padding: 0 14px 0 4px;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 950;
+  }
+
+  .global-nav-actions .profile-chip .profile-chip-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .global-nav-actions .profile-chip-label {
+    color: #ffffff;
+    font-size: 15px;
+  }
+
+  .global-nav-actions .profile-chip.is-signed-in .profile-chip-label {
+    color: #ffffff;
+  }
+
+  /* Public-profile identity card: the ← close button (#metaPopupClose) is
+     display:none on desktop, but its 42px grid track still reserved dead space
+     before the avatar. Drop that track so the avatar + nickname hug the card's
+     left edge. */
+  .meta-popup-head:has(.meta-popup-public-avatar) {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .meta-popup-head:has(.meta-popup-public-avatar) .meta-popup-actions {
+    grid-column: 1;
+  }
+
+  .meta-popup-head:has(.meta-popup-public-avatar) .meta-popup-title-wrap {
+    grid-column: 2;
+  }
+
+  .meta-popup,
+  .tournament-screen {
+    padding-top: calc(var(--desktop-topnav-top) + var(--desktop-topnav-h) + 28px);
+  }
+
+  body.is-page-scrolled .global-meta-nav {
+    top: 14px;
+    /* Stays a horizontal connected bar on scroll; just gains a light glass
+       background so it reads over page content. */
+    border-color: rgba(255, 255, 255, 0.72);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(226, 248, 255, 0.72));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 10px 28px rgba(20, 70, 120, 0.18);
+  }
+
+  body.is-page-scrolled .global-meta-nav .meta-nav-btn {
+    color: rgba(29, 111, 232, 0.74);
+    text-shadow: none;
+  }
+
+  body.is-page-scrolled .global-meta-nav .meta-nav-btn:hover,
+  body.is-page-scrolled .global-meta-nav .meta-nav-btn.is-active {
+    color: #1d6fe8;
+  }
+
+  body.is-page-scrolled .global-meta-nav .meta-nav-btn.is-active::after {
+    background: #1d6fe8;
+    box-shadow: 0 0 12px rgba(29, 111, 232, 0.24);
+  }
+
+  body.is-page-scrolled .global-nav-actions {
+    top: 19px;
+  }
+
+  body.is-page-scrolled .global-nav-actions .hud-btn.start-mute-btn,
+  body.is-page-scrolled .global-nav-actions .profile-chip {
+    border-color: rgba(255, 255, 255, 0.58);
+    background: rgba(255, 255, 255, 0.64);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.92),
+      0 6px 16px rgba(40, 92, 150, 0.1);
+    color: #1d6fe8;
+    text-shadow: none;
+  }
+
+  body.is-page-scrolled .global-nav-actions .profile-chip-label {
+    color: #1d6fe8;
+  }
+
+  body.is-page-scrolled .global-nav-actions .profile-chip.is-signed-in .profile-chip-label {
+    color: #1d6fe8;
+  }
+
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-meta-nav {
+    border-color: rgba(255, 255, 255, 0.86);
+    background: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.96),
+      0 10px 26px rgba(20, 70, 120, 0.12);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    transition: none;
+  }
+
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-meta-nav .meta-nav-btn {
+    color: rgba(29, 111, 232, 0.74);
+    text-shadow: none;
+    transition: none;
+  }
+
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-meta-nav .meta-nav-btn:hover,
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-meta-nav .meta-nav-btn.is-active {
+    color: #1d6fe8;
+  }
+
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-meta-nav .meta-nav-btn.is-active::after {
+    background: #1d6fe8;
+    box-shadow: 0 0 12px rgba(29, 111, 232, 0.24);
+    transition: none;
+  }
+
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-nav-actions {
+    transition: none;
+  }
+
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-nav-actions .hud-btn.start-mute-btn,
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-nav-actions .profile-chip {
+    border-color: rgba(255, 255, 255, 0.76);
+    background: #ffffff;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.96),
+      0 6px 16px rgba(40, 92, 150, 0.08);
+    color: #1d6fe8;
+    text-shadow: none;
+    transition: none;
+  }
+
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-nav-actions .profile-chip-label,
+  body.is-page-scrolled .meta-popup[data-section="account"]:not([hidden]) ~ .global-nav-actions .profile-chip.is-signed-in .profile-chip-label {
+    color: #1d6fe8;
+  }
+}
+
+@media (min-width: 700px) {
+  .meta-popup,
+  .tournament-screen {
+    background: var(--blupets-page-background);
+  }
+
+  .start-screen .start-actions--primary {
+    bottom: clamp(92px, 11dvh, 132px);
+  }
+
+  .start-screen .entry-btn {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+    width: 100%;
+  }
+}
+
+.game-frame {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.game-frame::before {
+  content: none;
+}
+
+@media (min-width: 700px) {
+  .start-screen .entry-hero {
+    width: min(40dvw, 50dvh, 460px);
+  }
+
+  .start-screen .entry-art {
+    width: min(66dvw, 80dvh, 700px);
+    height: calc(min(66dvw, 80dvh, 700px) * 0.621);
+  }
+
+  .start-screen .entry-platform {
+    width: min(60dvw, 860px);
+    height: clamp(170px, 28dvh, 270px);
+  }
+
+  .start-screen .start-actions--primary {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(30px) scale(0.94);
+    transition:
+      opacity 220ms ease,
+      transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .start-screen .entry-btn {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0) scale(1);
+  }
+
+  .start-card:has(.entry-hero:hover) .start-actions--primary,
+  .start-card:has(.start-actions--primary:hover) .start-actions--primary,
+  .start-card:focus-within .start-actions--primary {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  .start-card:has(.entry-hero:hover) .entry-btn,
+  .start-card:has(.start-actions--primary:hover) .entry-btn,
+  .start-card:has(.entry-btn:hover) .entry-btn,
+  .start-card:focus-within .entry-btn {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meta-popup::after,
+  .tournament-screen::after,
+  .mobile-screen::after,
+  .leaderboard-card::after {
+    animation: none;
+  }
+}
+
+/* ── Tab-hero grid unification (desktop) ───────────────────────────────────
+   All four section heroes (Guide / Quests / Leaderboard / Lobby) share the
+   same 960px card at the same top offset (120px below the navbar). But each
+   hero sat DIFFERENTLY inside its own wrapper:
+     • Quests / Guide  → flush to the card (≈960 @ card top). Reference look.
+     • Leaderboard     → nested in .leaderboard-tabs-host, whose outer margin
+                          pushed the hero ~18px below the card top.
+     • Lobby           → inherited the .leaderboard-card's 26px padding, which
+                          rendered it ~54px narrower (906) and ~27px lower.
+   These rules bring Leaderboard and Lobby (both the create/join view AND the
+   live room) to the same flush geometry as Quests (full-card width, flush to
+   the card top) with a uniform 12px hero → content gap. Guide is left as-is.
+   Placed last so it wins on source order over the earlier
+   .leaderboard-tabs-host / .tournament-card rules. */
+@media (min-width: 700px) {
+  /* Ground-truth desktop measurements (real browser, viewport 982):
+       Quests / Guide hero = 938w @ x22 @ top120  ← reference
+       Rank   / Lobby hero = 950w @ x16 @ top114  ← 12px too wide, 6px left, 6px high
+     Quests & Guide put their content in an inner wrapper (quests-section /
+     guide-panel) that is inset 6px on the top & sides from the outer card.
+     Rank & Lobby have no such wrapper, so the hero sits flush to the outer card.
+     Adding the same 6px top/side inset to the rank card and the tournament card
+     lands all four heroes on exactly 938 @ x22 @ top120. Placed last so they win
+     on source order over the earlier card/host rules. */
+
+  /* Keep the scrollbar gutter stable so a page that scrolls (long leaderboard)
+     isn't narrower than one that doesn't on classic-scrollbar systems. (No-op on
+     macOS overlay scrollbars, where all four already measure equal.) */
+  .meta-popup,
+  .meta-popup-content,
+  .tournament-screen {
+    scrollbar-gutter: stable;
+  }
+
+  /* Leaderboard: inset the card content 6px top/sides to match Quests/Guide,
+     so the hero becomes 938 @ x22 and its top drops from 114 to 120. */
+  .meta-popup[data-section="rank"] .meta-popup-card,
+  #leaderboardScreen .leaderboard-card {
+    padding: 6px 6px 0;
+  }
+  /* Hero is the first child of the tabs-host — no extra top margin, so it sits
+     flush to the (now 6px-padded) card top = top120, like Quests/Guide. */
+  .meta-popup[data-section="rank"] .leaderboard-tabs-host:not(:empty),
+  #leaderboardScreen .leaderboard-tabs-host:not(:empty) {
+    margin-top: 0;
+  }
+  /* Uniform hero → content gap (Guide/Quests use 12px). */
+  .meta-popup[data-section="rank"] .leaderboard-tabs-host .tab-hero + .leaderboard-tabs,
+  #leaderboardScreen .leaderboard-tabs-host .tab-hero + .leaderboard-tabs {
+    margin-top: 12px;
+  }
+
+  /* Lobby — BOTH the create/join view and the live room: same 6px top/side inset
+     (bottom stays 26px for the content below) so the hero and the room panels
+     match Quests/Guide at 938 @ x22 @ top120. */
+  .tournament-screen .tournament-card {
+    padding: 6px 6px 26px;
+  }
+  .tournament-screen:not(.has-room) .tab-hero {
+    margin-bottom: 12px;
+  }
+}
+
+/* ── Mobile leaderboard: scroll the WHOLE tab ──────────────────────────────────
+   On mobile the leaderboard card is height:100% + overflow:hidden, a grid where
+   the hero + Score/Blupets tabs sit in a fixed row and only .leaderboard-content
+   (the list) scrolls. So the hero stayed pinned and the last rows were clipped by
+   the fixed bottom nav. Here the CARD itself scrolls as one column, so the hero
+   scrolls away with the list and the card's bottom padding keeps the final row
+   clear of the nav. Scoped to #leaderboardScreen so the shared .leaderboard-card
+   / .leaderboard-content classes on profile/collection/meta-popup are untouched. */
+@media (max-width: 699px) {
+  #leaderboardScreen .leaderboard-card {
+    grid-template-rows: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #leaderboardScreen .leaderboard-content {
+    overflow: visible;
+    min-height: 0;
+  }
 }

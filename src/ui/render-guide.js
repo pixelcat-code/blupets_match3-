@@ -2,11 +2,9 @@
 // only dependency is escapeHtml. Shown on the dedicated guide screen and inside
 // the start-screen meta overlay's "guide" section.
 import { escapeHtml } from "./dom-safety.js?v=20260629-1";
+import { renderTabHero } from "./render-tab-hero.js?v=20260706-hero-unify-1";
 
 export function renderGuideSection({ back = false } = {}) {
-  const backBtn = back
-    ? `<button class="tab-hero-back" type="button" data-hero-back aria-label="Back">←</button>`
-    : "";
   const section = (title, icon, items) => `
     <section class="guide-section">
       <div class="guide-section-head">
@@ -26,20 +24,7 @@ export function renderGuideSection({ back = false } = {}) {
     </div>`;
   return `
     <div class="guide-panel" aria-label="Game guide">
-      <section class="guide-hero">
-        ${backBtn}
-        <div class="guide-hero-art" aria-hidden="true">
-          <span class="guide-hero-glow"></span>
-          <img class="guide-hero-capsule" src="./assets/blocks/origin.svg" alt="" />
-          <img class="guide-hero-block guide-hero-block--one" src="./assets/blocks/blue.svg" alt="" />
-          <img class="guide-hero-block guide-hero-block--two" src="./assets/blocks/yellow.svg" alt="" />
-          <img class="guide-hero-block guide-hero-block--three" src="./assets/blocks/purple.svg" alt="" />
-        </div>
-        <div class="guide-hero-copy">
-          <strong>Match, evolve, collect</strong>
-        <span>Build strong runs, reveal Blupets, and turn duplicates into collection progress.</span>
-        </div>
-      </section>
+      ${renderTabHero("guide", { back })}
 
       <section class="guide-match-panel" aria-label="Match patterns">
         ${matchChip(3, "Match 3")}

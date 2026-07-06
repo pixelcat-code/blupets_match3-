@@ -121,3 +121,25 @@ test("opening the leaderboard meta popup renders without errors", async ({ page 
   await expect(page.locator("#metaPopup")).toBeVisible();
   expect(errors, errors.map((e) => e.message).join("\n")).toHaveLength(0);
 });
+
+test("desktop section page has a real history entry (browser Back closes it)", async ({ page }) => {
+  // On desktop the section "popups" are full-screen PAGES with their own history
+  // entry: the address fragment reflects the section and browser Back closes the
+  // page instead of exiting the app. Guards the openMetaOverlay/popstate wiring.
+  const errors = await openApp(page);
+
+  await clickEl(page, "#start-leaderboard");
+  await expect(page.locator("#metaPopup")).toBeVisible();
+  await expect.poll(() => new URL(page.url()).hash).toBe("#rank");
+
+  // Browser Back → the page closes, back to the start screen (not out of the app).
+  await page.goBack();
+  await expect(page.locator("#metaPopup")).toBeHidden();
+  await expect(page.locator("#startScreen")).toBeVisible();
+
+  // Browser Forward → the page reopens (history idx survives the round-trip).
+  await page.goForward();
+  await expect(page.locator("#metaPopup")).toBeVisible();
+
+  expect(errors, errors.map((e) => e.message).join("\n")).toHaveLength(0);
+});

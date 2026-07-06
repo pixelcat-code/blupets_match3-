@@ -18,6 +18,18 @@ const ART = {
 };
 
 const SCENES = {
+  guide: {
+    extraClass: "hero-guide",
+    title: "Match, evolve, collect",
+    sub: "Build strong runs, reveal Blupets, and turn duplicates into collection progress.",
+    art: `
+      <div class="guide-scene">
+        <img class="g-capsule" src="./assets/blocks/origin.svg" alt="" />
+        <img class="g-block g-block--1" src="./assets/blocks/blue.svg" alt="" />
+        <img class="g-block g-block--2" src="./assets/blocks/yellow.svg" alt="" />
+        <img class="g-block g-block--3" src="./assets/blocks/purple.svg" alt="" />
+      </div>`,
+  },
   leaderboard: {
     extraClass: "hero-rank",
     title: "Climb the ranks",

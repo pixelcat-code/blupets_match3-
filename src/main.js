@@ -80,17 +80,17 @@ import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-pop
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260629-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
-import { elements } from "./ui/dom.js?v=20260704-2";
+import { elements } from "./ui/dom.js?v=20260706-1";
 import { app } from "./ui/store.js?v=20260629-5";
-import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260705-globalnav-1";
-import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260705-3";
+import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";
+import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260706-navorder-1";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
-import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260705-4";
+import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260706-hero-unify-1";
 import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260705-1";
-import { renderGuideSection } from "./ui/render-guide.js?v=20260705-1";
+import { renderGuideSection } from "./ui/render-guide.js?v=20260706-hero-unify-1";
 import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260629-1";
-import { renderAccountSection } from "./ui/render-account.js?v=20260705-2";
+import { renderAccountSection } from "./ui/render-account.js?v=20260706-profile-reveal-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
@@ -102,13 +102,13 @@ import {
   renderVibeStrip,
   renderStatus,
   resetScoreBaseline,
-} from "./ui/render-game.js?v=20260629-1";
+} from "./ui/render-game.js?v=20260706-no-game-logs-1";
 import {
   renderQuestsSection,
   renderQuestStatsHeader,
   questCompletionSummary,
   normalizeQuestTab,
-} from "./ui/render-quests.js?v=20260705-4";
+} from "./ui/render-quests.js?v=20260706-hero-unify-1";
 
 // Global pacing multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
@@ -429,10 +429,13 @@ function setScreen(screen) {
       stopMusic();
     }
   }
-  // Keep the start screen painted behind the Lobby room too: the room is dressed
-  // as an overlay modal (like the section popups), so its backdrop must be the
-  // same start-screen art seen everywhere, not a flat fill.
-  elements.startScreen.hidden = screen !== "start" && screen !== "gameover" && screen !== "tournament";
+  // Keep the start screen only for actual menu/result backdrops. Lobby is its
+  // own page on both desktop and mobile, so the start art must not stay mounted
+  // behind it like a popup backdrop.
+  const keepStartBehind =
+    screen === "start" ||
+    screen === "gameover";
+  elements.startScreen.hidden = !keepStartBehind;
   elements.startScreen.classList.toggle("is-end-backdrop", screen === "gameover");
   document.body.classList.toggle("is-gameover-backdrop", screen === "gameover");
   elements.gameScreen.hidden = screen !== "game";
@@ -458,7 +461,7 @@ function setScreen(screen) {
     elements.guideScreen.hidden = screen !== "guide";
   }
   // Mobile nav: show on non-gameplay screens, highlight active item
-  const _mobileNavScreens = new Set(["start", "collection", "quests", "leaderboard", "profile", "guide", "public-profile"]);
+  const _mobileNavScreens = new Set(["start", "collection", "quests", "leaderboard", "profile", "guide", "public-profile", "tournament"]);
   if (elements.mobileNav) {
     elements.mobileNav.hidden = !_mobileNavScreens.has(screen);
     const _navActive = screen === "public-profile" ? "leaderboard" : screen;
@@ -480,8 +483,11 @@ function setScreen(screen) {
   // active section is tracked by activeMetaOverlay (renderStartMetaTabs keeps it
   // in sync when overlays open/close).
   if (elements.globalMetaNav) {
-    elements.globalMetaNav.hidden = !(_mobileNavScreens.has(screen) || screen === "tournament");
-    renderGlobalNav(elements.globalMetaNav, screen === "tournament" ? "tournament" : activeMetaOverlay);
+    const showGlobalNav = _mobileNavScreens.has(screen) || screen === "tournament";
+    elements.globalMetaNav.hidden = !showGlobalNav;
+    const showGlobalActions = showGlobalNav && (!isMobileViewport() || screen === "start");
+    if (elements.globalNavActions) elements.globalNavActions.hidden = !showGlobalActions;
+    renderGlobalNav(elements.globalMetaNav, screen === "tournament" ? "tournament" : (activeMetaOverlay || "home"));
   }
 }
 
@@ -990,13 +996,14 @@ function renderTournamentPlayers() {
     return;
   }
   elements.tournamentPlayers.innerHTML = players.map((p) => {
+    const name = escapeHtml(p.name || "Player");
     const initial = escapeHtml((p.name || "?").slice(0, 1).toUpperCase());
     const avatar = p.avatar
       ? `<img src="${safeImgSrc(p.avatar)}" alt="" />`
       : `<span class="tournament-player-avatar">${initial}</span>`;
     const state = p.state === "playing" ? "playing" : p.state === "finished" ? "finished" : "in lobby";
-    return `<li class="tournament-player">${avatar}<span>${escapeHtml(p.name || "Player")}</span>` +
-      `<span class="tournament-player-state">${state}</span></li>`;
+    return `<li class="tournament-player" title="${name} · ${state}" aria-label="${name}, ${state}">` +
+      `${avatar}<span class="sr-only">${name}, ${state}</span></li>`;
   }).join("");
 }
 
@@ -1007,27 +1014,64 @@ function renderTournamentCountdown() {
     elements.tournamentRoomCountdown.textContent = room?.status === "lobby" ? "Not started" : "";
     return;
   }
-  elements.tournamentRoomCountdown.textContent = `${formatTimeLeft(room.ends_at)} left`;
+  const remaining = formatTimeLeft(room.ends_at);
+  elements.tournamentRoomCountdown.textContent =
+    remaining && remaining !== "ended" ? `${remaining} left` : remaining;
+}
+
+// In-run tournament ticker: refreshes ONLY the #timerValue text every second so
+// the time-left card counts down live, independent of moves/actions. Separate
+// from the lobby countdown ticker (startTournamentCountdownTicker).
+let tournamentRunTicker = null;
+function stopTournamentRunTicker() {
+  if (tournamentRunTicker) { clearInterval(tournamentRunTicker); tournamentRunTicker = null; }
+}
+function updateTournamentRunTimer() {
+  const room = app.tournamentRoom;
+  if (!elements.timerValue || !room) return;
+  elements.timerValue.textContent = formatTimeLeft(room.ends_at ?? room.endsAt);
+}
+function startTournamentRunTicker() {
+  stopTournamentRunTicker();
+  tournamentRunTicker = window.setInterval(() => {
+    // Self-stop once the run/tournament is gone or the player left the board.
+    if (app.currentScreen !== "game" || !app.tournamentRunProof || !app.tournamentRoom) {
+      stopTournamentRunTicker();
+      return;
+    }
+    updateTournamentRunTimer();
+  }, 1000);
 }
 
 function renderTournamentHud() {
-  if (!elements.tournamentHud) return;
+  // Legacy topbar-right HUD is retired: title now lives in the full-width bar
+  // right of the back button, time in its own stat card.
+  if (elements.tournamentHud) {
+    elements.tournamentHud.hidden = true;
+    elements.tournamentHud.textContent = "";
+  }
   const proof = app.tournamentRunProof;
   const room = app.tournamentRoom;
   if (!proof || !room) {
-    elements.tournamentHud.hidden = true;
-    elements.tournamentHud.textContent = "";
+    if (elements.tournamentTitleBar) elements.tournamentTitleBar.hidden = true;
+    if (elements.timerPill) elements.timerPill.hidden = true;
+    stopTournamentRunTicker();
     return;
   }
-  elements.tournamentHud.hidden = false;
   const title = String(room.title || "Tournament Room").trim();
-  elements.tournamentHud.innerHTML = `
-    <span class="tournament-hud-title">${escapeHtml(title)}</span>
-    <span class="tournament-hud-meta">1 attempt · ${escapeHtml(formatTimeLeft(room.ends_at ?? room.endsAt))} left</span>
-  `;
+  if (elements.tournamentTitleText) elements.tournamentTitleText.textContent = title;
+  if (elements.tournamentTitleBar) elements.tournamentTitleBar.hidden = false;
+  updateTournamentRunTimer();
+  if (elements.timerPill) elements.timerPill.hidden = false;
+  startTournamentRunTicker();
 }
 
 async function openTournamentRoom(code) {
+  // The Lobby is a standalone screen: tear down the join/create modal and any
+  // open desktop section overlay first, so the room never mounts UNDER them.
+  // Both are no-ops on mobile (sections are full screens there, no overlay).
+  closeTournamentModal();
+  if (activeMetaOverlay) closeMetaOverlay();
   const normalized = normalizeTournamentCode(code);
   if (!normalized) {
     setScreen("tournament");
@@ -1118,7 +1162,7 @@ function setTournamentModalTab(tab, { focus = true } = {}) {
 
 function openTournamentModal() {
   app.tournamentModalOpen = true;
-  setTournamentModalTab("create", { focus: false });
+  setTournamentModalTab("join", { focus: false });
   if (elements.tournamentModal) {
     elements.tournamentModal.hidden = false;
     elements.tournamentModal.setAttribute("aria-hidden", "false");
@@ -1131,6 +1175,39 @@ function closeTournamentModal() {
     elements.tournamentModal.hidden = true;
     elements.tournamentModal.setAttribute("aria-hidden", "true");
   }
+}
+
+// Entry point for the "Lobby" nav/button. The create/join modal is shown ONLY
+// when there's no joined room yet; once you're in a room, re-clicking Lobby
+// (from Home, a section page, etc.) drops you straight back into that room
+// instead of re-prompting. Leaving the room (leaveTournament) is what re-arms
+// the modal.
+function enterTournament() {
+  // Guests must sign in first: pop the auth modal, then re-enter the Lobby
+  // automatically once signed in (handled in the auth onChange / init paths).
+  if (!app.authState.user) {
+    setAfterAuthAction("lobby");
+    openAuthModal({ force: true });
+    return;
+  }
+  const code = app.tournamentRoom?.code;
+  if (code) {
+    openTournamentRoom(code);
+    return;
+  }
+  openTournamentModal();
+}
+
+// Explicit "Leave lobby" from inside the room: fully drop the joined room so the
+// next Lobby entry starts fresh (modal again), then return to the start screen.
+function leaveTournament() {
+  stopTournamentPolling();
+  app.tournamentRoom = null;
+  app.tournamentLeaderboard = [];
+  app.tournamentPresence = [];
+  app.tournamentIsHost = false;
+  app.tournamentStatus = "idle";
+  goToStart();
 }
 
 async function handleModalCreate(event) {
@@ -1168,10 +1245,9 @@ async function copyTournamentInvite() {
   const room = app.tournamentRoom;
   if (!room?.code) return;
   const url = `${location.origin}/t/${room.code}`;
-  const text = `Blupets tournament room ${room.code}\n${url}`;
   try {
-    await navigator.clipboard.writeText(text);
-    showToast("Invite copied.");
+    await navigator.clipboard.writeText(url);
+    showToast("Invite link copied.");
   } catch {
     showToast(`Code: ${room.code}`);
   }
@@ -1192,7 +1268,7 @@ function backToTournamentRoom() {
   openTournamentRoom(code);
 }
 
-const AUTH_REQUIRED_META_SECTIONS = new Set(["collection", "quests"]);
+const AUTH_REQUIRED_META_SECTIONS = new Set(["quests"]);
 
 function renderStartMetaTabs(active = activeMetaOverlay) {
   if (elements.startRun) {
@@ -1202,9 +1278,8 @@ function renderStartMetaTabs(active = activeMetaOverlay) {
   // Refresh the desktop top navbar's active underline (desktop tracks the open
   // section via activeMetaOverlay). Visibility is owned by the screen-change
   // block + CSS media query.
-  renderGlobalNav(elements.globalMetaNav, active);
+  renderGlobalNav(elements.globalMetaNav, active || "home");
   const map = [
-    [elements.startCollection, "collection"],
     [elements.startQuests, "quests"],
     [elements.startLeaderboard, "rank"],
     [elements.startTournament, "tournament"],
@@ -1234,6 +1309,12 @@ function scrollToPageStart(...containers) {
 
 function resetMetaScroll() {
   scrollToPageStart(
+    // On desktop the meta-popup / tournament screen ARE the scroll containers
+    // (overflow-y:auto). They must be reset too, or switching tabs while
+    // scrolled down opens the new tab still scrolled (updatePageScrolledState
+    // reads these same elements).
+    elements.metaPopup,
+    elements.tournamentScreen,
     elements.leaderboardContent,
     elements.profileContent,
     elements.metaPopupContent,
@@ -1242,6 +1323,29 @@ function resetMetaScroll() {
     elements.guideContent,
     elements.publicProfileContent,
   );
+  updatePageScrolledState();
+}
+
+// Only a currently-visible scroller counts: a hidden screen retains its old
+// scrollTop, and including it would keep the navbar in its solid "scrolled"
+// state on a different screen that's actually at its top (e.g. Profile).
+function visibleScrollTop(el) {
+  if (!el || el.hidden) return 0;
+  if (el.offsetWidth === 0 && el.offsetHeight === 0) return 0;
+  return el.scrollTop || 0;
+}
+
+function updatePageScrolledState() {
+  const scrollTop = Math.max(
+    window.scrollY || 0,
+    document.documentElement?.scrollTop || 0,
+    document.body?.scrollTop || 0,
+    visibleScrollTop(elements.metaPopup),
+    visibleScrollTop(elements.tournamentScreen),
+    visibleScrollTop(elements.leaderboardContent),
+    visibleScrollTop(elements.profileContent),
+  );
+  document.body.classList.toggle("is-page-scrolled", scrollTop > 18);
 }
 
 function openMetaSection(section, fromScreen = app.currentScreen) {
@@ -1249,8 +1353,13 @@ function openMetaSection(section, fromScreen = app.currentScreen) {
     closeMetaOverlay();
     return;
   }
-  // Collection and quests require a logged-in account.
-  if ((section === "collection" || section === "quests" || section === "capsules") && !app.authState.user) {
+  // "home" is the navbar's Home entry, not a section — route to the start screen.
+  if (section === "home") {
+    goToStart();
+    return;
+  }
+  // Quests require a logged-in account.
+  if ((section === "quests" || section === "capsules") && !app.authState.user) {
     openAuthModal();
     return;
   }
@@ -1313,11 +1422,20 @@ function handleMetaPopupClose() {
     renderMetaOverlay();
     return;
   }
+  // The desktop page pushed a history entry when it opened — pop it so the
+  // back-stack and address fragment stay consistent (popstate then closes the
+  // popup). Mirrors the mobile back-button pattern. Falls back to a direct close
+  // when there's no such entry (e.g. mid-popstate, or no history depth).
+  if (!_inPopstate && _historyDepth > 0 && history.state?.meta) {
+    history.back();
+    return;
+  }
   closeMetaOverlay();
 }
 
 async function openMetaOverlay(section) {
   app.metaPublicProfile = null;
+  const wasOpen = Boolean(elements.metaPopup && !elements.metaPopup.hidden);
   activeMetaOverlay =
     section === "account" ? "account" :
     section === "rank" ? "rank" :
@@ -1329,6 +1447,23 @@ async function openMetaOverlay(section) {
     elements.metaPopup.hidden = false;
     elements.metaPopup.setAttribute("aria-hidden", "false");
     elements.metaPopup.dataset.section = activeMetaOverlay;
+  }
+  // Desktop: the section popups are full-screen PAGES, so they get a real
+  // browser history entry (address fragment + working Back button). Opening the
+  // page from a non-page state pushes one entry; switching sections while a page
+  // is already open replaces it (so Back leaves the pages instead of stepping
+  // through every section visited). popstate closes the popup when the restored
+  // entry has no `meta`. Guarded by _inPopstate so history-driven opens (Back to
+  // a page) don't re-push. Mobile routes through setScreen (never reaches here).
+  if (!_inPopstate) {
+    const entry = { screen: "start", meta: activeMetaOverlay };
+    const url = location.pathname + "#" + activeMetaOverlay;
+    if (wasOpen) {
+      history.replaceState({ ...entry, idx: _historyDepth }, "", url);
+    } else {
+      _historyDepth++;
+      history.pushState({ ...entry, idx: _historyDepth }, "", url);
+    }
   }
   if (activeMetaOverlay === "rank" && app.leaderboardStatus !== "ready") {
     app.leaderboardStatus = "loading";
@@ -2120,6 +2255,9 @@ function openAuthModal({ force = true } = {}) {
 function closeAuthModal({ dismiss = false } = {}) {
   authModalForced = false;
   authModalDismissed = dismiss ? true : authModalDismissed;
+  // User bailed on the auth prompt — drop any queued post-sign-in action (e.g.
+  // "open Lobby") so it doesn't fire on some later, unrelated sign-in.
+  if (dismiss) consumeAfterAuthAction();
   renderAuthModal();
 }
 
@@ -2209,6 +2347,7 @@ async function initializeAuth() {
       if (!prevUser && app.authState.user) {
         const returnTo = consumeReturnTo();
         if (returnTo === "game") startRun();
+        if (consumeAfterAuthAction() === "lobby") enterTournament();
       }
     },
   });
@@ -2231,6 +2370,7 @@ async function initializeAuth() {
     const returnTo = consumeReturnTo();
     // After OAuth redirect: return to where the user was (game -> start a new run).
     if (returnTo === "game") startRun();
+    if (consumeAfterAuthAction() === "lobby") enterTournament();
   }
 }
 
@@ -2238,6 +2378,24 @@ function consumeReturnTo() {
   try {
     const raw = localStorage.getItem("blupets_return");
     localStorage.removeItem("blupets_return");
+    if (!raw) return null;
+    const item = JSON.parse(raw);
+    return item.exp && Date.now() < item.exp ? item.v : null;
+  } catch { return null; }
+}
+
+// A one-shot action to run right after a guest signs in (e.g. "open the Lobby
+// modal"). Kept separate from `blupets_return` because the OAuth path overwrites
+// that key with the current screen; this survives an OAuth reload (10-min expiry)
+// and also fires immediately on an in-page username/password sign-in.
+const AFTER_AUTH_KEY = "blupets_after_auth";
+function setAfterAuthAction(action) {
+  try { localStorage.setItem(AFTER_AUTH_KEY, JSON.stringify({ v: action, exp: Date.now() + 600_000 })); } catch {}
+}
+function consumeAfterAuthAction() {
+  try {
+    const raw = localStorage.getItem(AFTER_AUTH_KEY);
+    localStorage.removeItem(AFTER_AUTH_KEY);
     if (!raw) return null;
     const item = JSON.parse(raw);
     return item.exp && Date.now() < item.exp ? item.v : null;
@@ -3032,9 +3190,11 @@ function renderModals(stateLike) {
         button.dataset.colorId = queueItem.colorId;
         button.dataset.partnerId = partner.id;
 
-        const dot = document.createElement("span");
+        const dot = document.createElement("img");
         dot.className = "partner-dot";
-        dot.style.setProperty("--partner-color", partner.hex);
+        dot.src = getBaseBlockAsset(partner.id);
+        dot.alt = "";
+        dot.decoding = "async";
 
         const name = document.createElement("span");
         name.className = "partner-name";
@@ -4258,7 +4418,6 @@ elements.board.addEventListener("pointerup", handleBoardPointerUp);
 elements.board.addEventListener("pointercancel", handleBoardPointerCancel);
 document.addEventListener("click", handleGlobalInteractiveClick);
 bindClick(elements.startRun, () => startRun());
-bindClick(elements.startCollection, () => openMetaSection("collection", "start"));
 bindClick(elements.startQuests, () => openMetaSection("quests", "start"));
 bindClick(elements.startGuide, () => openMetaSection("guide", "start"));
 bindClick(elements.startLeaderboard, () => openMetaSection("rank", "start"));
@@ -4326,6 +4485,14 @@ elements.globalMetaNav?.addEventListener("click", (e) => {
   if (!btn?.dataset.metaNav) return;
   sfx("ui");
   const target = btn.dataset.metaNav;
+  // Home: leave whatever page is open and land back on the start screen. From the
+  // Lobby room, tear it down; from a section page, pop it (keeps history/back in
+  // sync); on a bare start screen it's a no-op.
+  if (target === "home") {
+    if (app.currentScreen === "tournament") goToStart();
+    else if (activeMetaOverlay) handleMetaPopupClose();
+    return;
+  }
   // Navigating from inside the live Lobby room: tear it down cleanly first (same
   // path as the room's back button) so a switch never stacks a section over an
   // active tournament.
@@ -4334,7 +4501,7 @@ elements.globalMetaNav?.addEventListener("click", (e) => {
     goToStart();
   }
   if (target === "tournament") {
-    openTournamentModal();
+    enterTournament();
     return;
   }
   openMetaSection(target, "global");
@@ -4348,11 +4515,16 @@ elements.mobileNav?.addEventListener("click", (e) => {
   if (target === "start") {
     goToStart();
   } else if (target === "tournament") {
-    openTournamentModal();
+    enterTournament();
   } else {
     openMetaSection(target === "leaderboard" ? "rank" : target, app.currentScreen);
   }
 });
+window.addEventListener("scroll", updatePageScrolledState, { passive: true });
+elements.metaPopup?.addEventListener("scroll", updatePageScrolledState, { passive: true });
+elements.tournamentScreen?.addEventListener("scroll", updatePageScrolledState, { passive: true });
+elements.leaderboardContent?.addEventListener("scroll", updatePageScrolledState, { passive: true });
+elements.profileContent?.addEventListener("scroll", updatePageScrolledState, { passive: true });
 elements.metaPopupTabsHost?.addEventListener("click", (e) => {
   const tabBtn = e.target.closest(".leaderboard-tab");
   if (!tabBtn?.dataset.tab) return;
@@ -4440,6 +4612,7 @@ bindClick(elements.muteBtnGame, handleMuteToggle);
 bindClick(elements.startMuteBtn, handleMuteToggle);
 bindClick(elements.startTournament, openTournamentModal);
 bindClick(elements.tournamentBackBtn, goToStart);
+bindClick(elements.tournamentLeaveBtn, leaveTournament);
 bindClick(elements.tournamentStartBtn, startTournamentAttempt);
 bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
 bindClick(elements.tournamentHostStartBtn, handleHostStartTournament);
@@ -4557,6 +4730,20 @@ window.addEventListener("popstate", (e) => {
     resetInteractionState();
   }
   app.currentScreen = screen;
+  // Desktop section pages live as a meta-popup over the "start" screen with a
+  // `meta` marker in their history entry. Reconcile the popup with the restored
+  // entry: reopen/switch when Back/Forward lands on a `meta` entry, close it
+  // when it lands on one without (e.g. Back out of the pages to start).
+  if (elements.metaPopup && !isMobileViewport()) {
+    const targetMeta = screen === "start" ? e.state?.meta : null;
+    if (targetMeta && targetMeta !== "public-profile") {
+      if (activeMetaOverlay !== targetMeta || elements.metaPopup.hidden) {
+        openMetaOverlay(targetMeta);
+      }
+    } else if (!elements.metaPopup.hidden) {
+      closeMetaOverlay();
+    }
+  }
   setScreen(screen);
   render();
   _inPopstate = false;

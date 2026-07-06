@@ -19,7 +19,7 @@ import {
   questSentenceText,
 } from "./quest-logic.js?v=20260629-1";
 import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-2";
-import { renderTabHero } from "./render-tab-hero.js?v=20260705-3";
+import { renderTabHero } from "./render-tab-hero.js?v=20260706-hero-unify-1";
 
 const QUEST_TYPES = [
   ["collection", "Collection", ["collection"]],
