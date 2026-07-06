@@ -94,7 +94,7 @@ stale files. The discipline:
   `index.html`, +1 each commit.
 
 Current versions (bump on change):
-- `styles.css` → `?v=20260706-hero-unify-91`
+- `styles.css` → `?v=20260706-lb-fix-93`
 - `src/main.js` → `?v=20260706-nav-actions-14`
 - `render-quests.js` import in `main.js` → `?v=20260706-hero-unify-1`
 - `render-leaderboard.js` import in `main.js` → `?v=20260706-navorder-1`

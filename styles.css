@@ -5671,12 +5671,17 @@ body.mobile-perf-mode .modal-card {
   gap: 4px;
   height: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
   padding: 8px max(10px, env(safe-area-inset-left, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-right, 0px));
-  /* Solid white scrim that fades in at the top, so labels always sit on white
-     and page content (e.g. the profile blupets grid) never bleeds through —
-     matches the collection tab bar on every screen. */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.9) 32%, #ffffff 58%);
+  /* SINGLE SOURCE OF TRUTH for the mobile bottom nav. It is one shared fixed
+     element reused on every screen, so its look must NOT depend on the page
+     behind it. A fully OPAQUE fill is what guarantees it renders identically on
+     the blue hero screens (leaderboard, lobby, quests…) and the white ones
+     (start, profile). Do NOT revert to a transparent → white scrim gradient:
+     that let each screen's background bleed through the bar's top half, which is
+     exactly why it looked different on every tab. */
+  background: #ffffff;
   border: 0;
-  box-shadow: none;
+  border-top: 1px solid rgba(92, 173, 255, 0.16);
+  box-shadow: 0 -6px 20px rgba(20, 50, 74, 0.08);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
@@ -5908,10 +5913,26 @@ body.mobile-perf-mode .modal-card {
   }
 
   .leaderboard-screen .leaderboard-card {
-    padding:
-      max(16px, env(safe-area-inset-top, 16px))
-      16px
-      calc(82px + env(safe-area-inset-bottom, 0px));
+    /* Match the other mobile tabs (quests/guide): their .tab-hero sits 12px from
+       the top via .mobile-screen-content. The leaderboard card used a bigger
+       (safe-area) top pad, so its hero sat ~21px lower than every other tab. */
+    padding: 12px 16px 0;
+  }
+
+  /* Kill the extra tabs-host margin on mobile so the hero aligns to 12px like the
+     other tabs (the top-level `.leaderboard-tabs-host:not(:empty)` clamp margin
+     pushed it down). #id specificity wins over that rule regardless of order. */
+  #leaderboardScreen .leaderboard-tabs-host {
+    margin-top: 0;
+  }
+
+  /* Bottom-nav clearance: the card is the scroll container, but Chromium doesn't
+     honor a scroller's own padding-bottom at scroll-end, so the last row slid
+     under the fixed mobile nav. Put the clearance on the innermost IN-FLOW rows
+     container instead — its padding-bottom grows the card's scrollHeight, so the
+     last row can scroll clear of the nav. */
+  #leaderboardScreen .leaderboard-list {
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -11062,9 +11083,8 @@ button,
   transform: scale(1.08);
 }
 
-.mobile-nav {
-  border-top: 1px solid rgba(92, 173, 255, 0.1);
-}
+/* .mobile-nav look (background / border / shadow) is defined once in the base
+   `.mobile-nav` rule above — kept there so the bar can't drift per screen. */
 
 .mobile-nav-btn span {
   display: block;
@@ -11295,10 +11315,6 @@ body,
   z-index: 2;
 }
 
-.mobile-nav {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 .start-actions--secondary {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -11364,10 +11380,6 @@ body,
 .meta-popup[data-section="rank"] .leaderboard-column--active,
 #leaderboardScreen .leaderboard-column--active {
   max-width: none;
-}
-
-.mobile-nav {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .global-nav-actions {
