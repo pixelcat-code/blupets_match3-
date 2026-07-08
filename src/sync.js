@@ -260,7 +260,7 @@ function countFamilyBadges(familyBadges) {
 // state), no DB writes. Callers get plain callbacks; we own the single channel.
 let _tournamentChannel = null;
 
-export async function subscribeTournamentRoom(code, roomId, { onRoom, onEntry, onPresenceSync } = {}) {
+export async function subscribeTournamentRoom(code, roomId, { onRoom, onEntry, onPresenceSync, onBroadcast } = {}) {
   await unsubscribeTournamentRoom();
   const client = await getSupabaseClient();
   const channel = client.channel(`tournament:${code}`, {
@@ -280,6 +280,9 @@ export async function subscribeTournamentRoom(code, roomId, { onRoom, onEntry, o
   channel.on("presence", { event: "sync" }, () => {
     try { onPresenceSync?.(channel.presenceState()); } catch (e) { console.error(e); }
   });
+  channel.on("broadcast", { event: "kick" }, (payload) => {
+    try { onBroadcast?.("kick", payload?.payload ?? {}); } catch (e) { console.error(e); }
+  });
 
   await new Promise((resolve) => {
     channel.subscribe((status) => { if (status === "SUBSCRIBED") resolve(); });
@@ -290,6 +293,10 @@ export async function subscribeTournamentRoom(code, roomId, { onRoom, onEntry, o
 
 export function presenceTrack(channel, payload) {
   return channel?.track?.(payload);
+}
+
+export function sendTournamentBroadcast(channel, event, payload) {
+  return channel?.send?.({ type: "broadcast", event, payload });
 }
 
 export async function unsubscribeTournamentRoom() {

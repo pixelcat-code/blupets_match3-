@@ -437,6 +437,24 @@
   line-height: 1;
   box-shadow: 0 5px 12px rgba(37, 128, 72, 0.22);
 }
+.tournament-player-kick {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-radius: 50%;
+  background: #ff4c55;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow: 0 6px 14px rgba(190, 48, 58, 0.22);
+  cursor: pointer;
+}
 .tournament-player img, .tournament-player .tournament-player-avatar {
   width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: 0 0 auto;
   background: rgba(235, 248, 255, 0.9); display: inline-flex; align-items: center; justify-content: center;
@@ -11768,7 +11786,7 @@ body,
   }
 
   .tournament-screen.has-room .tournament-room-body {
-    grid-template-columns: minmax(260px, 0.86fr) minmax(0, 1.34fr);
+    grid-template-columns: minmax(180px, 0.46fr) minmax(0, 1.54fr);
     height: auto;
     min-height: 0;
     align-items: stretch;
@@ -11784,6 +11802,8 @@ body,
   .tournament-screen.has-room .tournament-board-panel {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
+    align-self: stretch;
+    height: 100%;
   }
 
   .tournament-screen.has-room .tournament-leaderboard {
@@ -11799,6 +11819,13 @@ body,
 
   .tournament-screen.has-room .tournament-leaderboard .leaderboard-list {
     gap: 6px;
+    min-height: 100%;
+  }
+
+  .tournament-screen.has-room .tournament-leaderboard .leaderboard-empty {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
   }
 
   /* Compact rows (lobby only) — fit more entries before the page needs to scroll. */

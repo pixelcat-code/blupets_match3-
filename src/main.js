@@ -75,7 +75,8 @@ import {
   subscribeTournamentRoom,
   unsubscribeTournamentRoom,
   presenceTrack,
-} from "./sync.js?v=20260703-tournament-realtime-2";
+  sendTournamentBroadcast,
+} from "./sync.js?v=20260708-tournament-control-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
@@ -914,6 +915,20 @@ function tournamentReadyCounts() {
   return { ready, total };
 }
 
+async function maybeAutoStartTournamentAttempt() {
+  const room = app.tournamentRoom;
+  if (!room || room.status !== "live" || !room.started_at) return;
+  if (app.currentScreen !== "tournament") return;
+  if (app.tournamentAutoStarting || app.tournamentRunProof || runProof?.tournament) return;
+  if (room.playerState?.hasSubmitted || room.playerState?.hasStarted) return;
+  app.tournamentAutoStarting = true;
+  try {
+    await startTournamentAttempt();
+  } finally {
+    app.tournamentAutoStarting = false;
+  }
+}
+
 async function handleHostStartTournament() {
   const code = app.tournamentRoom?.code;
   if (!code || !app.tournamentIsHost) return;
@@ -927,6 +942,9 @@ async function handleHostStartTournament() {
     trackTournamentPresence("lobby");
     app.tournamentStatus = "ready";
     renderTournamentRoom();
+    maybeAutoStartTournamentAttempt().catch((error) => {
+      console.error("[tournament] auto start failed:", error);
+    });
   } catch (error) {
     console.error("[tournament] host start failed:", error);
     app.tournamentStatus = "ready";
@@ -944,6 +962,9 @@ async function refreshTournamentLeaderboard() {
     app.tournamentRoom = { ...app.tournamentRoom, ...data.room };
   }
   renderTournamentRoom();
+  maybeAutoStartTournamentAttempt().catch((error) => {
+    console.error("[tournament] auto start failed:", error);
+  });
 }
 
 function renderTournamentLeaderboardRows() {
@@ -1045,6 +1066,7 @@ function renderTournamentPlayers() {
   }
   elements.tournamentPlayers.innerHTML = players.map((p) => {
     const name = escapeHtml(p.name || "Player");
+    const id = escapeHtml(p.id || "");
     const initial = escapeHtml((p.name || "?").slice(0, 1).toUpperCase());
     const avatar = p.avatar
       ? `<img src="${safeImgSrc(p.avatar)}" alt="" />`
@@ -1055,9 +1077,30 @@ function renderTournamentPlayers() {
     const stateClass = p.state === "ready" ? " is-ready" :
       p.state === "playing" ? " is-playing" :
       p.state === "finished" ? " is-finished" : "";
+    const canKick = app.tournamentIsHost &&
+      app.tournamentRoom?.status === "lobby" &&
+      p.id &&
+      p.id !== app.authState.user?.id;
+    const kick = canKick
+      ? `<button class="tournament-player-kick" type="button" data-kick-player="${id}" title="Remove player" aria-label="Remove ${name}">×</button>`
+      : "";
     return `<li class="tournament-player${stateClass}" title="${name} · ${state}" aria-label="${name}, ${state}">` +
-      `${avatar}<span class="sr-only">${name}, ${state}</span></li>`;
+      `${avatar}${kick}<span class="sr-only">${name}, ${state}</span></li>`;
   }).join("");
+}
+
+function handleTournamentPlayerAction(event) {
+  const btn = event.target.closest("[data-kick-player]");
+  if (!btn || !app.tournamentIsHost || app.tournamentRoom?.status !== "lobby") return;
+  const targetId = btn.dataset.kickPlayer;
+  if (!targetId || targetId === app.authState.user?.id) return;
+  sendTournamentBroadcast(app.tournamentChannel, "kick", {
+    targetId,
+    roomId: app.tournamentRoom?.id || "",
+    code: app.tournamentRoom?.code || "",
+  });
+  app.tournamentPresence = (app.tournamentPresence ?? []).filter((player) => player.id !== targetId);
+  renderTournamentRoom();
 }
 
 function toggleTournamentReady() {
@@ -1153,6 +1196,9 @@ async function openTournamentRoom(code) {
         onRoom: (row) => {
           app.tournamentRoom = { ...app.tournamentRoom, ...row };
           renderTournamentRoom();
+          maybeAutoStartTournamentAttempt().catch((error) => {
+            console.error("[tournament] auto start failed:", error);
+          });
         },
         onEntry: () => { refreshTournamentLeaderboard().catch(() => {}); },
         onPresenceSync: (state) => {
@@ -1182,6 +1228,14 @@ async function openTournamentRoom(code) {
           app.tournamentPresence = [...byUser.values()];
           renderTournamentPlayers();
           renderTournamentRoom();
+        },
+        onBroadcast: (event, payload) => {
+          if (event !== "kick") return;
+          const userId = app.authState.user?.id || "";
+          const targetId = String(payload?.targetId || "");
+          if (!targetId || targetId !== userId) return;
+          showToast("You were removed from the lobby.");
+          leaveTournament();
         },
       });
       app.tournamentChannel = channel;
@@ -4709,6 +4763,7 @@ bindClick(elements.tournamentReadyBtn, toggleTournamentReady);
 bindClick(elements.tournamentStartBtn, startTournamentAttempt);
 bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
 bindClick(elements.tournamentHostStartBtn, handleHostStartTournament);
+elements.tournamentPlayers?.addEventListener("click", handleTournamentPlayerAction);
 elements.tournamentModalCreateForm?.addEventListener("submit", handleModalCreate);
 elements.tournamentModalJoinForm?.addEventListener("submit", handleModalJoin);
 bindClick(elements.tournamentTabCreate, () => setTournamentModalTab("create"));

@@ -76,6 +76,7 @@ export const app = {
   tournamentRunProof: null,
   tournamentPresence: [],
   tournamentReady: false,
+  tournamentAutoStarting: false,
   tournamentIsHost: false,
   tournamentChannel: null,
   tournamentModalOpen: false,
