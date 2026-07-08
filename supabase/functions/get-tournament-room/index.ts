@@ -58,21 +58,32 @@ Deno.serve(async (req) => {
       .limit(100);
     if (entriesError) throw entriesError;
 
-    let playerState = { hasStarted: false, hasSubmitted: false, score: null as number | null, rank: null as number | null };
+    let playerState = {
+      hasStarted: false,
+      hasSubmitted: false,
+      score: null as number | null,
+      rank: null as number | null,
+      startedAt: null as string | null,
+      expiresAt: null as string | null,
+    };
     if (userId) {
       const { data: run } = await supabase
         .from("tournament_runs")
-        .select("id, submitted_at")
+        .select("id, started_at, submitted_at")
         .eq("room_id", room.id)
         .eq("user_id", userId)
         .maybeSingle();
       const ranked = rankRows(entries ?? [], userId);
       const own = ranked.find((entry) => entry.isPlayer);
+      const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
+      const runStartedMs = run?.started_at ? new Date(run.started_at).getTime() : NaN;
       playerState = {
         hasStarted: Boolean(run),
         hasSubmitted: Boolean(run?.submitted_at || own),
         score: own?.score ?? null,
         rank: own?.rank ?? null,
+        startedAt: run?.started_at ?? null,
+        expiresAt: Number.isFinite(runStartedMs) ? new Date(runStartedMs + durationMs).toISOString() : null,
       };
     }
 

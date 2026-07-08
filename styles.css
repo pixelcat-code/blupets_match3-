@@ -402,6 +402,7 @@
 .tournament-players { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .tournament-player {
   display: flex;
+  position: relative;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
@@ -411,6 +412,30 @@
   color: var(--ink);
   font-size: 13px;
   font-weight: 750;
+}
+.tournament-player.is-ready {
+  border-color: rgba(88, 210, 117, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 0 0 2px rgba(88, 210, 117, 0.18);
+}
+.tournament-player.is-ready::after {
+  content: "✓";
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  background: #41c969;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow: 0 5px 12px rgba(37, 128, 72, 0.22);
 }
 .tournament-player img, .tournament-player .tournament-player-avatar {
   width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: 0 0 auto;
@@ -427,6 +452,11 @@
 .tournament-countdown { font-variant-numeric: tabular-nums; font-weight: 700; }
 .tournament-room-cta { display: grid; gap: 10px; margin-top: 2px; }
 .tournament-room-cta .btn { width: 100%; }
+.tournament-ready-btn.is-ready {
+  border-color: rgba(88, 210, 117, 0.72);
+  background: linear-gradient(180deg, rgba(241, 255, 246, 0.96), rgba(222, 250, 232, 0.92));
+  color: #198447;
+}
 
 @media (max-width: 699px) {
   .tournament-grid {
@@ -11679,15 +11709,13 @@ body,
 @media (min-width: 700px) {
   .tournament-screen.has-room .tournament-card {
     display: grid;
-    /* Natural height: the room grows with the leaderboard and the page scrolls,
-       rather than a bounded 1fr track + max-height that forced a fixed-height
-       inner scroll area. flex:none stops the fixed-height .tournament-screen
-       (position:absolute; inset:0) flex parent from shrinking the card down to
-       one viewport (which clipped the leaderboard) — the screen scrolls instead. */
     flex: none;
-    grid-template-rows: auto auto;
-    height: auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(100dvh - var(--desktop-topnav-top) - var(--desktop-topnav-h) - 64px);
+    max-height: calc(100dvh - var(--desktop-topnav-top) - var(--desktop-topnav-h) - 64px);
+    min-height: min(760px, calc(100dvh - var(--desktop-topnav-top) - var(--desktop-topnav-h) - 64px));
     gap: clamp(14px, 1.8dvh, 20px);
+    overflow: hidden;
   }
 
   .tournament-screen.has-room .hero-lobby {
@@ -11697,9 +11725,10 @@ body,
 
   .tournament-screen.has-room .tournament-room {
     display: grid;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: clamp(12px, 1.6dvh, 18px);
     min-height: 0;
+    overflow: hidden;
   }
 
   .tournament-screen.has-room .tournament-room-headline {
@@ -11740,11 +11769,10 @@ body,
 
   .tournament-screen.has-room .tournament-room-body {
     grid-template-columns: minmax(260px, 0.86fr) minmax(0, 1.34fr);
-    /* No fixed height — the body fills its bounded 1fr track (from the card /
-       room grids) and the leaderboard scrolls inside it. A hard height here
-       overflowed the track and slid under the CTA buttons. */
+    height: auto;
     min-height: 0;
     align-items: stretch;
+    overflow: hidden;
   }
 
   .tournament-screen.has-room .tournament-players-panel,
@@ -11755,15 +11783,18 @@ body,
 
   .tournament-screen.has-room .tournament-board-panel {
     display: grid;
-    grid-template-rows: auto auto;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .tournament-screen.has-room .tournament-leaderboard {
     min-height: 0;
+    height: 100%;
     margin-top: 0;
-    /* Grows with its rows so the container expands as the lobby fills; the page
-       scrolls if the room gets tall, instead of an inner scrollbar. */
-    overflow: visible;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 
   .tournament-screen.has-room .tournament-leaderboard .leaderboard-list {
@@ -11823,6 +11854,9 @@ body,
     grid-template-columns: 1fr;
     gap: 8px;
     margin-top: 0;
+    position: relative;
+    z-index: 3;
+    flex: none;
   }
 
   .tournament-screen.has-room .tournament-room-cta .btn {

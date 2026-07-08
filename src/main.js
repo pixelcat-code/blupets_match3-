@@ -647,15 +647,20 @@ async function startTournamentAttempt() {
     ]);
     runProof = proof;
     app.tournamentRunProof = proof;
-    if (app.tournamentChannel) {
-      const u = app.authState.user;
-      presenceTrack(app.tournamentChannel, {
-        id: u?.id || "",
-        name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
-        avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
-        state: "playing",
-      });
-    }
+    const attemptStartedAt = proof.startedAt ?? proof.started_at ?? new Date().toISOString();
+    const attemptDurationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
+    const attemptExpiresAt = proof.expiresAt ?? proof.expires_at ??
+      new Date(new Date(attemptStartedAt).getTime() + attemptDurationMs).toISOString();
+    app.tournamentRoom = {
+      ...room,
+      playerState: {
+        ...(room.playerState ?? {}),
+        hasStarted: true,
+        startedAt: attemptStartedAt,
+        expiresAt: attemptExpiresAt,
+      },
+    };
+    trackTournamentPresence("playing");
     const rules = proof.rules && typeof proof.rules === "object" ? proof.rules : {};
     runRng = createSeededRng(proof.seed);
     app.state = createInitialState({
@@ -877,13 +882,35 @@ function stopTournamentCountdownTicker() {
 }
 function startTournamentCountdownTicker() {
   stopTournamentCountdownTicker();
-  tournamentCountdownTimer = window.setInterval(() => {
-    if (app.currentScreen !== "tournament" || !app.tournamentRoom) { stopTournamentCountdownTicker(); return; }
-    renderTournamentCountdown();
-    // When the clock runs out, disable Start Attempt.
-    const room = app.tournamentRoom;
-    if (room.ends_at && Date.now() > new Date(room.ends_at).getTime()) renderTournamentRoom();
-  }, 1000);
+  renderTournamentCountdown();
+}
+
+function tournamentPresencePayload(state = "lobby") {
+  const u = app.authState.user;
+  return {
+    id: u?.id || "",
+    name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
+    avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
+    state,
+  };
+}
+
+function trackTournamentPresence(state = app.tournamentReady ? "ready" : "lobby") {
+  if (!app.tournamentChannel) return;
+  presenceTrack(app.tournamentChannel, tournamentPresencePayload(state));
+}
+
+function tournamentReadyCounts() {
+  const hostId = app.tournamentRoom?.creator_user_id || "";
+  const players = app.tournamentPresence ?? [];
+  const eligible = players.filter((player) =>
+    (!hostId || player.id !== hostId) &&
+    player.state !== "finished" &&
+    player.state !== "playing"
+  );
+  const total = eligible.length;
+  const ready = eligible.filter((player) => player.state === "ready").length;
+  return { ready, total };
 }
 
 async function handleHostStartTournament() {
@@ -895,6 +922,8 @@ async function handleHostStartTournament() {
     const data = await startTournamentRoom(code);
     const room = data.room ?? data;
     app.tournamentRoom = { ...app.tournamentRoom, ...room };
+    app.tournamentReady = false;
+    trackTournamentPresence("lobby");
     app.tournamentStatus = "ready";
     renderTournamentRoom();
   } catch (error) {
@@ -972,14 +1001,27 @@ function renderTournamentRoom() {
   }
 
   const started = room.status === "live" && room.started_at;
-  const ended = room.status === "ended" ||
-    (room.ends_at && Date.now() > new Date(room.ends_at).getTime());
+  const ended = room.status === "ended";
   const hasSubmitted = Boolean(room.playerState?.hasSubmitted);
+  const readyCounts = tournamentReadyCounts();
+
+  if (elements.tournamentReadyBtn) {
+    const showReady = room.status === "lobby" && !app.tournamentIsHost;
+    elements.tournamentReadyBtn.hidden = !showReady;
+    elements.tournamentReadyBtn.classList.toggle("is-ready", Boolean(app.tournamentReady));
+    elements.tournamentReadyBtn.setAttribute("aria-pressed", String(Boolean(app.tournamentReady)));
+    elements.tournamentReadyBtn.textContent = app.tournamentReady ? "Ready ✓" : "Ready";
+  }
 
   // Host sees Start Tournament while the room is still in lobby.
   if (elements.tournamentHostStartBtn) {
     elements.tournamentHostStartBtn.hidden = !(app.tournamentIsHost && room.status === "lobby");
     elements.tournamentHostStartBtn.disabled = app.tournamentStatus === "starting-room";
+    elements.tournamentHostStartBtn.textContent = app.tournamentStatus === "starting-room"
+      ? "Starting…"
+      : readyCounts.total > 0
+        ? `Start Tournament · ${readyCounts.ready}/${readyCounts.total} ready`
+        : "Start Tournament";
   }
   // Start Attempt is live only once the host has started and the player hasn't run.
   if (elements.tournamentStartBtn) {
@@ -1006,22 +1048,28 @@ function renderTournamentPlayers() {
     const avatar = p.avatar
       ? `<img src="${safeImgSrc(p.avatar)}" alt="" />`
       : `<span class="tournament-player-avatar">${initial}</span>`;
-    const state = p.state === "playing" ? "playing" : p.state === "finished" ? "finished" : "in lobby";
-    return `<li class="tournament-player" title="${name} · ${state}" aria-label="${name}, ${state}">` +
+    const state = p.state === "playing" ? "playing" :
+      p.state === "finished" ? "finished" :
+      p.state === "ready" ? "ready" : "in lobby";
+    const stateClass = p.state === "ready" ? " is-ready" :
+      p.state === "playing" ? " is-playing" :
+      p.state === "finished" ? " is-finished" : "";
+    return `<li class="tournament-player${stateClass}" title="${name} · ${state}" aria-label="${name}, ${state}">` +
       `${avatar}<span class="sr-only">${name}, ${state}</span></li>`;
   }).join("");
 }
 
+function toggleTournamentReady() {
+  const room = app.tournamentRoom;
+  if (!room || room.status !== "lobby" || app.tournamentIsHost) return;
+  app.tournamentReady = !app.tournamentReady;
+  trackTournamentPresence(app.tournamentReady ? "ready" : "lobby");
+  renderTournamentRoom();
+}
+
 function renderTournamentCountdown() {
   if (!elements.tournamentRoomCountdown) return;
-  const room = app.tournamentRoom;
-  if (!room || room.status === "lobby" || !room.ends_at) {
-    elements.tournamentRoomCountdown.textContent = room?.status === "lobby" ? "Not started" : "";
-    return;
-  }
-  const remaining = formatTimeLeft(room.ends_at);
-  elements.tournamentRoomCountdown.textContent =
-    remaining && remaining !== "ended" ? `${remaining} left` : remaining;
+  elements.tournamentRoomCountdown.textContent = "";
 }
 
 // In-run tournament ticker: refreshes ONLY the #timerValue text every second so
@@ -1032,9 +1080,11 @@ function stopTournamentRunTicker() {
   if (tournamentRunTicker) { clearInterval(tournamentRunTicker); tournamentRunTicker = null; }
 }
 function updateTournamentRunTimer() {
+  const proof = app.tournamentRunProof;
   const room = app.tournamentRoom;
   if (!elements.timerValue || !room) return;
-  elements.timerValue.textContent = formatTimeLeft(room.ends_at ?? room.endsAt);
+  const endValue = proof?.expiresAt ?? proof?.expires_at ?? room.playerState?.expiresAt;
+  elements.timerValue.textContent = endValue ? formatTimeLeft(endValue) : "--:--";
 }
 function startTournamentRunTicker() {
   stopTournamentRunTicker();
@@ -1109,27 +1159,23 @@ async function openTournamentRoom(code) {
           // array — collapse to one row per user (id, falling back to name), and
           // keep the most-progressed state so a stale lobby meta can't duplicate
           // a user who is already playing/finished.
-          const rank = { finished: 3, playing: 2, lobby: 1 };
+          const rank = { finished: 4, playing: 3, ready: 2, lobby: 1 };
           const byUser = new Map();
           for (const m of Object.values(state || {}).flat()) {
             const key = m.id || m.name || "?";
             const prev = byUser.get(key);
             if (!prev || (rank[m.state] || 0) > (rank[prev.state] || 0)) {
-              byUser.set(key, { name: m.name, avatar: m.avatar, state: m.state });
+              byUser.set(key, { id: m.id, name: m.name, avatar: m.avatar, state: m.state });
             }
           }
           app.tournamentPresence = [...byUser.values()];
           renderTournamentPlayers();
+          renderTournamentRoom();
         },
       });
       app.tournamentChannel = channel;
-      const u = app.authState.user;
-      presenceTrack(channel, {
-        id: u?.id || "",
-        name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
-        avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
-        state: "lobby",
-      });
+      app.tournamentReady = false;
+      presenceTrack(channel, tournamentPresencePayload("lobby"));
     } catch (error) {
       console.error("[tournament] realtime subscribe failed:", error);
       // Poll fallback (startTournamentPolling) keeps the room usable.
@@ -1210,6 +1256,7 @@ function leaveTournament() {
   app.tournamentRoom = null;
   app.tournamentLeaderboard = [];
   app.tournamentPresence = [];
+  app.tournamentReady = false;
   app.tournamentIsHost = false;
   app.tournamentStatus = "idle";
   goToStart();
@@ -4647,6 +4694,7 @@ bindClick(elements.startMuteBtn, handleMuteToggle);
 bindClick(elements.startTournament, openTournamentModal);
 bindClick(elements.tournamentBackBtn, goToStart);
 bindClick(elements.tournamentLeaveBtn, leaveTournament);
+bindClick(elements.tournamentReadyBtn, toggleTournamentReady);
 bindClick(elements.tournamentStartBtn, startTournamentAttempt);
 bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
 bindClick(elements.tournamentHostStartBtn, handleHostStartTournament);

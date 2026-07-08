@@ -147,6 +147,7 @@ export const elements = {
   tournamentRoomPanel: document.querySelector("#tournamentRoomPanel"),
   tournamentRoomTitle: document.querySelector("#tournamentRoomTitle"),
   tournamentRoomMeta: document.querySelector("#tournamentRoomMeta"),
+  tournamentReadyBtn: document.querySelector("#tournamentReadyBtn"),
   tournamentStartBtn: document.querySelector("#tournamentStartBtn"),
   tournamentCopyBtn: document.querySelector("#tournamentCopyBtn"),
   tournamentLeaderboard: document.querySelector("#tournamentLeaderboard"),

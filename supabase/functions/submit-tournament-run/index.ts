@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await supabase
       .from("tournament_runs")
-      .select("id, room_id, user_id, seed, created_at, submitted_at, tournament_rooms(id, code, title, status, ends_at, seed, vibe_id, rules)")
+      .select("id, room_id, user_id, seed, created_at, started_at, submitted_at, tournament_rooms(id, code, title, status, ends_at, duration_minutes, seed, vibe_id, rules)")
       .eq("id", runId)
       .eq("user_id", user.id)
       .single();
@@ -129,8 +129,10 @@ Deno.serve(async (req) => {
 
     const room = Array.isArray(run.tournament_rooms) ? run.tournament_rooms[0] : run.tournament_rooms;
     if (!room) return json({ error: "room_not_found" }, 404, cors);
-    if (room.ends_at && Date.now() > new Date(room.ends_at).getTime() + SUBMIT_GRACE_MS) {
-      return json({ error: "room_ended" }, 422, cors);
+    const attemptStartMs = new Date(run.started_at || run.created_at).getTime();
+    const attemptDurationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
+    if (Date.now() > attemptStartMs + attemptDurationMs + SUBMIT_GRACE_MS) {
+      return json({ error: "attempt_expired" }, 422, cors);
     }
     if (Date.now() - new Date(run.created_at).getTime() < MIN_RUN_DURATION_MS) {
       return json({ error: "run_too_fast" }, 422, cors);

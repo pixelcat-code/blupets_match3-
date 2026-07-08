@@ -28,17 +28,13 @@ Deno.serve(async (req) => {
 
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
-      .select("id, code, title, status, started_at, ends_at, seed, vibe_id, rules")
+      .select("id, code, title, status, started_at, ends_at, duration_minutes, seed, vibe_id, rules")
       .eq("code", code)
       .single();
     if (roomError || !room) return json({ error: "room_not_found" }, 404, cors);
 
-    const now = Date.now();
     if (room.status !== "live" || !room.started_at) {
       return json({ error: "room_not_live" }, 422, cors);
-    }
-    if (room.ends_at && now > new Date(room.ends_at).getTime()) {
-      return json({ error: "room_ended" }, 422, cors);
     }
 
     const ROOM_CAP = 50;
@@ -59,12 +55,17 @@ Deno.serve(async (req) => {
       if (!existing) return json({ error: "room_full" }, 409, cors);
     }
 
+    const startedAt = new Date().toISOString();
+    const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
+    const expiresAt = new Date(new Date(startedAt).getTime() + durationMs).toISOString();
+
     const { data: run, error: runError } = await supabase
       .from("tournament_runs")
       .insert({
         room_id: room.id,
         user_id: userData.user.id,
         seed: room.seed,
+        started_at: startedAt,
       })
       .select("id")
       .single();
@@ -83,6 +84,8 @@ Deno.serve(async (req) => {
       seed: Number(room.seed) >>> 0,
       vibeId: room.vibe_id,
       rules: room.rules,
+      startedAt,
+      expiresAt,
     }, 200, cors);
   } catch (error) {
     console.error("start-tournament-run failed:", error);

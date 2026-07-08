@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260706-lb-fix-94" />
+    <link rel="stylesheet" href="./styles.css?v=20260708-lobby-ready-1" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -366,6 +366,7 @@
             </div>
 
             <div class="tournament-room-cta">
+              <button id="tournamentReadyBtn" class="btn btn--ghost tournament-ready-btn" type="button" hidden>Ready</button>
               <button id="tournamentHostStartBtn" class="btn btn--primary" type="button" hidden>Start Tournament</button>
               <button id="tournamentStartBtn" class="btn btn--primary" type="button">Start Attempt</button>
               <button id="tournamentLeaveBtn" class="btn btn--ghost tournament-leave-btn" type="button">← Leave lobby</button>
@@ -549,6 +550,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260706-nav-actions-15"></script>
+    <script type="module" src="./src/main.js?v=20260708-lobby-ready-1"></script>
   </body>
 </html>
