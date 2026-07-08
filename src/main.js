@@ -902,8 +902,10 @@ function trackTournamentPresence(state = app.tournamentReady ? "ready" : "lobby"
 }
 
 function tournamentReadyCounts() {
+  const hostId = app.tournamentRoom?.creator_user_id || "";
   const players = app.tournamentPresence ?? [];
   const eligible = players.filter((player) =>
+    (!hostId || player.id !== hostId) &&
     player.state !== "finished" &&
     player.state !== "playing"
   );
@@ -1005,7 +1007,7 @@ function renderTournamentRoom() {
   const readyCounts = tournamentReadyCounts();
 
   if (elements.tournamentReadyBtn) {
-    const showReady = room.status === "lobby";
+    const showReady = room.status === "lobby" && !app.tournamentIsHost;
     elements.tournamentReadyBtn.hidden = !showReady;
     elements.tournamentReadyBtn.classList.toggle("is-ready", Boolean(app.tournamentReady));
     elements.tournamentReadyBtn.setAttribute("aria-pressed", String(Boolean(app.tournamentReady)));
