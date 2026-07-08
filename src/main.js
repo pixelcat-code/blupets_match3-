@@ -892,6 +892,7 @@ function tournamentPresencePayload(state = "lobby") {
     name: u?.user_metadata?.display_name || u?.user_metadata?.full_name || u?.email || "Player",
     avatar: u?.user_metadata?.avatar_url || u?.user_metadata?.picture || "",
     state,
+    updatedAt: Date.now(),
   };
 }
 
@@ -901,10 +902,8 @@ function trackTournamentPresence(state = app.tournamentReady ? "ready" : "lobby"
 }
 
 function tournamentReadyCounts() {
-  const hostId = app.tournamentRoom?.creator_user_id || "";
   const players = app.tournamentPresence ?? [];
   const eligible = players.filter((player) =>
-    (!hostId || player.id !== hostId) &&
     player.state !== "finished" &&
     player.state !== "playing"
   );
@@ -1006,7 +1005,7 @@ function renderTournamentRoom() {
   const readyCounts = tournamentReadyCounts();
 
   if (elements.tournamentReadyBtn) {
-    const showReady = room.status === "lobby" && !app.tournamentIsHost;
+    const showReady = room.status === "lobby";
     elements.tournamentReadyBtn.hidden = !showReady;
     elements.tournamentReadyBtn.classList.toggle("is-ready", Boolean(app.tournamentReady));
     elements.tournamentReadyBtn.setAttribute("aria-pressed", String(Boolean(app.tournamentReady)));
@@ -1156,16 +1155,26 @@ async function openTournamentRoom(code) {
         onEntry: () => { refreshTournamentLeaderboard().catch(() => {}); },
         onPresenceSync: (state) => {
           // Everyone shares the room-code presence key, so metas arrive in one
-          // array — collapse to one row per user (id, falling back to name), and
-          // keep the most-progressed state so a stale lobby meta can't duplicate
-          // a user who is already playing/finished.
+          // array. Collapse to one row per user by the newest meta; this lets
+          // Ready toggle both ways. Older clients without updatedAt fall back to
+          // state rank so playing/finished still win over stale lobby metas.
           const rank = { finished: 4, playing: 3, ready: 2, lobby: 1 };
           const byUser = new Map();
           for (const m of Object.values(state || {}).flat()) {
             const key = m.id || m.name || "?";
             const prev = byUser.get(key);
-            if (!prev || (rank[m.state] || 0) > (rank[prev.state] || 0)) {
-              byUser.set(key, { id: m.id, name: m.name, avatar: m.avatar, state: m.state });
+            const currentUpdated = Number(m.updatedAt) || 0;
+            const prevUpdated = Number(prev?.updatedAt) || 0;
+            const isNewer = currentUpdated && currentUpdated >= prevUpdated;
+            const isRankedFallback = !currentUpdated && !prevUpdated && ((rank[m.state] || 0) > (rank[prev?.state] || 0));
+            if (!prev || isNewer || isRankedFallback) {
+              byUser.set(key, {
+                id: m.id,
+                name: m.name,
+                avatar: m.avatar,
+                state: m.state,
+                updatedAt: currentUpdated,
+              });
             }
           }
           app.tournamentPresence = [...byUser.values()];
