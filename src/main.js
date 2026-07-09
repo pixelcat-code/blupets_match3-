@@ -96,6 +96,12 @@ import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
 import { getSupabaseConfig } from "./supabase-client.js?v=20260629-client-singleton-1";
+
+const SPECIAL_TILE_ASSETS = Object.freeze({
+  cross: "./assets/special-tiles/cross-symbol.png",
+  bomb: "./assets/special-tiles/bomb-symbol.png",
+});
+
 import {
   getLeaderColorId,
   renderTopBar,
@@ -3092,8 +3098,17 @@ function patchBoard(stateLike) {
         }
         const wantPowerClass = `tile-power tile-power--${tile.special}`;
         if (power.className !== wantPowerClass) power.className = wantPowerClass;
-        if (!power.childElementCount) {
-          power.innerHTML = "<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>";
+        let powerImg = power.querySelector("img");
+        if (!powerImg) {
+          power.textContent = "";
+          powerImg = document.createElement("img");
+          powerImg.alt = "";
+          powerImg.decoding = "async";
+          power.appendChild(powerImg);
+        }
+        const wantPowerSrc = SPECIAL_TILE_ASSETS[tile.special] ?? "";
+        if (powerImg.getAttribute("src") !== wantPowerSrc) {
+          powerImg.src = wantPowerSrc;
         }
         const wantDir = tile.dir ?? "";
         if (power.dataset.dir !== wantDir) power.dataset.dir = wantDir;
