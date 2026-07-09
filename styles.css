@@ -449,11 +449,28 @@
   border-radius: 50%;
   background: #ff4c55;
   color: #fff;
-  font-size: 14px;
-  font-weight: 950;
-  line-height: 1;
+  font-size: 0;
+  line-height: 0;
   box-shadow: 0 6px 14px rgba(190, 48, 58, 0.22);
   cursor: pointer;
+}
+.tournament-player-kick::before,
+.tournament-player-kick::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  transform-origin: 50% 50%;
+}
+.tournament-player-kick::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.tournament-player-kick::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 .tournament-player img, .tournament-player .tournament-player-avatar {
   width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: 0 0 auto;
