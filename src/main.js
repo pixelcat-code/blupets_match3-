@@ -449,6 +449,7 @@ function setScreen(screen) {
     screen === "gameover";
   elements.startScreen.hidden = !keepStartBehind;
   elements.startScreen.classList.toggle("is-end-backdrop", screen === "gameover");
+  document.body.classList.toggle("is-game-screen", screen === "game");
   document.body.classList.toggle("is-gameover-backdrop", screen === "gameover");
   elements.gameScreen.hidden = screen !== "game";
   elements.victoryScreen.hidden = screen !== "victory";

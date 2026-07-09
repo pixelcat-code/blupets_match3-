@@ -698,6 +698,48 @@ button {
            max(12px, env(safe-area-inset-left, 12px));
 }
 
+/* Shared full-screen animated backdrop behind the screens: soft light rays
+   (::before) + floating sparks (.app-bg-sparks). Same treatment as the start
+   card so every window that opts in reads like the start page. Hidden by
+   default; shown on the game screen (all viewports) and — on mobile — on every
+   screen (see the max-width:699px block below). */
+.app-shell::before {
+  content: "";
+  position: absolute;
+  /* Bleed past the viewport so the rays fill edge-to-edge and the blur below
+     doesn't fade a soft transparent border in from the screen edges. */
+  inset: -24px;
+  z-index: 0;
+  pointer-events: none;
+  display: none;
+  background:
+    radial-gradient(ellipse at 50% 78%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.18) 20%, transparent 44%),
+    repeating-conic-gradient(
+      from -22deg at 50% 78%,
+      transparent 0deg 4.4deg,
+      rgba(255, 255, 255, 0.16) 5.4deg 8.2deg,
+      rgba(255, 255, 255, 0.46) 8.2deg 11.8deg,
+      rgba(255, 255, 255, 0.14) 11.8deg 14.4deg,
+      transparent 14.4deg 24deg
+    );
+  /* Soften the ray edges into a glow (design pass: blur background rays).
+     No radial mask here — this is a full-screen page backdrop, so the rays
+     must span the whole viewport, not sit in an ellipse behind the card. */
+  filter: blur(8px);
+}
+
+/* Shared sparks layer. Reuses .bg-sparks (i-children + keyframes) but lifts it
+   to a full-screen backdrop (z-index/display overridden here). */
+.app-shell > .app-bg-sparks {
+  z-index: 0;
+  display: none;
+}
+
+body.is-game-screen .app-shell::before,
+body.is-game-screen .app-shell > .app-bg-sparks {
+  display: block;
+}
+
 .screen {
   /* Centered by the .app-shell grid (place-items: center). Using absolute
      positioning with inset + width together over-constrained the box and pushed
@@ -10007,6 +10049,46 @@ button,
   color: #fff;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Mobile: every window shares the start-page background ─────────────────
+   The shared .app-shell backdrop (start-page gradient + rays + sparks) is shown
+   behind every screen. The start card is left untouched (it already carries its
+   own in-card gradient/rays/sparks, and being opaque it simply hides the shared
+   layer behind it — no doubling). The other screens' cards go transparent so the
+   one shared backdrop reads through, making them match the start page. Placed
+   after all the per-card rules above so these overrides win on source order.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 699px) {
+  .app-shell {
+    background:
+      radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.16) 42%, transparent 62%),
+      linear-gradient(180deg, #109de8 0%, #42c4ee 38%, #d9f6ff 62%, #ffffff 82%, #ffffff 100%);
+  }
+
+  .app-shell::before,
+  .app-shell > .app-bg-sparks {
+    display: block;
+  }
+
+  /* Non-start cards drop their opaque fill + frosted blur so the shared backdrop
+     shows through crisply. (Start card is deliberately not listed here.) */
+  .game-frame,
+  .leaderboard-card {
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .mobile-screen {
+    background: transparent;
+  }
+
+  /* Their own in-card rays would double the shared rays — drop them. */
+  .game-frame::before,
+  .leaderboard-card::before {
+    display: none;
+  }
 }
 
 /* ── Desktop layout (≥700px) ──────────────────────────────────────────────
