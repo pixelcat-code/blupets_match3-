@@ -61,33 +61,19 @@ alter table public.user_progress
 create table if not exists public.leaderboard_entries (
   id           uuid        primary key default gen_random_uuid(),
   user_id      uuid        references auth.users on delete set null,
-  account_name text        not null default 'Player',
-  avatar_url   text,
   score        integer     not null,
   moves_used   integer     not null,
-  blupets_count integer    not null default 0,
   t4_color     text,
   t4_partner   text,
   t4_form_key  text,
   vibe         text,
-  family_badges jsonb      not null default '{}',
   validation_mode text      not null default 'legacy',
-  collection_trusted boolean not null default false,
   run_id       uuid        unique references public.game_runs(id) on delete set null,
   created_at   timestamptz not null default now()
 );
 
--- For existing deployments: add the per-family unlocked-tile snapshot column.
-alter table public.leaderboard_entries
-  add column if not exists family_badges jsonb not null default '{}';
-alter table public.leaderboard_entries
-  add column if not exists blupets_count integer not null default 0;
-alter table public.leaderboard_entries
-  add column if not exists collection_tiles jsonb default null;
 alter table public.leaderboard_entries
   add column if not exists validation_mode text not null default 'legacy';
-alter table public.leaderboard_entries
-  add column if not exists collection_trusted boolean not null default false;
 alter table public.leaderboard_entries
   add column if not exists run_id uuid unique references public.game_runs(id) on delete set null;
 alter table public.leaderboard_entries
@@ -111,8 +97,15 @@ create policy "leaderboard_entries: global read"
 create index if not exists leaderboard_entries_score_idx
   on public.leaderboard_entries (score desc);
 
-create index if not exists leaderboard_entries_blupets_idx
-  on public.leaderboard_entries (blupets_count desc, score desc);
+create table if not exists public.player_public_profiles (
+  user_id          uuid primary key references auth.users on delete cascade,
+  account_name     text not null default 'Player',
+  normalized_name  text unique,
+  avatar_url        text,
+  collection_tiles jsonb not null default '{}',
+  blupets_count     integer not null default 0,
+  updated_at        timestamptz not null default now()
+);
 
 
 -- ─── guest_game_runs ────────────────────────────────────────────────────────
