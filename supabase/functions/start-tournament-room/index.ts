@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       .update({ status: "live", started_at: startedAt, starts_at: startedAt, ends_at: endsAt })
       .eq("id", room.id)
       .eq("status", "lobby")
-      .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, seed, vibe_id, rules")
+      .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, vibe_id, rules")
       .single();
     if (updateError || !updated) return json({ error: "already_started" }, 409, cors);
 

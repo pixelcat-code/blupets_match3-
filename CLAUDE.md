@@ -101,7 +101,7 @@ Current versions (bump on change):
 - `dom.js` import in `main.js` → `?v=20260706-1`
 - `render-meta.js` import in `main.js` → `?v=20260706-navorder-1`
 - `auth-config.js` → `?v=20260617-2`
-- `sync.js` import in `main.js` → `?v=20260703-tournament-realtime-2`
+- `sync.js` import in `main.js` → `?v=20260710-security-1`
 - `auth.js` import in `main.js` → `?v=20260629-signin-guard-1`
 
 ## Layout rules
@@ -151,9 +151,9 @@ Current versions (bump on change):
   run). `submit-run` replays the action log server-side and rejects results that
   don't match. Account name/avatar come from the authed user, never the client.
 - Guests: `start-guest-run` → on finish, "Sign in to save" → after sign-in
-  `applyPendingGuestRun` calls `submit-guest-run` to replay-verify before
-  writing. Leaderboard rows are tagged `replay_verified` /
-  `guest_replay_verified` / `guest_plausibility`.
+  `applyPendingGuestRun` calls `submit-guest-run` with the mandatory server
+  seed and action log. Leaderboard rows are replay-verified; plausibility-only
+  results must never be accepted.
 - `fetchPublicUserEntries(userId)` reads `leaderboard_entries` directly (public
   read, no edge function) for the public-profile screen.
 - Deploy edge functions separately:

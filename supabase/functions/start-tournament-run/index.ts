@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
+import { isTournamentEnded, tournamentAttemptExpiresAt, tournamentEndMs } from "../../../src/util/tournament-deadline.js";
 
 function normalizeCode(value: unknown) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
@@ -37,6 +38,19 @@ Deno.serve(async (req) => {
       return json({ error: "room_not_live" }, 422, cors);
     }
 
+    const now = Date.now();
+    const roomEndsAtMs = tournamentEndMs(room.ends_at);
+    if (roomEndsAtMs === null || isTournamentEnded(room.ends_at, now)) {
+      // Keep the persisted state honest for subsequent reads. The guarded update
+      // also makes concurrent late starts harmless.
+      await supabase
+        .from("tournament_rooms")
+        .update({ status: "ended" })
+        .eq("id", room.id)
+        .eq("status", "live");
+      return json({ error: "tournament_ended" }, 422, cors);
+    }
+
     const ROOM_CAP = 50;
     const { count: runCount, error: capError } = await supabase
       .from("tournament_runs")
@@ -55,9 +69,10 @@ Deno.serve(async (req) => {
       if (!existing) return json({ error: "room_full" }, 409, cors);
     }
 
-    const startedAt = new Date().toISOString();
+    const startedAt = new Date(now).toISOString();
     const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
-    const expiresAt = new Date(new Date(startedAt).getTime() + durationMs).toISOString();
+    // An attempt cannot extend the shared tournament window.
+    const expiresAt = new Date(tournamentAttemptExpiresAt(now, durationMs, roomEndsAtMs)).toISOString();
 
     const { data: run, error: runError } = await supabase
       .from("tournament_runs")

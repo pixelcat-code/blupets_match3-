@@ -199,7 +199,7 @@ export async function fetchPublicUserEntries(userId) {
   // legacy select if the column doesn't exist yet so the profile still loads.
   let result = await client
     .from("leaderboard_entries")
-    .select("score, moves_used, blupets_count, family_badges, t4_color, t4_partner, t4_form_key, collection_tiles, created_at")
+    .select("score, moves_used, blupets_count, family_badges, t4_color, t4_partner, t4_form_key, collection_tiles, collection_trusted, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(500);
@@ -207,7 +207,7 @@ export async function fetchPublicUserEntries(userId) {
   if (result.error) {
     result = await client
       .from("leaderboard_entries")
-      .select("score, moves_used, blupets_count, family_badges, t4_color, t4_partner, t4_form_key, created_at")
+      .select("score, moves_used, blupets_count, family_badges, t4_color, t4_partner, t4_form_key, collection_trusted, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(500);
@@ -222,7 +222,10 @@ export async function fetchPublicUserEntries(userId) {
     t4Color: row.t4_color,
     t4Partner: row.t4_partner,
     t4FormKey: row.t4_form_key,
-    collectionTiles: (row.collection_tiles && typeof row.collection_tiles === "object") ? row.collection_tiles : null,
+    collectionTiles: row.collection_trusted && row.collection_tiles && typeof row.collection_tiles === "object"
+      ? row.collection_tiles
+      : null,
+    collectionTrusted: Boolean(row.collection_trusted),
     timestamp: row.created_at ? new Date(row.created_at).getTime() : 0,
   }));
 }
@@ -260,28 +263,15 @@ function countFamilyBadges(familyBadges) {
 // state), no DB writes. Callers get plain callbacks; we own the single channel.
 let _tournamentChannel = null;
 
-export async function subscribeTournamentRoom(code, roomId, { onRoom, onEntry, onPresenceSync, onBroadcast } = {}) {
+export async function subscribeTournamentRoom(code, roomId, { onPresenceSync } = {}) {
   await unsubscribeTournamentRoom();
   const client = await getSupabaseClient();
   const channel = client.channel(`tournament:${code}`, {
     config: { presence: { key: code } },
   });
 
-  channel.on(
-    "postgres_changes",
-    { event: "UPDATE", schema: "public", table: "tournament_rooms", filter: `code=eq.${code}` },
-    (payload) => { try { onRoom?.(payload.new); } catch (e) { console.error(e); } },
-  );
-  channel.on(
-    "postgres_changes",
-    { event: "INSERT", schema: "public", table: "tournament_leaderboard_entries", filter: `room_id=eq.${roomId}` },
-    (payload) => { try { onEntry?.(payload.new); } catch (e) { console.error(e); } },
-  );
   channel.on("presence", { event: "sync" }, () => {
     try { onPresenceSync?.(channel.presenceState()); } catch (e) { console.error(e); }
-  });
-  channel.on("broadcast", { event: "kick" }, (payload) => {
-    try { onBroadcast?.("kick", payload?.payload ?? {}); } catch (e) { console.error(e); }
   });
 
   await new Promise((resolve) => {
@@ -293,10 +283,6 @@ export async function subscribeTournamentRoom(code, roomId, { onRoom, onEntry, o
 
 export function presenceTrack(channel, payload) {
   return channel?.track?.(payload);
-}
-
-export function sendTournamentBroadcast(channel, event, payload) {
-  return channel?.send?.({ type: "broadcast", event, payload });
 }
 
 export async function unsubscribeTournamentRoom() {
@@ -317,7 +303,7 @@ export async function fetchGlobalLeaderboard(limit = 100) {
 
   const client = await getSupabaseClient();
   const select =
-    "user_id, account_name, avatar_url, score, moves_used, blupets_count, family_badges, t4_color, t4_partner, t4_form_key, vibe, created_at";
+    "user_id, account_name, avatar_url, score, moves_used, blupets_count, family_badges, t4_color, t4_partner, t4_form_key, vibe, collection_trusted, created_at";
   const [scoreResult, blupetsResult] = await Promise.all([
     client
       .from("leaderboard_entries")
@@ -348,6 +334,7 @@ export async function fetchGlobalLeaderboard(limit = 100) {
     if (!byScore.has(uid) || row.score > byScore.get(uid).score) {
       byScore.set(uid, row);
     }
+    if (!row.collection_trusted) continue;
     const bestBlupets = byBlupets.get(uid);
     if (
       !bestBlupets ||
@@ -374,6 +361,7 @@ export async function fetchGlobalLeaderboard(limit = 100) {
     movesUsed: row.moves_used,
     blupetsCount: row.blupets_count,
     familyBadges: row.family_badges ?? {},
+    collectionTrusted: Boolean(row.collection_trusted),
     t4Color: row.t4_color,
     t4Partner: row.t4_partner,
     t4FormKey: row.t4_form_key,

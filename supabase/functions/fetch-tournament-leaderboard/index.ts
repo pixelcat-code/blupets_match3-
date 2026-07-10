@@ -21,12 +21,11 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } },
     );
 
-    let userId: string | null = null;
     const token = bearerToken(req);
-    if (token) {
-      const { data } = await supabase.auth.getUser(token);
-      userId = data.user?.id ?? null;
-    }
+    if (!token) return json({ error: "Missing bearer token" }, 401, cors);
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
+    const userId = userData.user.id;
 
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")

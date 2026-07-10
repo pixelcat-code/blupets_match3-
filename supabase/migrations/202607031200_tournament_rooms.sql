@@ -60,7 +60,9 @@ alter table public.tournament_rooms
   drop constraint if exists tournament_rooms_status_check;
 alter table public.tournament_rooms
   add constraint tournament_rooms_status_check
-  check (status in ('draft', 'live', 'ended'));
+  -- Existing production rooms may already be in the later-introduced lobby
+  -- state when this migration is first recorded, so accept it throughout.
+  check (status in ('draft', 'lobby', 'live', 'ended'));
 
 alter table public.tournament_leaderboard_entries
   drop constraint if exists tournament_leaderboard_entries_validation_mode_check;
@@ -101,6 +103,24 @@ alter table public.tournament_leaderboard_entries
   add constraint tournament_leaderboard_entries_validation_mode_check
   check (validation_mode in ('replay_verified', 'replay_verified_partial'));
 
--- Realtime: clients subscribe to room-start + verified finals.
-alter publication supabase_realtime add table public.tournament_rooms;
-alter publication supabase_realtime add table public.tournament_leaderboard_entries;
+-- Realtime: clients subscribe to room-start + verified finals. Legacy production
+-- may already have added these tables before this migration was recorded.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_rel rel
+    join pg_publication pub on pub.oid = rel.prpubid
+    where pub.pubname = 'supabase_realtime'
+      and rel.prrelid = 'public.tournament_rooms'::regclass
+  ) then
+    execute 'alter publication supabase_realtime add table public.tournament_rooms';
+  end if;
+  if not exists (
+    select 1 from pg_publication_rel rel
+    join pg_publication pub on pub.oid = rel.prpubid
+    where pub.pubname = 'supabase_realtime'
+      and rel.prrelid = 'public.tournament_leaderboard_entries'::regclass
+  ) then
+    execute 'alter publication supabase_realtime add table public.tournament_leaderboard_entries';
+  end if;
+end $$;

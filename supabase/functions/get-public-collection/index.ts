@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
 
     if (error || !data) return json({ collectionTiles: null }, 200, cors);
 
-    const ct = data.progress?.serverCollectionTiles;
+    const ct = data.progress?.verifiedCollectionTiles;
     const collectionTiles =
       ct && typeof ct === "object" && !Array.isArray(ct) ? ct : null;
 

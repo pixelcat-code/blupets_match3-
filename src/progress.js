@@ -2,7 +2,7 @@
 // Unlike the per-session leaderboard, this survives every run: opened Inventory
 // forms, completed Ascended forms, and lifetime stats.
 
-import { BLUPETS_FAMILIES } from "./blupets-canon-data.js";
+import { BLUPETS_FAMILIES } from "./blupets-canon-data.js?v=20260710-1";
 
 const PROGRESS_STORAGE_PREFIX = "blupets-progress-v2";
 let currentProgressUser = null;

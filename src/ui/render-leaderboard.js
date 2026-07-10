@@ -48,7 +48,7 @@ export function renderLeaderboardContent({ tabsHost, content, back = false }) {
     ));
 
   const sortByBlupets = dedup(
-    entries,
+    entries.filter((entry) => entry.collectionTrusted),
     (a, b) => (Number(a.blupetsCount) || 0) > (Number(b.blupetsCount) || 0) ||
       ((Number(a.blupetsCount) || 0) === (Number(b.blupetsCount) || 0) && a.score > b.score),
   )

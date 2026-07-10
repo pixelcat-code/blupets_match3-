@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
-import { getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
+import { getReplayCollectionTiles, getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
 
 function labelForUser(user: any) {
   const meta = user?.user_metadata ?? {};
@@ -141,7 +141,7 @@ function safeRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function mergeCollectionTiles(...sources: unknown[]): Record<string, true> {
+function mergeTrustedCollectionTiles(...sources: unknown[]): Record<string, true> {
   const out: Record<string, true> = {};
   for (const source of sources) {
     for (const [key, value] of Object.entries(safeRecord(source)).slice(0, 512)) {
@@ -186,20 +186,6 @@ Deno.serve(async (req) => {
     }
     const user = userData.user;
 
-    // Rate-limit: reject if the user already submitted MAX_SUBMITS_PER_WINDOW
-    // runs in the trailing window. Blocks high-speed farming.
-    const windowStart = new Date(Date.now() - SUBMIT_WINDOW_MS).toISOString();
-    const { count: recentSubmits, error: rateError } = await supabase
-      .from("game_runs")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .not("submitted_at", "is", null)
-      .gte("submitted_at", windowStart);
-    if (rateError) throw rateError;
-    if ((recentSubmits ?? 0) >= MAX_SUBMITS_PER_WINDOW) {
-      return json({ error: "rate_limited" }, 429, cors);
-    }
-
     const { data: run, error: runError } = await supabase
       .from("game_runs")
       .select("id, seed, submitted_at, created_at")
@@ -208,20 +194,43 @@ Deno.serve(async (req) => {
       .single();
 
     if (runError || !run) return json({ error: "Run not found" }, 404, cors);
-    if (run.submitted_at) return json({ error: "Run already submitted" }, 409, cors);
+    if (run.submitted_at) {
+      const { data: existingEntry } = await supabase
+        .from("leaderboard_entries")
+        .select("*")
+        .eq("run_id", run.id)
+        .maybeSingle();
+      if (existingEntry) return json({ ok: true, entry: existingEntry, recovered: true }, 200, cors);
+    } else {
+      // Rate-limit new submissions only. A retry of a claimed run must always
+      // be allowed to recover from a transient write failure.
+      const windowStart = new Date(Date.now() - SUBMIT_WINDOW_MS).toISOString();
+      const { count: recentSubmits, error: rateError } = await supabase
+        .from("game_runs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .not("submitted_at", "is", null)
+        .gte("submitted_at", windowStart);
+      if (rateError) throw rateError;
+      if ((recentSubmits ?? 0) >= MAX_SUBMITS_PER_WINDOW) {
+        return json({ error: "rate_limited" }, 429, cors);
+      }
+    }
 
     const runAgeMs = Date.now() - new Date(run.created_at).getTime();
 
-    // Reject runs older than 30 minutes — prevents storing seeds for later cherry-picking.
-    const RUN_TTL_MS = 30 * 60 * 1000;
-    if (runAgeMs > RUN_TTL_MS) {
-      return json({ error: "run_expired" }, 422, cors);
-    }
+    if (!run.submitted_at) {
+      // Reject runs older than 30 minutes — prevents storing seeds for later cherry-picking.
+      const RUN_TTL_MS = 30 * 60 * 1000;
+      if (runAgeMs > RUN_TTL_MS) {
+        return json({ error: "run_expired" }, 422, cors);
+      }
 
-    // Reject impossibly fast submissions — a real run cannot complete in
-    // under a few seconds of wall-clock time, so this catches instant scripts.
-    if (runAgeMs < MIN_RUN_DURATION_MS) {
-      return json({ error: "run_too_fast" }, 422, cors);
+      // Reject impossibly fast submissions — a real run cannot complete in
+      // under a few seconds of wall-clock time, so this catches instant scripts.
+      if (runAgeMs < MIN_RUN_DURATION_MS) {
+        return json({ error: "run_too_fast" }, 422, cors);
+      }
     }
 
     const replay = replayRun(Number(run.seed) >>> 0, body.actions);
@@ -238,17 +247,15 @@ Deno.serve(async (req) => {
 
     const { data: progressRow } = await supabase
       .from("user_progress")
-      .select("wins, runs, best_score, fewest_moves_win, forms, progress")
+      .select("wins, runs, best_score, fewest_moves_win, forms, progress, last_run_id")
       .eq("user_id", user.id)
       .maybeSingle();
     const clientProgress = sanitizeProgressSnapshot(body.progress, progressRow?.progress ?? {});
-    // Blupets count = the player's capsule collection (progress.collectionTiles),
-    // the SAME Set the collection screen counts via collectionTileCount. Capsules
-    // are client-trusted (plausibility), not replay-derived. mergeCollectionTiles
-    // sanitizes keys/values and caps size. The full client set is written each
-    // submission, so capsules (monotonic on the client) never regress.
-    const collectionTilesEntry = mergeCollectionTiles(
-      (clientProgress as any)?.collectionTiles,
+    // Only a replay may change a public/ranked collection. Client capsule state
+    // remains private UI progress and must never affect competitive standings.
+    const collectionTilesEntry = mergeTrustedCollectionTiles(
+      (progressRow?.progress as any)?.verifiedCollectionTiles,
+      getReplayCollectionTiles(replay.state),
     );
     const blupetsCount = Object.keys(collectionTilesEntry).length;
 
@@ -265,15 +272,25 @@ Deno.serve(async (req) => {
       family_badges: {},
       blupets_count: blupetsCount,
       collection_tiles: collectionTilesEntry,
+      collection_trusted: true,
       validation_mode: "replay_verified",
     };
-    const progress = mergeRunResult({
-      wins: progressRow?.wins ?? 0,
-      runs: progressRow?.runs ?? 0,
-      bestScore: progressRow?.best_score ?? 0,
-      fewestMovesWin: progressRow?.fewest_moves_win ?? null,
-      forms: progressRow?.forms ?? {},
-    }, result);
+    const currentProgress: any = progressRow ?? {};
+    const progress = currentProgress.last_run_id === run.id
+      ? {
+        wins: currentProgress.wins ?? 0,
+        runs: currentProgress.runs ?? 0,
+        bestScore: currentProgress.best_score ?? 0,
+        fewestMovesWin: currentProgress.fewest_moves_win ?? null,
+        forms: currentProgress.forms ?? {},
+      }
+      : mergeRunResult({
+        wins: progressRow?.wins ?? 0,
+        runs: progressRow?.runs ?? 0,
+        bestScore: progressRow?.best_score ?? 0,
+        fewestMovesWin: progressRow?.fewest_moves_win ?? null,
+        forms: progressRow?.forms ?? {},
+      }, result);
     const progressSnapshot = {
       ...clientProgress,
       wins: progress.wins,
@@ -281,25 +298,19 @@ Deno.serve(async (req) => {
       bestScore: progress.bestScore,
       fewestMovesWin: progress.fewestMovesWin,
       forms: progress.forms,
-      serverCollectionTiles: collectionTilesEntry,
+      verifiedCollectionTiles: collectionTilesEntry,
     };
 
-    // Claim the run FIRST — flip submitted_at while it is still null. A run can
-    // only be claimed once, so a duplicate/retry submission of an already-claimed
-    // run bails here with 409 BEFORE user_progress is touched. This must precede
-    // the user_progress upsert: mergeRunResult bumps runs on every call, so if the
-    // upsert ran before the claim, each re-submit inflated user_progress.runs
-    // without ever inserting a leaderboard row (the 166-vs-180 drift).
-    const { data: claimedRun, error: claimError } = await supabase
-      .from("game_runs")
-      .update({ submitted_at: new Date().toISOString() })
-      .eq("id", runId)
-      .eq("user_id", user.id)
-      .is("submitted_at", null)
-      .select("id")
-      .single();
-    if (claimError || !claimedRun) {
-      return json({ error: "Run already submitted" }, 409, cors);
+    if (!run.submitted_at) {
+      const { data: claimedRun, error: claimError } = await supabase
+        .from("game_runs")
+        .update({ submitted_at: new Date().toISOString() })
+        .eq("id", runId)
+        .eq("user_id", user.id)
+        .is("submitted_at", null)
+        .select("id")
+        .single();
+      if (claimError || !claimedRun) return json({ error: "Run already submitted" }, 409, cors);
     }
 
     const { error: progressError } = await supabase.from("user_progress").upsert(
@@ -311,27 +322,35 @@ Deno.serve(async (req) => {
         fewest_moves_win: progress.fewestMovesWin,
         forms: progress.forms,
         progress: progressSnapshot,
+        last_run_id: run.id,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },
     );
     if (progressError) throw progressError;
 
-    const { error: entryError } = await supabase.from("leaderboard_entries").insert(entry);
-    if (entryError) throw entryError;
+    let persistedEntry = entry;
+    const { error: entryError } = await supabase.from("leaderboard_entries").insert({ ...entry, run_id: run.id });
+    if (entryError) {
+      if (entryError.code !== "23505") throw entryError;
+      const { data: existingEntry, error: existingEntryError } = await supabase
+        .from("leaderboard_entries")
+        .select("*")
+        .eq("run_id", run.id)
+        .single();
+      if (existingEntryError || !existingEntry) throw entryError;
+      persistedEntry = existingEntry;
+    }
 
-    // Blupets count is a property of the USER's capsule collection, not of any
-    // single run. Overwrite every existing row for this user so the read-path
-    // max-by-blupets dedup (sync.js fetchGlobalLeaderboard) can never resurrect
-    // a stale, run-evolved (Set B) count. Evolved run forms must NOT influence
-    // the leaderboard blupets number — only the capsule set does.
+    // Keep verified collection standings synchronized across verified rows only.
     const { error: backfillError } = await supabase
       .from("leaderboard_entries")
-      .update({ blupets_count: blupetsCount, collection_tiles: collectionTilesEntry })
-      .eq("user_id", user.id);
+      .update({ blupets_count: blupetsCount, collection_tiles: collectionTilesEntry, collection_trusted: true })
+      .eq("user_id", user.id)
+      .eq("collection_trusted", true);
     if (backfillError) throw backfillError;
 
-    return json({ ok: true, entry, progress: progressSnapshot }, 200, cors);
+    return json({ ok: true, entry: persistedEntry, progress: progressSnapshot }, 200, cors);
   } catch (error) {
     console.error("submit-run failed:", error);
     return json({ error: "submit_run_failed" }, 500, cors);

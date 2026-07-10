@@ -102,7 +102,9 @@ Deno.serve(async (req) => {
           vibe_id: vibe.id,
           rules,
         })
-        .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, seed, vibe_id, rules")
+        // A tournament seed is secret until an authenticated player starts an
+        // attempt. Returning it from the lobby lets clients pre-compute a run.
+        .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, vibe_id, rules")
         .single();
 
       if (!error && data) {

@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
-import { getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
+import { getReplayCollectionTiles, getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
 
 function labelForUser(user: any) {
   const meta = user?.user_metadata ?? {};
@@ -118,7 +118,7 @@ function safeRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function mergeCollectionTiles(...sources: unknown[]): Record<string, true> {
+function mergeTrustedCollectionTiles(...sources: unknown[]): Record<string, true> {
   const out: Record<string, true> = {};
   for (const source of sources) {
     for (const [key, value] of Object.entries(safeRecord(source)).slice(0, 512)) {
@@ -141,6 +141,11 @@ Deno.serve(async (req) => {
 
     const { result, error: validationError } = validateResult(body.result);
     if (validationError) return json({ error: validationError }, 422, cors);
+    const guestRunId = typeof body.guestRunId === "string" ? body.guestRunId.trim() : "";
+    if (!guestRunId) return json({ error: "missing_guest_run_id" }, 422, cors);
+    if (!Array.isArray(body.actions) || body.actions.length === 0 || body.actions.length > MAX_ACTIONS) {
+      return json({ error: "invalid_actions" }, 422, cors);
+    }
 
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
@@ -175,41 +180,32 @@ Deno.serve(async (req) => {
       return json({ error: "too_soon" }, 429, cors);
     }
 
-    let validationMode = "guest_plausibility";
-    const guestRunId = typeof body.guestRunId === "string" ? body.guestRunId.trim() : "";
-    if (guestRunId) {
-      if (!Array.isArray(body.actions) || body.actions.length === 0 || body.actions.length > MAX_ACTIONS) {
-        return json({ error: "invalid_actions" }, 422, cors);
-      }
+    const { data: guestRun, error: guestRunError } = await supabase
+      .from("guest_game_runs")
+      .select("id, seed, created_at, submitted_at")
+      .eq("id", guestRunId)
+      .single();
+    if (guestRunError || !guestRun) return json({ error: "guest_run_not_found" }, 404, cors);
+    if (guestRun.submitted_at) return json({ error: "guest_run_already_submitted" }, 409, cors);
 
-      const { data: guestRun, error: guestRunError } = await supabase
-        .from("guest_game_runs")
-        .select("id, seed, created_at, submitted_at")
-        .eq("id", guestRunId)
-        .single();
-      if (guestRunError || !guestRun) return json({ error: "guest_run_not_found" }, 404, cors);
-      if (guestRun.submitted_at) return json({ error: "guest_run_already_submitted" }, 409, cors);
+    const runAgeMs = Date.now() - new Date(guestRun.created_at).getTime();
+    if (runAgeMs > RUN_TTL_MS) return json({ error: "guest_run_expired" }, 422, cors);
+    if (runAgeMs < MIN_RUN_DURATION_MS) return json({ error: "guest_run_too_fast" }, 422, cors);
 
-      const runAgeMs = Date.now() - new Date(guestRun.created_at).getTime();
-      if (runAgeMs > RUN_TTL_MS) return json({ error: "guest_run_expired" }, 422, cors);
-      if (runAgeMs < MIN_RUN_DURATION_MS) return json({ error: "guest_run_too_fast" }, 422, cors);
+    const replay = replayRun(Number(guestRun.seed) >>> 0, body.actions);
+    const replayedResult = getReplayResultSummary(replay.state);
+    if (!replayedResult?.complete) return json({ error: "guest_run_not_complete" }, 422, cors);
+    if (!sameResult(result, replayedResult)) return json({ error: "guest_replay_mismatch" }, 422, cors);
 
-      const replay = replayRun(Number(guestRun.seed) >>> 0, body.actions);
-      const replayedResult = getReplayResultSummary(replay.state);
-      if (!replayedResult?.complete) return json({ error: "guest_run_not_complete" }, 422, cors);
-      if (!sameResult(result, replayedResult)) return json({ error: "guest_replay_mismatch" }, 422, cors);
-
-      const { data: claimedGuestRun, error: claimGuestError } = await supabase
-        .from("guest_game_runs")
-        .update({ submitted_at: new Date().toISOString(), claimed_by: user.id })
-        .eq("id", guestRunId)
-        .is("submitted_at", null)
-        .select("id")
-        .single();
-      if (claimGuestError || !claimedGuestRun) {
-        return json({ error: "guest_run_already_submitted" }, 409, cors);
-      }
-      validationMode = "guest_replay_verified";
+    const { data: claimedGuestRun, error: claimGuestError } = await supabase
+      .from("guest_game_runs")
+      .update({ submitted_at: new Date().toISOString(), claimed_by: user.id })
+      .eq("id", guestRunId)
+      .is("submitted_at", null)
+      .select("id")
+      .single();
+    if (claimGuestError || !claimedGuestRun) {
+      return json({ error: "guest_run_already_submitted" }, 409, cors);
     }
 
     const accountName = labelForUser(user);
@@ -221,13 +217,9 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
     const clientProgress = sanitizeProgressSnapshot(body.progress, progressRow?.progress ?? {});
-    // Blupets count = the player's capsule collection (progress.collectionTiles),
-    // the SAME Set the collection screen counts via collectionTileCount. Capsules
-    // are client-trusted (plausibility), not replay-derived. mergeCollectionTiles
-    // sanitizes keys/values and caps size. The full client set is written each
-    // submission, so capsules (monotonic on the client) never regress.
-    const collectionTilesEntry = mergeCollectionTiles(
-      (clientProgress as any)?.collectionTiles,
+    const collectionTilesEntry = mergeTrustedCollectionTiles(
+      (progressRow?.progress as any)?.verifiedCollectionTiles,
+      getReplayCollectionTiles(replay.state),
     );
     const blupetsCount = Object.keys(collectionTilesEntry).length;
 
@@ -244,7 +236,8 @@ Deno.serve(async (req) => {
       family_badges: {},
       blupets_count: blupetsCount,
       collection_tiles: collectionTilesEntry,
-      validation_mode: validationMode,
+      validation_mode: "guest_replay_verified",
+      collection_trusted: true,
     };
 
     const progress = mergeRunResult({
@@ -262,7 +255,7 @@ Deno.serve(async (req) => {
       bestScore: progress.bestScore,
       fewestMovesWin: progress.fewestMovesWin,
       forms: progress.forms,
-      serverCollectionTiles: collectionTilesEntry,
+      verifiedCollectionTiles: collectionTilesEntry,
     };
 
     const { error: progressError } = await supabase.from("user_progress").upsert(
@@ -283,15 +276,11 @@ Deno.serve(async (req) => {
     const { error: entryError } = await supabase.from("leaderboard_entries").insert(entry);
     if (entryError) throw entryError;
 
-    // Blupets count is a property of the USER's capsule collection, not of any
-    // single run. Overwrite every existing row for this user so the read-path
-    // max-by-blupets dedup (sync.js fetchGlobalLeaderboard) can never resurrect
-    // a stale, run-evolved (Set B) count. Evolved run forms must NOT influence
-    // the leaderboard blupets number — only the capsule set does.
     const { error: backfillError } = await supabase
       .from("leaderboard_entries")
-      .update({ blupets_count: blupetsCount, collection_tiles: collectionTilesEntry })
-      .eq("user_id", user.id);
+      .update({ blupets_count: blupetsCount, collection_tiles: collectionTilesEntry, collection_trusted: true })
+      .eq("user_id", user.id)
+      .eq("collection_trusted", true);
     if (backfillError) throw backfillError;
 
     return json({ ok: true, entry, progress: progressSnapshot }, 200, cors);

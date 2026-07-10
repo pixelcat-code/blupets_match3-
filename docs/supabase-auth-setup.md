@@ -26,7 +26,7 @@ Open **Dashboard → SQL Editor → New query**, paste the contents of `docs/sup
 
 - `user_progress` — one row per user, reserved for trusted backend writes
 - `game_runs` — server-issued run seeds and submit status
-- `leaderboard_entries` — one row per accepted run, globally readable; signed-in runs are `replay_verified`, guest-promotion runs are `guest_replay_verified` when a guest seed/action proof exists, and older fallback rows are `guest_plausibility`
+- `leaderboard_entries` — one row per accepted run, globally readable; signed-in runs are `replay_verified` and guest-promotion runs are always `guest_replay_verified`
 
 Row Level Security is enabled. Browser clients can read allowed rows but cannot insert/update progress, run seeds, or leaderboard rows directly.
 
@@ -57,7 +57,7 @@ The app redirects back to the current page, stripping the `#hash`.
 - X/Twitter sign-in
 - Sign-out
 - **Supabase progress** — trusted wins, runs, forms, and public collection snapshots are written by replay-verified run submissions; client-local capsule/quest state is stored only as private account progress
-- **Leaderboard writes** — `start-run` issues a signed-in run seed, `start-guest-run` issues a pre-login guest seed, `submit-run` replay-verifies signed-in runs, `submit-guest-run` replay-verifies guest-promoted runs when proof is available, `sync-progress` stores private client progress without overwriting trusted counters, `sync-collection` is retained as a compatibility no-op
+- **Leaderboard writes** — `start-run` and `start-guest-run` issue server seeds; both submit routes replay-verify an action log. `sync-progress` stores private client progress without changing public collection rankings, and `sync-collection` is a compatibility no-op
 - **Avatar URL security** — provider avatar URLs are validated (`https:` only) before use in CSS or `<img>` src
 
 ## 6. Deploy Edge Functions

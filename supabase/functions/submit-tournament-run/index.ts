@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
 import { getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
 import { NEUTRAL_VIBE, VIBES } from "../../../src/vibes.js";
+import { tournamentAttemptExpiresAt, tournamentEndMs } from "../../../src/util/tournament-deadline.js";
 
 const MAX_SCORE = 10_000_000;
 const MAX_MOVES = 10_000;
@@ -125,17 +126,30 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .single();
     if (runError || !run) return json({ error: "run_not_found" }, 404, cors);
-    if (run.submitted_at) return json({ error: "run_already_submitted" }, 409, cors);
+    if (run.submitted_at) {
+      const { data: existingEntry } = await supabase
+        .from("tournament_leaderboard_entries")
+        .select("*")
+        .eq("room_id", run.room_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (existingEntry) return json({ ok: true, entry: existingEntry, recovered: true }, 200, cors);
+    }
 
     const room = Array.isArray(run.tournament_rooms) ? run.tournament_rooms[0] : run.tournament_rooms;
     if (!room) return json({ error: "room_not_found" }, 404, cors);
     const attemptStartMs = new Date(run.started_at || run.created_at).getTime();
     const attemptDurationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
-    if (Date.now() > attemptStartMs + attemptDurationMs + SUBMIT_GRACE_MS) {
-      return json({ error: "attempt_expired" }, 422, cors);
-    }
-    if (Date.now() - new Date(run.created_at).getTime() < MIN_RUN_DURATION_MS) {
-      return json({ error: "run_too_fast" }, 422, cors);
+    const roomEndsAtMs = tournamentEndMs(room.ends_at);
+    if (roomEndsAtMs === null) return json({ error: "invalid_room_deadline" }, 422, cors);
+    const attemptEndsAtMs = tournamentAttemptExpiresAt(attemptStartMs, attemptDurationMs, roomEndsAtMs);
+    if (!run.submitted_at) {
+      if (Date.now() > attemptEndsAtMs + SUBMIT_GRACE_MS) {
+        return json({ error: "attempt_expired" }, 422, cors);
+      }
+      if (Date.now() - new Date(run.created_at).getTime() < MIN_RUN_DURATION_MS) {
+        return json({ error: "run_too_fast" }, 422, cors);
+      }
     }
 
     const replay = replayRun(Number(run.seed) >>> 0, body.actions, tournamentOptions(room) as any);
@@ -158,20 +172,32 @@ Deno.serve(async (req) => {
       validation_mode: abandoned ? "replay_verified_partial" : "replay_verified",
     };
 
-    const { data: claimedRun, error: claimError } = await supabase
-      .from("tournament_runs")
-      .update({ submitted_at: new Date().toISOString() })
-      .eq("id", run.id)
-      .eq("user_id", user.id)
-      .is("submitted_at", null)
-      .select("id")
-      .single();
-    if (claimError || !claimedRun) return json({ error: "run_already_submitted" }, 409, cors);
+    if (!run.submitted_at) {
+      const { data: claimedRun, error: claimError } = await supabase
+        .from("tournament_runs")
+        .update({ submitted_at: new Date().toISOString() })
+        .eq("id", run.id)
+        .eq("user_id", user.id)
+        .is("submitted_at", null)
+        .select("id")
+        .single();
+      if (claimError || !claimedRun) return json({ error: "run_already_submitted" }, 409, cors);
+    }
 
     const { error: entryError } = await supabase
       .from("tournament_leaderboard_entries")
       .insert(entry);
-    if (entryError) throw entryError;
+    if (entryError) {
+      if (entryError.code !== "23505") throw entryError;
+      const { data: existingEntry, error: existingEntryError } = await supabase
+        .from("tournament_leaderboard_entries")
+        .select("*")
+        .eq("room_id", run.room_id)
+        .eq("user_id", user.id)
+        .single();
+      if (existingEntryError || !existingEntry) throw entryError;
+      return json({ ok: true, entry: existingEntry, recovered: true }, 200, cors);
+    }
 
     return json({ ok: true, entry }, 200, cors);
   } catch (error) {

@@ -50,6 +50,9 @@ create table if not exists public.game_runs (
 
 alter table public.game_runs enable row level security;
 
+alter table public.user_progress
+  add column if not exists last_run_id uuid references public.game_runs(id) on delete set null;
+
 
 -- ─── leaderboard_entries ─────────────────────────────────────────────────────
 -- One row per win. Anyone (including guests with the anon key) can read.
@@ -69,6 +72,8 @@ create table if not exists public.leaderboard_entries (
   vibe         text,
   family_badges jsonb      not null default '{}',
   validation_mode text      not null default 'legacy',
+  collection_trusted boolean not null default false,
+  run_id       uuid        unique references public.game_runs(id) on delete set null,
   created_at   timestamptz not null default now()
 );
 
@@ -81,6 +86,10 @@ alter table public.leaderboard_entries
   add column if not exists collection_tiles jsonb default null;
 alter table public.leaderboard_entries
   add column if not exists validation_mode text not null default 'legacy';
+alter table public.leaderboard_entries
+  add column if not exists collection_trusted boolean not null default false;
+alter table public.leaderboard_entries
+  add column if not exists run_id uuid unique references public.game_runs(id) on delete set null;
 alter table public.leaderboard_entries
   drop constraint if exists leaderboard_entries_validation_mode_check;
 alter table public.leaderboard_entries

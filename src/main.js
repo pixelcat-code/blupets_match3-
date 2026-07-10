@@ -17,7 +17,7 @@ import {
   previewSwap,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260622-gameplay-20";
+} from "./game.js?v=20260710-security-1";
 import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260625-mobile-audio-2";
 import { initAuth, signInWithProvider, signInWithUsername, signUpWithUsername, updateDisplayName, uploadAvatar, updateAvatarUrl, signOut } from "./auth.js?v=20260629-signin-guard-1";
@@ -53,7 +53,7 @@ import {
   SARAI_HEART_QUEST_REWARD,
   SARAI_HEART_QUEST_TARGET,
 } from "./progress.js?v=20260628-guest-gating-1";
-import { createSeededRng, randomSeed } from "./rng.js";
+import { createSeededRng, randomSeed } from "./rng.js?v=20260710-1";
 import {
   fetchGlobalLeaderboard,
   fetchPublicUserEntries,
@@ -75,23 +75,23 @@ import {
   subscribeTournamentRoom,
   unsubscribeTournamentRoom,
   presenceTrack,
-  sendTournamentBroadcast,
-} from "./sync.js?v=20260708-tournament-control-1";
+} from "./sync.js?v=20260710-security-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
+import { isTournamentEnded } from "./util/tournament-deadline.js?v=20260710-1";
 import { elements } from "./ui/dom.js?v=20260706-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";
 import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260706-navorder-1";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
-import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260706-hero-unify-1";
-import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260705-1";
+import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260710-1";
+import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260710-1";
 import { renderGuideSection } from "./ui/render-guide.js?v=20260706-hero-unify-1";
 import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260706-nopedestal-1";
-import { renderAccountSection } from "./ui/render-account.js?v=20260706-profile-reveal-1";
+import { renderAccountSection } from "./ui/render-account.js?v=20260710-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
@@ -581,7 +581,7 @@ async function startRun({ guided = false } = {}) {
       ]);
       seed = runProof.seed;
     } catch (err) {
-      console.error("[sync] startGuestRun failed — guest leaderboard submit will fall back to plausibility checks:", err);
+      console.error("[sync] startGuestRun failed — this local guest run cannot be submitted to the leaderboard:", err);
     }
   }
   runRng = createSeededRng(seed);
@@ -1055,10 +1055,11 @@ function renderTournamentRoom() {
   // Start Attempt is live only once the host has started and the player hasn't run.
   if (elements.tournamentStartBtn) {
     elements.tournamentStartBtn.hidden = room.status === "lobby";
-    elements.tournamentStartBtn.disabled = !started || ended || hasSubmitted || app.tournamentStatus === "starting";
+    const pastDeadline = isTournamentEnded(room.ends_at);
+    elements.tournamentStartBtn.disabled = !started || ended || pastDeadline || hasSubmitted || app.tournamentStatus === "starting";
     elements.tournamentStartBtn.textContent =
       hasSubmitted ? "Attempt used" :
-      ended ? "Tournament ended" :
+      ended || pastDeadline ? "Tournament ended" :
       !started ? "Waiting for host…" :
       app.tournamentStatus === "starting" ? "Starting…" : "Start Attempt";
   }
@@ -1084,30 +1085,9 @@ function renderTournamentPlayers() {
     const stateClass = p.state === "ready" ? " is-ready" :
       p.state === "playing" ? " is-playing" :
       p.state === "finished" ? " is-finished" : "";
-    const canKick = app.tournamentIsHost &&
-      app.tournamentRoom?.status === "lobby" &&
-      p.id &&
-      p.id !== app.authState.user?.id;
-    const kick = canKick
-      ? `<button class="tournament-player-kick" type="button" data-kick-player="${id}" title="Remove player" aria-label="Remove ${name}">×</button>`
-      : "";
     return `<li class="tournament-player${stateClass}" title="${name} · ${state}" aria-label="${name}, ${state}">` +
-      `${avatar}${kick}<span class="sr-only">${name}, ${state}</span></li>`;
+      `${avatar}<span class="sr-only">${name}, ${state}</span></li>`;
   }).join("");
-}
-
-function handleTournamentPlayerAction(event) {
-  const btn = event.target.closest("[data-kick-player]");
-  if (!btn || !app.tournamentIsHost || app.tournamentRoom?.status !== "lobby") return;
-  const targetId = btn.dataset.kickPlayer;
-  if (!targetId || targetId === app.authState.user?.id) return;
-  sendTournamentBroadcast(app.tournamentChannel, "kick", {
-    targetId,
-    roomId: app.tournamentRoom?.id || "",
-    code: app.tournamentRoom?.code || "",
-  });
-  app.tournamentPresence = (app.tournamentPresence ?? []).filter((player) => player.id !== targetId);
-  renderTournamentRoom();
 }
 
 function toggleTournamentReady() {
@@ -1200,14 +1180,6 @@ async function openTournamentRoom(code) {
     startTournamentCountdownTicker();
     try {
       const channel = await subscribeTournamentRoom(normalized, app.tournamentRoom.id, {
-        onRoom: (row) => {
-          app.tournamentRoom = { ...app.tournamentRoom, ...row };
-          renderTournamentRoom();
-          maybeAutoStartTournamentAttempt().catch((error) => {
-            console.error("[tournament] auto start failed:", error);
-          });
-        },
-        onEntry: () => { refreshTournamentLeaderboard().catch(() => {}); },
         onPresenceSync: (state) => {
           // Everyone shares the room-code presence key, so metas arrive in one
           // array. Collapse to one row per user by the newest meta; this lets
@@ -1235,14 +1207,6 @@ async function openTournamentRoom(code) {
           app.tournamentPresence = [...byUser.values()];
           renderTournamentPlayers();
           renderTournamentRoom();
-        },
-        onBroadcast: (event, payload) => {
-          if (event !== "kick") return;
-          const userId = app.authState.user?.id || "";
-          const targetId = String(payload?.targetId || "");
-          if (!targetId || targetId !== userId) return;
-          showToast("You were removed from the lobby.");
-          leaveTournament();
         },
       });
       app.tournamentChannel = channel;
@@ -4779,7 +4743,6 @@ bindClick(elements.tournamentReadyBtn, toggleTournamentReady);
 bindClick(elements.tournamentStartBtn, startTournamentAttempt);
 bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
 bindClick(elements.tournamentHostStartBtn, handleHostStartTournament);
-elements.tournamentPlayers?.addEventListener("click", handleTournamentPlayerAction);
 elements.tournamentModalCreateForm?.addEventListener("submit", handleModalCreate);
 elements.tournamentModalJoinForm?.addEventListener("submit", handleModalJoin);
 bindClick(elements.tournamentTabCreate, () => setTournamentModalTab("create"));

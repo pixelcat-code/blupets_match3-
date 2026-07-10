@@ -47,39 +47,16 @@ Deno.serve(async (req) => {
     }
     const userId = userData.user.id;
 
-    // ── Uniqueness check (only when changing the display name) ───────────────
+    // ── Atomic name reservation (only when changing the display name) ───────
     if (rawName !== null) {
-      // 1. Check username-based accounts via synthetic email slug.
-      //    We query auth.users through the admin API — wrapped in try/catch
-      //    because the method may throw in some runtime environments.
-      const slug = rawName.toLowerCase().replace(/[^a-z0-9_]/g, "");
-      if (slug) {
-        try {
-          const { data: authLookup } = await supabase.auth.admin.getUserByEmail(
-            `${slug}@players.blupets.game`,
-          );
-          if (authLookup?.user && authLookup.user.id !== userId) {
-            return json({ error: "name_taken" }, 409, cors);
-          }
-        } catch {
-          // admin lookup unavailable — fall through to leaderboard check below
-        }
-      }
-
-      // 2. Check display names already in the leaderboard (catches OAuth players
-      //    and any player who has submitted at least one run). Case-insensitive.
-      const { data: existing, error: lookupError } = await supabase
-        .from("leaderboard_entries")
-        .select("user_id")
-        .ilike("account_name", rawName)
-        .neq("user_id", userId)
-        .limit(1)
-        .maybeSingle();
-      if (lookupError) {
-        console.error("name uniqueness check failed:", lookupError);
-        // Non-fatal: skip uniqueness check rather than blocking all renames
-      } else if (existing) {
-        return json({ error: "name_taken" }, 409, cors);
+      const normalizedName = rawName.toLowerCase();
+      const { error: reserveError } = await supabase
+        .from("account_names")
+        .upsert({ user_id: userId, normalized_name: normalizedName }, { onConflict: "user_id" });
+      if (reserveError) {
+        // PostgreSQL unique_violation is the only expected conflict here.
+        if (reserveError.code === "23505") return json({ error: "name_taken" }, 409, cors);
+        throw reserveError;
       }
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -90,9 +67,9 @@ Deno.serve(async (req) => {
 
     const { error: leaderError, count } = await supabase
       .from("leaderboard_entries")
-      .update(patch)
+      .update(patch, { count: "exact" })
       .eq("user_id", userId)
-      .select("user_id", { count: "exact", head: true });
+      .select("user_id");
 
     if (leaderError) throw leaderError;
 

@@ -44,6 +44,29 @@ for (const file of walk("src").filter((f) => f.endsWith(".js"))) {
   }
 }
 
+// Tournament seeds are competitive secrets. Lobby endpoints and browser-readable
+// tables must never return them; only start-tournament-run may issue a seed for
+// one authenticated, live attempt.
+const tournamentRoom = read("supabase/functions/get-tournament-room/index.ts");
+const tournamentCreate = read("supabase/functions/create-tournament-room/index.ts");
+const tournamentStart = read("supabase/functions/start-tournament-run/index.ts");
+if (/\.select\("[^"\n]*\bseed\b/.test(tournamentRoom) || /\.select\("[^"\n]*\bseed\b/.test(tournamentCreate)) {
+  fail("tournament lobby endpoints must not disclose a deterministic seed");
+}
+if (!tournamentStart.includes("isTournamentEnded") || !tournamentStart.includes("tournamentAttemptExpiresAt")) {
+  fail("start-tournament-run must enforce the room deadline and capped attempt expiry");
+}
+
+const guestSubmit = read("supabase/functions/submit-guest-run/index.ts");
+if (!guestSubmit.includes("missing_guest_run_id") || guestSubmit.includes('validationMode = "guest_plausibility"')) {
+  fail("guest leaderboard submissions must require a replay-verifiable guest run");
+}
+
+const progressSync = read("supabase/functions/sync-progress/index.ts");
+if (progressSync.includes('.from("leaderboard_entries")')) {
+  fail("sync-progress must not let client-owned capsule state alter leaderboard rows");
+}
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);

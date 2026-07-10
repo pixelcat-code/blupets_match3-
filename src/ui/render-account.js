@@ -6,7 +6,7 @@ import { escapeHtml, safeImgSrc } from "./dom-safety.js?v=20260629-1";
 import { shortAuthLabel } from "../util/auth-label.js?v=20260629-1";
 import { leaderboardRanksForUser, renderProfileStatsPanel } from "./render-profile-stats.js?v=20260629-2";
 import { collectionTileCount, TOTAL_INVENTORY_FORMS } from "../progress.js?v=20260628-guest-gating-1";
-import { renderOwnBlupetsCollection } from "./render-collection.js?v=20260706-profile-reveal-1";
+import { renderOwnBlupetsCollection } from "./render-collection.js?v=20260710-1";
 
 export function renderAccountSection() {
   const signedIn = Boolean(app.authState.user);
