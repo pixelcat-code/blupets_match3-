@@ -47,6 +47,17 @@ Deno.serve(async (req) => {
       .limit(Math.max(10, Math.min(200, Math.trunc(Number(body.limit) || 100))));
     if (error) throw error;
 
+    const { data: players, error: playersError } = await supabase
+      .from("tournament_room_players")
+      .select("user_id, ready_at, removed_at")
+      .eq("room_id", room.id);
+    if (playersError) throw playersError;
+    const playerRows = (players ?? []).map((player) => ({
+      userId: player.user_id,
+      ready: Boolean(player.ready_at),
+      removedAt: player.removed_at,
+    }));
+
     const entries = (data ?? []).map((row, index) => ({
       rank: index + 1,
       userId: row.user_id,
@@ -58,7 +69,7 @@ Deno.serve(async (req) => {
       isPlayer: Boolean(userId && row.user_id === userId),
     }));
 
-    return json({ room, entries, playerRank: entries.find((entry) => entry.isPlayer)?.rank ?? null }, 200, cors);
+    return json({ room, entries, players: playerRows, playerRank: entries.find((entry) => entry.isPlayer)?.rank ?? null }, 200, cors);
   } catch (error) {
     console.error("fetch-tournament-leaderboard failed:", error);
     return json({ error: "fetch_tournament_leaderboard_failed" }, 500, cors);

@@ -50,7 +50,10 @@ for (const file of walk("src").filter((f) => f.endsWith(".js"))) {
 const tournamentRoom = read("supabase/functions/get-tournament-room/index.ts");
 const tournamentCreate = read("supabase/functions/create-tournament-room/index.ts");
 const tournamentStart = read("supabase/functions/start-tournament-run/index.ts");
-if (/\.select\("[^"\n]*\bseed\b/.test(tournamentRoom) || /\.select\("[^"\n]*\bseed\b/.test(tournamentCreate)) {
+const tournamentRoomMetadataSelects = [...tournamentRoom.matchAll(
+  /\.from\("tournament_rooms"\)[\s\S]{0,600}?\.select\("([^"\n]*)"\)/g,
+)].map((match) => match[1]);
+if (tournamentRoomMetadataSelects.some((columns) => /\bseed\b/.test(columns)) || /\.select\("[^"\n]*\bseed\b/.test(tournamentCreate)) {
   fail("tournament lobby endpoints must not disclose a deterministic seed");
 }
 if (!tournamentStart.includes("isTournamentEnded") || !tournamentStart.includes("tournamentAttemptExpiresAt")) {

@@ -38,6 +38,16 @@ Deno.serve(async (req) => {
     if (room.creator_user_id !== userData.user.id) return json({ error: "not_host" }, 403, cors);
     if (room.status !== "lobby") return json({ error: "already_started" }, 409, cors);
 
+    const { count: unreadyCount, error: readinessError } = await supabase
+      .from("tournament_room_players")
+      .select("user_id", { count: "exact", head: true })
+      .eq("room_id", room.id)
+      .is("removed_at", null)
+      .neq("user_id", userData.user.id)
+      .is("ready_at", null);
+    if (readinessError) throw readinessError;
+    if ((unreadyCount ?? 0) > 0) return json({ error: "players_not_ready" }, 409, cors);
+
     const now = Date.now();
     const startedAt = new Date(now).toISOString();
     const endsAt = new Date(now + Number(room.duration_minutes || 30) * 60_000).toISOString();

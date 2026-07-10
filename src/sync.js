@@ -86,6 +86,24 @@ export async function startTournamentRoom(code) {
   return data;
 }
 
+export async function removeTournamentPlayer(code, userId) {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("remove-tournament-player", {
+    body: { code, userId },
+  });
+  if (error) throw new Error(await fnErrorCode(error));
+  return data;
+}
+
+export async function setTournamentReady(code, ready) {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("set-tournament-ready", {
+    body: { code, ready: Boolean(ready) },
+  });
+  if (error) throw new Error(await fnErrorCode(error));
+  return data;
+}
+
 export async function startTournamentRun(code) {
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("start-tournament-run", {
@@ -290,9 +308,11 @@ export async function subscribeTournamentRoom(code, roomId, { onPresenceSync, on
   // Room rows are deliberately not exposed through Realtime because they
   // contain the tournament seed. Broadcast only carries non-sensitive events
   // such as "the host pressed Start".
-  channel.on("broadcast", { event: "room-live" }, ({ payload }) => {
-    try { onBroadcast?.({ event: "room-live", payload }); } catch (e) { console.error(e); }
-  });
+  for (const event of ["room-live", "kick", "ready"]) {
+    channel.on("broadcast", { event }, ({ payload }) => {
+      try { onBroadcast?.({ event, payload }); } catch (e) { console.error(e); }
+    });
+  }
 
   await new Promise((resolve) => {
     channel.subscribe((status) => { if (status === "SUBSCRIBED") resolve(); });

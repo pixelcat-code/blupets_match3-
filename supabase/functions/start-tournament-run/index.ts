@@ -71,12 +71,12 @@ Deno.serve(async (req) => {
 
     const { data: reservedPlayer, error: reservationError } = await supabase
       .from("tournament_room_players")
-      .select("user_id")
+      .select("user_id, removed_at")
       .eq("room_id", room.id)
       .eq("user_id", userData.user.id)
       .maybeSingle();
     if (reservationError) throw reservationError;
-    if (!reservedPlayer) return json({ error: "not_registered_for_room" }, 403, cors);
+    if (!reservedPlayer || reservedPlayer.removed_at) return json({ error: "not_registered_for_room" }, 403, cors);
 
     const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
     const { data: existingRun, error: existingRunError } = await supabase

@@ -63,6 +63,8 @@ import {
   fetchTournamentLeaderboard,
   getTournamentRoom,
   startTournamentRoom,
+  removeTournamentPlayer,
+  setTournamentReady,
   startGuestRun,
   startTournamentRun,
   startTrustedRun,
@@ -77,7 +79,7 @@ import {
   unsubscribeTournamentRoom,
   presenceTrack,
   sendTournamentBroadcast,
-} from "./sync.js?v=20260710-tournament-resume-server-1";
+} from "./sync.js?v=20260710-host-controls-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
@@ -1134,6 +1136,13 @@ function stopTournamentCountdownTicker() {
 function startTournamentCountdownTicker() {
   stopTournamentCountdownTicker();
   renderTournamentCountdown();
+  tournamentCountdownTimer = window.setInterval(() => {
+    if (app.currentScreen !== "tournament" || !app.tournamentRoom) {
+      stopTournamentCountdownTicker();
+      return;
+    }
+    renderTournamentCountdown();
+  }, 1000);
 }
 
 function tournamentPresencePayload(state = "lobby") {
@@ -1154,6 +1163,11 @@ function trackTournamentPresence(state = app.tournamentReady ? "ready" : "lobby"
 
 function tournamentReadyCounts() {
   const hostId = app.tournamentRoom?.creator_user_id || "";
+  const roster = app.tournamentRoster ?? [];
+  if (roster.length) {
+    const eligible = roster.filter((player) => player.userId !== hostId && !player.removedAt);
+    return { ready: eligible.filter((player) => player.ready).length, total: eligible.length };
+  }
   const players = app.tournamentPresence ?? [];
   const eligible = players.filter((player) =>
     (!hostId || player.id !== hostId) &&
@@ -1168,6 +1182,10 @@ function tournamentReadyCounts() {
 async function maybeAutoStartTournamentAttempt() {
   const room = app.tournamentRoom;
   if (!room || room.status !== "live" || !room.started_at) return;
+  // The host stays in the lobby after opening the tournament and joins the
+  // board deliberately with the Enter game button. Every other player is
+  // moved into their attempt automatically.
+  if (app.tournamentIsHost) return;
   if (app.currentScreen !== "tournament") return;
   if (app.tournamentAutoStarting || app.tournamentRunProof || runProof?.tournament) return;
   if (room.playerState?.hasSubmitted || room.playerState?.hasStarted) return;
@@ -1182,6 +1200,11 @@ async function maybeAutoStartTournamentAttempt() {
 async function handleHostStartTournament() {
   const code = app.tournamentRoom?.code;
   if (!code || !app.tournamentIsHost) return;
+  const { ready, total } = tournamentReadyCounts();
+  if (ready !== total) {
+    showToast(`Waiting for all players: ${ready}/${total} ready.`);
+    return;
+  }
   app.tournamentStatus = "starting-room";
   renderTournamentRoom();
   try {
@@ -1203,7 +1226,11 @@ async function handleHostStartTournament() {
   } catch (error) {
     console.error("[tournament] host start failed:", error);
     app.tournamentStatus = "ready";
-    showToast(error.message === "not_host" ? "Only the host can start." : "Could not start the tournament.");
+    showToast(
+      error.message === "not_host" ? "Only the host can start." :
+      error.message === "players_not_ready" ? "All players must be ready first." :
+      "Could not start the tournament.",
+    );
     renderTournamentRoom();
   }
 }
@@ -1215,6 +1242,7 @@ async function refreshTournamentLeaderboard() {
   app.tournamentLeaderboard = data?.entries ?? [];
   if (data?.room) {
     app.tournamentRoom = { ...app.tournamentRoom, ...data.room };
+    app.tournamentRoster = data?.players ?? app.tournamentRoster;
   }
   renderTournamentRoom();
   maybeAutoStartTournamentAttempt().catch((error) => {
@@ -1292,8 +1320,9 @@ function renderTournamentRoom() {
 
   // Host sees Start Tournament while the room is still in lobby.
   if (elements.tournamentHostStartBtn) {
+    const allPlayersReady = readyCounts.ready === readyCounts.total;
     elements.tournamentHostStartBtn.hidden = !(app.tournamentIsHost && room.status === "lobby");
-    elements.tournamentHostStartBtn.disabled = app.tournamentStatus === "starting-room";
+    elements.tournamentHostStartBtn.disabled = app.tournamentStatus === "starting-room" || !allPlayersReady;
     elements.tournamentHostStartBtn.textContent = app.tournamentStatus === "starting-room"
       ? "Starting…"
       : readyCounts.total > 0
@@ -1309,12 +1338,14 @@ function renderTournamentRoom() {
       hasSubmitted ? "Attempt used" :
       ended || pastDeadline ? "Tournament ended" :
       !started ? "Waiting for host…" :
-      app.tournamentStatus === "starting" ? "Starting…" : "Start Attempt";
+      app.tournamentStatus === "starting" ? "Starting…" :
+      app.tournamentIsHost ? "Enter game" : "Start Attempt";
   }
 }
 
 function renderTournamentPlayers() {
   if (!elements.tournamentPlayers) return;
+  const room = app.tournamentRoom;
   const players = app.tournamentPresence ?? [];
   if (!players.length) {
     elements.tournamentPlayers.innerHTML = `<li class="tournament-player is-empty">No one connected yet…</li>`;
@@ -1333,22 +1364,82 @@ function renderTournamentPlayers() {
     const stateClass = p.state === "ready" ? " is-ready" :
       p.state === "playing" ? " is-playing" :
       p.state === "finished" ? " is-finished" : "";
+    const canKick = app.tournamentIsHost && room?.status === "lobby" && p.id && p.id !== room.creator_user_id;
+    const kick = canKick
+      ? `<button class="tournament-player-kick" type="button" data-tournament-player-kick="${id}" aria-label="Remove ${name} from the lobby" title="Remove player"></button>`
+      : "";
     return `<li class="tournament-player${stateClass}" title="${name} · ${state}" aria-label="${name}, ${state}">` +
-      `${avatar}<span class="sr-only">${name}, ${state}</span></li>`;
+      `${avatar}${kick}<span class="sr-only">${name}, ${state}</span></li>`;
   }).join("");
 }
 
-function toggleTournamentReady() {
+async function handleTournamentPlayerAction(event) {
+  const button = event.target.closest("[data-tournament-player-kick]");
+  if (!button || !app.tournamentIsHost || app.tournamentRoom?.status !== "lobby") return;
+  const userId = button.dataset.tournamentPlayerKick;
+  const code = app.tournamentRoom?.code;
+  if (!userId || !code) return;
+  button.disabled = true;
+  try {
+    await removeTournamentPlayer(code, userId);
+    app.tournamentPresence = (app.tournamentPresence ?? []).filter((player) => player.id !== userId);
+    app.tournamentRoster = (app.tournamentRoster ?? []).map((player) =>
+      player.userId === userId ? { ...player, removedAt: new Date().toISOString(), ready: false } : player,
+    );
+    sendTournamentBroadcast("kick", { code, userId }).catch((error) => {
+      console.error("[tournament] kick broadcast failed:", error);
+    });
+    renderTournamentRoom();
+  } catch (error) {
+    console.error("[tournament] remove player failed:", error);
+    showToast(error.message === "not_host" ? "Only the host can remove players." : "Could not remove player.");
+    button.disabled = false;
+  }
+}
+
+async function toggleTournamentReady() {
   const room = app.tournamentRoom;
   if (!room || room.status !== "lobby" || app.tournamentIsHost) return;
-  app.tournamentReady = !app.tournamentReady;
-  trackTournamentPresence(app.tournamentReady ? "ready" : "lobby");
+  const previous = app.tournamentReady;
+  const next = !previous;
+  app.tournamentReady = next;
+  trackTournamentPresence(next ? "ready" : "lobby");
   renderTournamentRoom();
+  try {
+    await setTournamentReady(room.code, next);
+    app.tournamentRoster = (app.tournamentRoster ?? []).map((player) =>
+      player.userId === app.authState.user?.id ? { ...player, ready: next } : player,
+    );
+    sendTournamentBroadcast("ready", { code: room.code, userId: app.authState.user?.id, ready: next }).catch((error) => {
+      console.error("[tournament] ready broadcast failed:", error);
+    });
+    renderTournamentRoom();
+  } catch (error) {
+    console.error("[tournament] ready update failed:", error);
+    app.tournamentReady = previous;
+    trackTournamentPresence(previous ? "ready" : "lobby");
+    showToast("Could not update readiness.");
+    renderTournamentRoom();
+  }
 }
 
 function renderTournamentCountdown() {
   if (!elements.tournamentRoomCountdown) return;
-  elements.tournamentRoomCountdown.textContent = "";
+  const room = app.tournamentRoom;
+  if (!room) {
+    elements.tournamentRoomCountdown.textContent = "";
+    return;
+  }
+  if (room.status === "lobby") {
+    elements.tournamentRoomCountdown.textContent = "Waiting for host";
+    return;
+  }
+  if (room.status === "ended" || isTournamentEnded(room.ends_at)) {
+    elements.tournamentRoomCountdown.textContent = "Tournament ended";
+    return;
+  }
+  const timeLeft = formatTimeLeft(room.ends_at);
+  elements.tournamentRoomCountdown.textContent = timeLeft ? `Ends in ${timeLeft}` : "Tournament live";
 }
 
 // In-run tournament ticker: refreshes ONLY the #timerValue text every second so
@@ -1447,11 +1538,13 @@ async function openTournamentRoom(code) {
   try {
     const data = await getTournamentRoom(normalized);
     app.tournamentRoom = { ...data.room, playerState: data.playerState };
+    app.tournamentRoster = data.players ?? [];
     app.tournamentIsHost = Boolean(
       app.authState.user && data.room.creator_user_id === app.authState.user.id,
     );
     app.tournamentLeaderboard = data.entries ?? [];
     app.tournamentStatus = "ready";
+    app.tournamentReady = Boolean(app.tournamentRoster.find((player) => player.userId === app.authState.user?.id)?.ready);
     if (restoreTournamentRecovery(app.tournamentRoom)) {
       return;
     }
@@ -1494,18 +1587,39 @@ async function openTournamentRoom(code) {
           renderTournamentRoom();
         },
         onBroadcast: ({ event, payload }) => {
-          if (event !== "room-live" || payload?.code !== normalized) return;
-          // The broadcast contains no room data/seed. Fetch the authenticated
-          // room view immediately instead of waiting up to five seconds for
-          // the polling fallback.
-          refreshTournamentLeaderboard().catch((error) => {
-            console.error("[tournament] room-live refresh failed:", error);
-          });
+          if (payload?.code !== normalized) return;
+          if (event === "kick") {
+            if (payload?.userId === app.authState.user?.id) {
+              showToast("You were removed from this lobby.");
+              leaveTournament();
+              return;
+            }
+            app.tournamentPresence = (app.tournamentPresence ?? []).filter((player) => player.id !== payload?.userId);
+            app.tournamentRoster = (app.tournamentRoster ?? []).map((player) =>
+              player.userId === payload?.userId ? { ...player, removedAt: new Date().toISOString(), ready: false } : player,
+            );
+            renderTournamentRoom();
+            return;
+          }
+          if (event === "ready") {
+            app.tournamentRoster = (app.tournamentRoster ?? []).map((player) =>
+              player.userId === payload?.userId ? { ...player, ready: Boolean(payload.ready) } : player,
+            );
+            renderTournamentRoom();
+            return;
+          }
+          if (event === "room-live") {
+            // The broadcast contains no room data/seed. Fetch the authenticated
+            // room view immediately instead of waiting up to five seconds for
+            // the polling fallback.
+            refreshTournamentLeaderboard().catch((error) => {
+              console.error("[tournament] room-live refresh failed:", error);
+            });
+          }
         },
       });
       app.tournamentChannel = channel;
-      app.tournamentReady = false;
-      presenceTrack(channel, tournamentPresencePayload("lobby"));
+      presenceTrack(channel, tournamentPresencePayload(app.tournamentReady ? "ready" : "lobby"));
     } catch (error) {
       console.error("[tournament] realtime subscribe failed:", error);
       // Poll fallback (startTournamentPolling) keeps the room usable.
@@ -1515,9 +1629,11 @@ async function openTournamentRoom(code) {
     console.error("[tournament] room load failed:", error);
     app.tournamentRoom = null;
     app.tournamentLeaderboard = [];
+    app.tournamentRoster = [];
     app.tournamentStatus = "error";
     showToast(
       error.message === "room_not_found" ? "Tournament room not found." :
+      error.message === "removed_from_room" ? "You were removed from this lobby." :
       error.message === "room_full" ? "Tournament room is full." :
       "Could not load tournament room.",
     );
@@ -1590,6 +1706,7 @@ function leaveTournament() {
   app.tournamentRoom = null;
   app.tournamentLeaderboard = [];
   app.tournamentPresence = [];
+  app.tournamentRoster = [];
   app.tournamentReady = false;
   app.tournamentIsHost = false;
   app.tournamentStatus = "idle";
@@ -1881,6 +1998,16 @@ function goToStart() {
   app.state = null;
   setScreen("start");
   render();
+}
+
+function exitTournamentGame() {
+  if (isTournamentRunInProgress()) {
+    const confirmed = window.confirm(
+      "Exit game? Your current tournament score will be saved and this attempt cannot be continued.",
+    );
+    if (!confirmed) return;
+  }
+  goToStart();
 }
 
 function openProfile(fromScreen = app.currentScreen, section = profileTab) {
@@ -4884,7 +5011,7 @@ bindClick(elements.authLogoutBtn, handleAuthLogout);
 bindClick(elements.authSkipBtn, handleAuthSkip);
 if (elements.authEmailForm) elements.authEmailForm.addEventListener("submit", handleAuthEmailPassword);
 if (elements.authEmailTabs) elements.authEmailTabs.addEventListener("click", handleAuthTabSwitch);
-bindClick(elements.backToStart, goToStart);
+bindClick(elements.backToStart, exitTournamentGame);
 bindClick(elements.leaderboardBackBtn, closeLeaderboard);
 bindClick(elements.profileBackBtn, closeProfile);
 bindClick(elements.publicProfileBackBtn, closePublicProfile);
@@ -5074,6 +5201,7 @@ bindClick(elements.tournamentReadyBtn, toggleTournamentReady);
 bindClick(elements.tournamentStartBtn, startTournamentAttempt);
 bindClick(elements.tournamentCopyBtn, copyTournamentInvite);
 bindClick(elements.tournamentHostStartBtn, handleHostStartTournament);
+elements.tournamentPlayers?.addEventListener("click", handleTournamentPlayerAction);
 elements.tournamentModalCreateForm?.addEventListener("submit", handleModalCreate);
 elements.tournamentModalJoinForm?.addEventListener("submit", handleModalJoin);
 bindClick(elements.tournamentTabCreate, () => setTournamentModalTab("create"));

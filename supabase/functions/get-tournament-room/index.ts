@@ -61,7 +61,16 @@ Deno.serve(async (req) => {
         target_user_id: userId,
       });
       if (reserveError) throw reserveError;
-      if (!reserved) return json({ error: "room_full" }, 409, cors);
+      if (!reserved) {
+        const { data: player } = await supabase
+          .from("tournament_room_players")
+          .select("removed_at")
+          .eq("room_id", room.id)
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (player?.removed_at) return json({ error: "removed_from_room" }, 403, cors);
+        return json({ error: "room_full" }, 409, cors);
+      }
     }
 
     const { data: entries, error: entriesError } = await supabase
@@ -73,6 +82,17 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(100);
     if (entriesError) throw entriesError;
+
+    const { data: players, error: playersError } = await supabase
+      .from("tournament_room_players")
+      .select("user_id, ready_at, removed_at")
+      .eq("room_id", room.id);
+    if (playersError) throw playersError;
+    const playerRows = (players ?? []).map((player) => ({
+      userId: player.user_id,
+      ready: Boolean(player.ready_at),
+      removedAt: player.removed_at,
+    }));
 
     let playerState = {
       hasStarted: false,
@@ -114,7 +134,7 @@ Deno.serve(async (req) => {
       };
     }
 
-    return json({ room, entries: rankRows(entries ?? [], userId), playerState }, 200, cors);
+    return json({ room, entries: rankRows(entries ?? [], userId), players: playerRows, playerState }, 200, cors);
   } catch (error) {
     console.error("get-tournament-room failed:", error);
     return json({ error: "get_tournament_room_failed" }, 500, cors);

@@ -449,6 +449,35 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.tournament-player-kick {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #ec5a67;
+  box-shadow: 0 4px 10px rgba(158, 33, 46, 0.28);
+  cursor: pointer;
+}
+.tournament-player-kick::before,
+.tournament-player-kick::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 4px;
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: #fff;
+}
+.tournament-player-kick::before { transform: rotate(45deg); }
+.tournament-player-kick::after { transform: rotate(-45deg); }
+.tournament-player-kick:hover { filter: brightness(1.06); transform: scale(1.06); }
+.tournament-player-kick:disabled { cursor: wait; opacity: 0.6; }
 .tournament-countdown { font-variant-numeric: tabular-nums; font-weight: 700; }
 .tournament-room-cta { display: grid; gap: 10px; margin-top: 2px; }
 .tournament-room-cta .btn { width: 100%; }
@@ -1797,7 +1826,7 @@ h2 {
   white-space: nowrap;
 }
 
-/* Back button parked on the left edge of the HUD. */
+/* Explicit leave-game button parked on the left edge of the HUD. */
 .hud-btn {
   width: var(--hud-h);
   height: var(--hud-h);
@@ -1820,6 +1849,22 @@ h2 {
     transform 320ms var(--ease-slow),
     box-shadow 320ms var(--ease-slow),
     filter 320ms var(--ease-slow);
+}
+
+.hud-btn--exit {
+  width: auto;
+  min-width: var(--hud-h);
+  padding: 0 16px 0 12px;
+  grid-template-columns: auto auto;
+  column-gap: 7px;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.hud-btn-exit-icon {
+  font-size: 22px;
 }
 
 .hud-btn:hover {
@@ -10677,11 +10722,24 @@ button,
     grid-row: 1;
   }
 
-  /* Compact back button so the stacked stat cards own the column. */
+  /* Compact leave-game button so the stacked stat cards own the column. */
   .game-frame .topbar-left .hud-btn {
     width: 40px;
     height: 40px;
     border-radius: 50%;
+  }
+
+  .game-frame .topbar-left .hud-btn--exit {
+    width: auto;
+    min-width: 0;
+    padding: 0 12px 0 10px;
+    column-gap: 5px;
+    border-radius: var(--r-pill);
+    font-size: 12px;
+  }
+
+  .game-frame .topbar-left .hud-btn--exit .hud-btn-exit-icon {
+    font-size: 18px;
   }
 
   /* Stat cards stack vertically down the left column, reference-style. */

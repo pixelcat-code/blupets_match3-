@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260710-security-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260710-host-controls-1" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -144,8 +144,9 @@
         <div class="game-frame">
           <header class="topbar">
             <div class="topbar-left">
-              <button id="back-to-start" class="hud-btn" type="button" title="Menu" aria-label="Back to menu">
-                ←
+              <button id="back-to-start" class="hud-btn hud-btn--exit" type="button" title="Exit game" aria-label="Exit game">
+                <span class="hud-btn-exit-icon" aria-hidden="true">←</span>
+                <span>Exit game</span>
               </button>
               <div class="topbar-title" id="tournamentTitleBar" hidden>
                 <strong id="tournamentTitleText"></strong>
@@ -556,6 +557,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260710-tournament-resume-server-1"></script>
+    <script type="module" src="./src/main.js?v=20260710-host-controls-1"></script>
   </body>
 </html>
