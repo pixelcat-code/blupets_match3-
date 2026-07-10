@@ -82,10 +82,14 @@ Deno.serve(async (req) => {
     const bestScore = int(existing?.best_score);
     const fewestMovesWin = existing?.fewest_moves_win == null ? null : int(existing?.fewest_moves_win);
     const forms = safeObject(existing?.forms);
-    // Client progress is private and may be modified locally. Preserve only the
-    // server-derived collection produced by replay-verified submissions.
+    // Preserve public collection snapshots written by the dedicated,
+    // canonicalizing sync-collection function. The raw client collection stays
+    // private in clientProgress.collectionTiles.
     const verifiedCollectionTiles = trustedCollectionTiles(
       safeObject(existing?.progress).verifiedCollectionTiles,
+    );
+    const publicCollectionTiles = trustedCollectionTiles(
+      safeObject(existing?.progress).publicCollectionTiles,
     );
     const progress = {
       ...clientProgress,
@@ -95,6 +99,7 @@ Deno.serve(async (req) => {
       fewestMovesWin,
       forms,
       verifiedCollectionTiles,
+      publicCollectionTiles,
     };
 
     const { error } = await supabase.from("user_progress").upsert(

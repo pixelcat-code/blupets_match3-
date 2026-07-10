@@ -24,3 +24,25 @@ test("a partial (abandoned) action log yields an honest, incomplete summary", ()
   assert.ok(Number.isInteger(summary.score));
   assert.ok(summary.score >= 0);
 });
+
+test("an empty timed-out run has a valid zero-score DNF summary", () => {
+  const { state } = replayRun(12345, [], {
+    specialTiles: true, endlessRun: true, vibe: NEUTRAL_VIBE,
+  });
+  const summary = getReplayResultSummary(state);
+  assert.equal(summary.score, 0);
+  assert.equal(summary.complete, false);
+  assert.equal(summary.colorId, "yellow");
+});
+
+test("replay exposes the advanced RNG so a restored tournament run stays deterministic", () => {
+  const actions = [{ type: "swap", first: { row: 0, col: 0 }, second: { row: 0, col: 1 } }];
+  const restored = replayRun(98765, actions, {
+    specialTiles: true, endlessRun: true, vibe: NEUTRAL_VIBE,
+  });
+  const uninterrupted = replayRun(98765, actions, {
+    specialTiles: true, endlessRun: true, vibe: NEUTRAL_VIBE,
+  });
+  assert.equal(typeof restored.rng, "function");
+  assert.equal(restored.rng(), uninterrupted.rng());
+});

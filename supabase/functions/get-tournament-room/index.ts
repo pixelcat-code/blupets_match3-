@@ -40,14 +40,29 @@ Deno.serve(async (req) => {
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
     const userId = userData.user.id;
 
+    const { error: closeExpiredError } = await supabase.rpc("close_expired_tournament_rooms");
+    if (closeExpiredError) throw closeExpiredError;
+
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
       // Never disclose a seed from room metadata: it becomes available only
       // through start-tournament-run after the room is live.
-      .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, vibe_id, rules, created_at")
+      .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, max_players, vibe_id, rules, created_at")
       .eq("code", code)
       .single();
     if (roomError || !room) return json({ error: "room_not_found" }, 404, cors);
+
+    // Opening a lobby is the join action. The DB function locks the room row,
+    // making the displayed lobby population a real reservation rather than a
+    // race at the instant the host starts.
+    if (room.status === "lobby") {
+      const { data: reserved, error: reserveError } = await supabase.rpc("reserve_tournament_room_slot", {
+        target_room_id: room.id,
+        target_user_id: userId,
+      });
+      if (reserveError) throw reserveError;
+      if (!reserved) return json({ error: "room_full" }, 409, cors);
+    }
 
     const { data: entries, error: entriesError } = await supabase
       .from("tournament_leaderboard_entries")
@@ -78,13 +93,17 @@ Deno.serve(async (req) => {
       const own = ranked.find((entry) => entry.isPlayer);
       const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
       const runStartedMs = run?.started_at ? new Date(run.started_at).getTime() : NaN;
+      const roomEndsMs = room.ends_at ? new Date(room.ends_at).getTime() : NaN;
+      const expiryMs = Number.isFinite(runStartedMs)
+        ? Math.min(runStartedMs + durationMs, Number.isFinite(roomEndsMs) ? roomEndsMs : Infinity)
+        : NaN;
       playerState = {
         hasStarted: Boolean(run),
         hasSubmitted: Boolean(run?.submitted_at || own),
         score: own?.score ?? null,
         rank: own?.rank ?? null,
         startedAt: run?.started_at ?? null,
-        expiresAt: Number.isFinite(runStartedMs) ? new Date(runStartedMs + durationMs).toISOString() : null,
+        expiresAt: Number.isFinite(expiryMs) ? new Date(expiryMs).toISOString() : null,
       };
     }
 

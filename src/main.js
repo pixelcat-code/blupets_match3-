@@ -75,12 +75,14 @@ import {
   subscribeTournamentRoom,
   unsubscribeTournamentRoom,
   presenceTrack,
-} from "./sync.js?v=20260710-security-1";
+  sendTournamentBroadcast,
+} from "./sync.js?v=20260710-collection-public-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
 import { isTournamentEnded } from "./util/tournament-deadline.js?v=20260710-1";
+import { replayRun } from "./run-replay.js?v=20260710-tournament-recovery-1";
 import { elements } from "./ui/dom.js?v=20260706-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";
@@ -215,6 +217,10 @@ let vibeIntroOpen = false;
 let runRng = Math.random;
 let runProof = null;
 let recentCapsuleResults = [];
+const TOURNAMENT_RECOVERY_KEY = "blupets_tournament_recovery_v1";
+// Rooms may legitimately last up to 24 hours. Keep a recovery record a little
+// longer than that so a temporary outage never erases a still-recoverable run.
+const TOURNAMENT_RECOVERY_MAX_AGE_MS = 26 * 60 * 60_000;
 
 function delay(ms) {
   return new Promise((resolve) => {
@@ -227,6 +233,142 @@ function logRunAction(action) {
     return;
   }
   runProof.actions.push(action);
+  persistTournamentRecovery();
+}
+
+function readTournamentRecovery() {
+  try {
+    const value = JSON.parse(localStorage.getItem(TOURNAMENT_RECOVERY_KEY) || "null");
+    if (!value || value.version !== 1 || !value.runId || !value.userId || !value.code) return null;
+    if (Date.now() - Number(value.savedAt || 0) > TOURNAMENT_RECOVERY_MAX_AGE_MS) {
+      localStorage.removeItem(TOURNAMENT_RECOVERY_KEY);
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+function clearTournamentRecovery(proof = runProof) {
+  try {
+    const saved = readTournamentRecovery();
+    if (!saved || !proof?.runId || saved.runId === proof.runId) {
+      localStorage.removeItem(TOURNAMENT_RECOVERY_KEY);
+    }
+  } catch { /* Storage can be disabled in private browsing. */ }
+}
+
+// The action log is saved after every player decision. It lets a tab reload
+// replay the exact seeded state, and it keeps a finished result queued until
+// the server confirms it received the score.
+function persistTournamentRecovery({ pendingResult = null, abandoned = false } = {}) {
+  if (!runProof?.tournament || !app.authState.user?.id) return;
+  try {
+    const previous = readTournamentRecovery();
+    const result = pendingResult ?? previous?.pendingResult ?? null;
+    const payload = {
+      version: 1,
+      userId: app.authState.user.id,
+      code: runProof.code ?? app.tournamentRoom?.code ?? "",
+      runId: runProof.runId,
+      seed: Number(runProof.seed) >>> 0,
+      vibeId: runProof.vibeId ?? null,
+      rules: runProof.rules ?? app.tournamentRoom?.rules ?? {},
+      startedAt: runProof.startedAt ?? runProof.started_at ?? app.tournamentRoom?.playerState?.startedAt ?? null,
+      expiresAt: runProof.expiresAt ?? runProof.expires_at ?? app.tournamentRoom?.playerState?.expiresAt ?? null,
+      actions: Array.isArray(runProof.actions) ? runProof.actions : [],
+      pendingResult: result,
+      abandoned: Boolean(abandoned || previous?.abandoned),
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(TOURNAMENT_RECOVERY_KEY, JSON.stringify(payload));
+  } catch { /* A run still works when browser storage is unavailable. */ }
+}
+
+function recoveryOptions(recovery, room) {
+  const rules = recovery?.rules && typeof recovery.rules === "object"
+    ? recovery.rules
+    : room?.rules && typeof room.rules === "object" ? room.rules : {};
+  return {
+    diagonalAssist: Boolean(rules.diagonalAssist),
+    diagonalSwaps: Boolean(rules.diagonalSwaps),
+    specialTiles: rules.specialTiles !== false,
+    endlessRun: rules.endlessRun !== false,
+    vibe: getVibeById(recovery?.vibeId ?? room?.vibe_id),
+  };
+}
+
+function restoreTournamentRecovery(room) {
+  const saved = readTournamentRecovery();
+  if (!saved || saved.pendingResult || saved.userId !== app.authState.user?.id || saved.code !== room?.code) {
+    return false;
+  }
+  const expiresAt = new Date(saved.expiresAt ?? "").getTime();
+  const replay = replayRun(saved.seed, saved.actions, recoveryOptions(saved, room));
+  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
+    // A reload after the cutoff cannot reopen the board, but its persisted
+    // actions are still an honest partial run. Queue that score for the same
+    // idempotent retry path instead of silently losing it.
+    const result = buildTournamentResultFromState(replay.state);
+    if (result && Number(result.score) >= 0) {
+      try {
+        localStorage.setItem(TOURNAMENT_RECOVERY_KEY, JSON.stringify({
+          ...saved,
+          actions: replay.actions,
+          pendingResult: result,
+          abandoned: true,
+          savedAt: Date.now(),
+        }));
+      } catch { /* Storage fallback is intentionally best-effort. */ }
+    }
+    return false;
+  }
+
+  runProof = {
+    runId: saved.runId,
+    code: saved.code,
+    seed: saved.seed,
+    vibeId: saved.vibeId,
+    rules: saved.rules,
+    startedAt: saved.startedAt,
+    expiresAt: saved.expiresAt,
+    actions: replay.actions,
+    tournament: true,
+  };
+  runRng = replay.rng;
+  app.tournamentRunProof = runProof;
+  app.state = replay.state;
+  app.tournamentRoom = {
+    ...room,
+    playerState: {
+      ...(room.playerState ?? {}),
+      hasStarted: true,
+      startedAt: saved.startedAt,
+      expiresAt: saved.expiresAt,
+    },
+  };
+  resetInteractionState();
+  setScreen("game");
+  render();
+  showToast("Tournament run restored.");
+  return true;
+}
+
+async function retryPendingTournamentSubmission(room = app.tournamentRoom) {
+  const saved = readTournamentRecovery();
+  if (!saved?.pendingResult || saved.userId !== app.authState.user?.id || saved.code !== room?.code) {
+    return false;
+  }
+  try {
+    await submitTournamentRun(saved.runId, saved.pendingResult, saved.actions, { abandoned: saved.abandoned });
+    clearTournamentRecovery({ runId: saved.runId });
+    showToast("Tournament score saved.");
+    return true;
+  } catch (error) {
+    console.error("[tournament] queued submit failed:", error);
+    return false;
+  }
 }
 
 function applyRemoteProgress(remote) {
@@ -681,6 +823,7 @@ async function startTournamentAttempt() {
       vibe: getVibeById(proof.vibeId),
       rng: runRng,
     });
+    persistTournamentRecovery();
     app.tournamentStatus = "ready";
     setStartRunLoading(false);
     resetInteractionState();
@@ -691,7 +834,11 @@ async function startTournamentAttempt() {
     console.error("[tournament] start failed:", error);
     app.tournamentStatus = "ready";
     setStartRunLoading(false);
-    showToast(error.message === "attempt_already_used" ? "Attempt already used." : "Could not start tournament attempt.");
+    showToast(
+      error.message === "attempt_already_used" ? "Attempt already used." :
+      error.message === "not_registered_for_room" ? "Tournament already started. Only lobby players can enter." :
+      "Could not start tournament attempt.",
+    );
     await openTournamentRoom(room.code);
   }
 }
@@ -951,6 +1098,11 @@ async function handleHostStartTournament() {
     trackTournamentPresence("lobby");
     app.tournamentStatus = "ready";
     renderTournamentRoom();
+    // Wake connected players immediately. Polling remains the fallback for a
+    // reconnect or a browser that cannot keep a Realtime channel alive.
+    sendTournamentBroadcast("room-live", { code: room.code }).catch((error) => {
+      console.error("[tournament] room-live broadcast failed:", error);
+    });
     maybeAutoStartTournamentAttempt().catch((error) => {
       console.error("[tournament] auto start failed:", error);
     });
@@ -1206,6 +1358,12 @@ async function openTournamentRoom(code) {
     );
     app.tournamentLeaderboard = data.entries ?? [];
     app.tournamentStatus = "ready";
+    if (restoreTournamentRecovery(app.tournamentRoom)) {
+      return;
+    }
+    // A completed card survives a network outage or a tab reload. Retry its
+    // idempotent server submission as soon as the player is back in the room.
+    await retryPendingTournamentSubmission(app.tournamentRoom);
     startTournamentPolling();
     startTournamentCountdownTicker();
     try {
@@ -1238,6 +1396,15 @@ async function openTournamentRoom(code) {
           renderTournamentPlayers();
           renderTournamentRoom();
         },
+        onBroadcast: ({ event, payload }) => {
+          if (event !== "room-live" || payload?.code !== normalized) return;
+          // The broadcast contains no room data/seed. Fetch the authenticated
+          // room view immediately instead of waiting up to five seconds for
+          // the polling fallback.
+          refreshTournamentLeaderboard().catch((error) => {
+            console.error("[tournament] room-live refresh failed:", error);
+          });
+        },
       });
       app.tournamentChannel = channel;
       app.tournamentReady = false;
@@ -1252,7 +1419,11 @@ async function openTournamentRoom(code) {
     app.tournamentRoom = null;
     app.tournamentLeaderboard = [];
     app.tournamentStatus = "error";
-    showToast(error.message === "room_not_found" ? "Tournament room not found." : "Could not load tournament room.");
+    showToast(
+      error.message === "room_not_found" ? "Tournament room not found." :
+      error.message === "room_full" ? "Tournament room is full." :
+      "Could not load tournament room.",
+    );
     render();
   }
 }
@@ -1824,7 +1995,7 @@ function submitRunToLeaderboard(stateLike, formMeta = null) {
 
 function submitTournamentResult(stateLike, formMeta = null, { abandoned = false } = {}) {
   if (!app.authState.user || !runProof?.tournament) return;
-  if (!stateLike || !Number.isFinite(Number(stateLike.score)) || Number(stateLike.score) <= 0) {
+  if (!stateLike || !Number.isFinite(Number(stateLike.score)) || Number(stateLike.score) < 0) {
     clearRunProof();
     app.tournamentRunProof = null;
     return;
@@ -1845,9 +2016,11 @@ function submitTournamentResult(stateLike, formMeta = null, { abandoned = false 
   };
 
   console.info("[tournament] submitting run result:", proof.runId, result);
+  persistTournamentRecovery({ pendingResult: result, abandoned });
   submitTournamentRun(proof.runId, result, proof.actions, { abandoned })
     .then((data) => {
       console.info("[tournament] submit accepted:", data);
+      clearTournamentRecovery(proof);
       const code = proof.code ?? app.tournamentRoom?.code;
       if (!code) return null;
       return getTournamentRoom(code).then((roomData) => {
@@ -1858,7 +2031,7 @@ function submitTournamentResult(stateLike, formMeta = null, { abandoned = false 
     })
     .catch((error) => {
       console.error("[tournament] submit failed:", error);
-      showToast(error.message || "Tournament submit failed.");
+      showToast("Score saved on this device. It will retry when the room is reopened.");
     })
     .finally(() => {
       if (runProof === proof) {
@@ -1891,7 +2064,7 @@ function isTournamentRunInProgress() {
   return Boolean(
     runProof?.tournament && app.tournamentRunProof &&
     app.state && !app.state.victory && !app.state.gameOver &&
-    Number(app.state.score) > 0,
+    Number.isFinite(Number(app.state.score)),
   );
 }
 
@@ -1901,9 +2074,11 @@ async function submitTournamentAbandon() {
   _tournamentAbandonSent = true;
   const proof = runProof;
   const result = buildTournamentResultFromState(app.state);
-  if (!result || !(Number(result.score) > 0)) return;
+  if (!result || Number(result.score) < 0) return;
+  persistTournamentRecovery({ pendingResult: result, abandoned: true });
   try {
     await submitTournamentRun(proof.runId, result, proof.actions, { abandoned: true });
+    clearTournamentRecovery(proof);
   } catch (error) {
     console.error("[tournament] abandon submit failed:", error);
   } finally {
@@ -2463,7 +2638,11 @@ async function initializeAuth() {
           fetchUserProgress()
             .then(applyRemoteProgress)
             .catch(() => {})
-            .then(() => { applyPendingGuestRun(); render(); });
+            .then(() => {
+              applyPendingGuestRun();
+              if (collectionTileCount(app.progress) > 0) syncCollectionLeaderboard();
+              render();
+            });
         }
       }
       renderAuth();
@@ -2474,6 +2653,7 @@ async function initializeAuth() {
         if (consumeAfterAuthAction() === "lobby") enterTournament();
       }
       handleInviteDeepLink();
+      maybeResumeSavedTournament();
     },
   });
   app.authState.loading = false;
@@ -2485,7 +2665,11 @@ async function initializeAuth() {
     fetchUserProgress()
       .then(applyRemoteProgress)
       .catch(() => {})
-      .then(() => { applyPendingGuestRun(); render(); });
+      .then(() => {
+        applyPendingGuestRun();
+        if (collectionTileCount(app.progress) > 0) syncCollectionLeaderboard();
+        render();
+      });
   }
   // Clean up OAuth fragment/code now that Supabase has consumed the tokens.
   if (/access_token|error_description/.test(location.hash) || new URLSearchParams(location.search).has("code")) {
@@ -2500,6 +2684,7 @@ async function initializeAuth() {
   // Invite deep-link: open the room for a signed-in visitor, or gate a guest
   // behind the auth modal. (onChange also calls this; the latch dedupes.)
   handleInviteDeepLink();
+  maybeResumeSavedTournament();
 }
 
 function consumeReturnTo() {
@@ -2539,6 +2724,7 @@ function consumeAfterAuthAction() {
 // the initial auth resolve and onChange call this. Survives the OAuth reload
 // because the code is re-parsed from the still-present `/t/CODE` pathname.
 let _inviteHandled = false;
+let _tournamentRecoveryOpened = false;
 function handleInviteDeepLink() {
   if (_inviteHandled || !_initialTournamentCode || app.authState.loading) return;
   if (app.authState.user) {
@@ -2553,6 +2739,14 @@ function handleInviteDeepLink() {
   } else {
     openAuthModal({ force: true });
   }
+}
+
+function maybeResumeSavedTournament() {
+  if (_tournamentRecoveryOpened || _initialTournamentCode || !app.authState.user) return;
+  const saved = readTournamentRecovery();
+  if (!saved || saved.userId !== app.authState.user.id) return;
+  _tournamentRecoveryOpened = true;
+  openTournamentRoom(saved.code);
 }
 
 async function handleAuthProvider(provider) {
@@ -3520,6 +3714,7 @@ function syncCollectionLeaderboard() {
     .then(() => syncCollectionSnapshot({
       familyBadges,
       blupetsCount: collectionTileCount(app.progress),
+      collectionTiles: app.progress.collectionTiles,
     }))
     .then(() => fetchGlobalLeaderboard())
     .then((entries) => {
@@ -4919,7 +5114,8 @@ window.addEventListener("pagehide", () => {
   _tournamentAbandonSent = true;
   const proof = runProof;
   const result = buildTournamentResultFromState(app.state);
-  if (!result || !(Number(result.score) > 0)) return;
+  if (!result || Number(result.score) < 0) return;
+  persistTournamentRecovery({ pendingResult: result, abandoned: true });
   const cfg = getSupabaseConfig();
   if (!cfg.configured) return;
   let token = app.authState?.session?.access_token;
@@ -5047,10 +5243,24 @@ if (app.currentScreen === "leaderboard") {
 // Refresh profile data when the tab becomes visible again.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible") return;
+  if (app.currentScreen === "game" && app.tournamentRunProof) {
+    updateTournamentRunTimer();
+  }
+  if (app.tournamentRoom) {
+    retryPendingTournamentSubmission(app.tournamentRoom).catch(() => {});
+  }
   if (app.currentScreen === "profile" && app.authState.user) {
     fetchUserProgress()
       .then(applyRemoteProgress)
       .catch(() => {})
       .then(() => { if (app.currentScreen === "profile") render(); });
+  }
+});
+
+window.addEventListener("online", () => {
+  if (app.tournamentRoom) {
+    retryPendingTournamentSubmission(app.tournamentRoom).catch(() => {});
+  } else {
+    maybeResumeSavedTournament();
   }
 });

@@ -105,7 +105,10 @@ export function replayRun(seed, rawActions, options = PRODUCTION_RUN_OPTIONS) {
     state = drainAutoSelections(state, rng);
   }
 
-  return { state, actions };
+  // Expose the advanced RNG to the browser recovery flow. A restored run must
+  // continue from exactly the same random sequence as a run that never
+  // reloaded; server callers simply ignore this extra field.
+  return { state, actions, rng };
 }
 
 export function getReplayResultSummary(stateLike) {

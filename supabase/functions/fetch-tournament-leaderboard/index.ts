@@ -27,6 +27,9 @@ Deno.serve(async (req) => {
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
     const userId = userData.user.id;
 
+    const { error: closeExpiredError } = await supabase.rpc("close_expired_tournament_rooms");
+    if (closeExpiredError) throw closeExpiredError;
+
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
       .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, vibe_id, rules")

@@ -263,7 +263,7 @@ function countFamilyBadges(familyBadges) {
 // state), no DB writes. Callers get plain callbacks; we own the single channel.
 let _tournamentChannel = null;
 
-export async function subscribeTournamentRoom(code, roomId, { onPresenceSync } = {}) {
+export async function subscribeTournamentRoom(code, roomId, { onPresenceSync, onBroadcast } = {}) {
   await unsubscribeTournamentRoom();
   const client = await getSupabaseClient();
   const channel = client.channel(`tournament:${code}`, {
@@ -272,6 +272,12 @@ export async function subscribeTournamentRoom(code, roomId, { onPresenceSync } =
 
   channel.on("presence", { event: "sync" }, () => {
     try { onPresenceSync?.(channel.presenceState()); } catch (e) { console.error(e); }
+  });
+  // Room rows are deliberately not exposed through Realtime because they
+  // contain the tournament seed. Broadcast only carries non-sensitive events
+  // such as "the host pressed Start".
+  channel.on("broadcast", { event: "room-live" }, ({ payload }) => {
+    try { onBroadcast?.({ event: "room-live", payload }); } catch (e) { console.error(e); }
   });
 
   await new Promise((resolve) => {
@@ -283,6 +289,11 @@ export async function subscribeTournamentRoom(code, roomId, { onPresenceSync } =
 
 export function presenceTrack(channel, payload) {
   return channel?.track?.(payload);
+}
+
+export function sendTournamentBroadcast(event, payload = {}) {
+  if (!_tournamentChannel) return Promise.resolve("not-connected");
+  return _tournamentChannel.send({ type: "broadcast", event, payload });
 }
 
 export async function unsubscribeTournamentRoom() {

@@ -27,6 +27,9 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
 
+    const { error: closeExpiredError } = await supabase.rpc("close_expired_tournament_rooms");
+    if (closeExpiredError) throw closeExpiredError;
+
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
       .select("id, code, title, status, started_at, ends_at, duration_minutes, seed, vibe_id, rules")
@@ -51,23 +54,14 @@ Deno.serve(async (req) => {
       return json({ error: "tournament_ended" }, 422, cors);
     }
 
-    const ROOM_CAP = 50;
-    const { count: runCount, error: capError } = await supabase
-      .from("tournament_runs")
-      .select("id", { count: "exact", head: true })
-      .eq("room_id", room.id);
-    if (capError) throw capError;
-    if ((runCount ?? 0) >= ROOM_CAP) {
-      // Existing competitors may still (re)claim their own run row; only block
-      // brand-new entrants once the room is full.
-      const { data: existing } = await supabase
-        .from("tournament_runs")
-        .select("id")
-        .eq("room_id", room.id)
-        .eq("user_id", userData.user.id)
-        .maybeSingle();
-      if (!existing) return json({ error: "room_full" }, 409, cors);
-    }
+    const { data: reservedPlayer, error: reservationError } = await supabase
+      .from("tournament_room_players")
+      .select("user_id")
+      .eq("room_id", room.id)
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    if (reservationError) throw reservationError;
+    if (!reservedPlayer) return json({ error: "not_registered_for_room" }, 403, cors);
 
     const startedAt = new Date(now).toISOString();
     const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;

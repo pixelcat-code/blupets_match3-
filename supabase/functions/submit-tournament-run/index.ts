@@ -8,7 +8,9 @@ const MAX_SCORE = 10_000_000;
 const MAX_MOVES = 10_000;
 const MAX_ACTIONS = 500;
 const MIN_RUN_DURATION_MS = 3000;
-const SUBMIT_GRACE_MS = 2 * 60_000;
+// A small delivery buffer covers the final request racing mobile radios, but
+// is short enough that it cannot turn into meaningful extra play time.
+const SUBMIT_GRACE_MS = 15_000;
 
 function labelForUser(user: any) {
   const meta = user?.user_metadata ?? {};
@@ -46,7 +48,7 @@ function validateResult(raw: any): { result?: any; error?: string } {
   if (!raw || typeof raw !== "object") return { error: "missing_result" };
 
   const score = Number(raw.score);
-  if (!Number.isInteger(score) || score <= 0 || score > MAX_SCORE) {
+  if (!Number.isInteger(score) || score < 0 || score > MAX_SCORE) {
     return { error: "invalid_score" };
   }
 
@@ -105,7 +107,8 @@ Deno.serve(async (req) => {
 
     const { result, error: validationError } = validateResult(body.result);
     if (validationError) return json({ error: validationError }, 422, cors);
-    if (!Array.isArray(body.actions) || body.actions.length === 0 || body.actions.length > MAX_ACTIONS) {
+    const zeroScoreDnf = abandoned && result?.score === 0;
+    if (!Array.isArray(body.actions) || body.actions.length > MAX_ACTIONS || (!zeroScoreDnf && body.actions.length === 0)) {
       return json({ error: "invalid_actions" }, 422, cors);
     }
 
@@ -118,6 +121,9 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
     const user = userData.user;
+
+    const { error: closeExpiredError } = await supabase.rpc("close_expired_tournament_rooms");
+    if (closeExpiredError) throw closeExpiredError;
 
     const { data: run, error: runError } = await supabase
       .from("tournament_runs")

@@ -16,8 +16,7 @@ Deno.serve(async (req) => {
     if (!userId) return json({ collectionTiles: null }, 200, cors);
 
     // Use service-role key so the RLS "own read" policy doesn't block reading
-    // another user's row. This endpoint returns only server-derived public
-    // collection data; client-owned progress.collectionTiles is private.
+    // another user's row. Return only the canonicalized public snapshot.
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
       requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
@@ -32,7 +31,7 @@ Deno.serve(async (req) => {
 
     if (error || !data) return json({ collectionTiles: null }, 200, cors);
 
-    const ct = data.progress?.verifiedCollectionTiles;
+    const ct = data.progress?.publicCollectionTiles ?? data.progress?.verifiedCollectionTiles;
     const collectionTiles =
       ct && typeof ct === "object" && !Array.isArray(ct) ? ct : null;
 

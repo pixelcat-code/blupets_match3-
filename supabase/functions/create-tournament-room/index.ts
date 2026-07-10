@@ -48,6 +48,9 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
 
+    const { error: closeExpiredError } = await supabase.rpc("close_expired_tournament_rooms");
+    if (closeExpiredError) throw closeExpiredError;
+
     const body = await req.json().catch(() => ({}));
     const now = Date.now();
     const duration = durationMinutes(body.durationMinutes);
@@ -104,7 +107,7 @@ Deno.serve(async (req) => {
         })
         // A tournament seed is secret until an authenticated player starts an
         // attempt. Returning it from the lobby lets clients pre-compute a run.
-        .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, vibe_id, rules")
+        .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, max_players, vibe_id, rules")
         .single();
 
       if (!error && data) {
