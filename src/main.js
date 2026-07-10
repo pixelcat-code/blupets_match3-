@@ -79,7 +79,7 @@ import {
   unsubscribeTournamentRoom,
   presenceTrack,
   sendTournamentBroadcast,
-} from "./sync.js?v=20260710-host-controls-1";
+} from "./sync.js?v=20260711-rt-leaderboard-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
@@ -450,6 +450,7 @@ async function retryPendingTournamentSubmission(room = app.tournamentRoom) {
   try {
     await submitTournamentRun(saved.runId, saved.pendingResult, saved.actions, { abandoned: saved.abandoned });
     clearTournamentRecovery({ runId: saved.runId });
+    if (saved.code) sendTournamentBroadcast("score", { code: saved.code }).catch(() => {});
     showToast("Tournament score saved.");
     return true;
   } catch (error) {
@@ -1123,10 +1124,31 @@ function startTournamentPolling() {
   const code = app.tournamentRoom?.code;
   if (!code) return;
   tournamentPollTimer = window.setInterval(() => {
+    // Realtime is the primary path for leaderboard updates: a "score" broadcast
+    // fires on every submit — the only event that changes the standings — and
+    // drives a refetch. While the channel is joined we skip the periodic fetch
+    // entirely. If the channel is not joined (never connected, dropped, or
+    // mid-rejoin) we fall back to the original 5s poll, so a disconnected client
+    // is never worse off than before.
+    if (app.tournamentChannel?.state === "joined") return;
     refreshTournamentLeaderboard().catch((error) => {
       console.error("[tournament] leaderboard refresh failed:", error);
     });
   }, 5000);
+}
+
+// A "score" broadcast can arrive from many clients at once when a tournament
+// ends (everyone submits together). Coalesce the refetches into one so a full
+// room doesn't fire N leaderboard reads per submit.
+let tournamentScoreRefetchTimer = null;
+function refetchTournamentLeaderboardSoon() {
+  if (tournamentScoreRefetchTimer) return;
+  tournamentScoreRefetchTimer = window.setTimeout(() => {
+    tournamentScoreRefetchTimer = null;
+    refreshTournamentLeaderboard().catch((error) => {
+      console.error("[tournament] score refresh failed:", error);
+    });
+  }, 600);
 }
 
 let tournamentCountdownTimer = null;
@@ -1615,6 +1637,12 @@ async function openTournamentRoom(code) {
             refreshTournamentLeaderboard().catch((error) => {
               console.error("[tournament] room-live refresh failed:", error);
             });
+          }
+          if (event === "score") {
+            // Someone submitted a run — the only event that changes the
+            // standings. Refetch (coalesced) so connected clients see it in
+            // ~1s instead of waiting for the (now channel-gated) poll.
+            refetchTournamentLeaderboardSoon();
           }
         },
       });
@@ -2247,6 +2275,10 @@ function submitTournamentResult(stateLike, formMeta = null, { abandoned = false 
       clearTournamentRecovery(proof);
       const code = proof.code ?? app.tournamentRoom?.code;
       if (!code) return null;
+      // Tell other clients the standings changed so they refetch immediately
+      // (replaces their periodic poll). Best-effort; a missed broadcast is
+      // caught by their fallback poll if their channel ever drops.
+      sendTournamentBroadcast("score", { code }).catch(() => {});
       return getTournamentRoom(code).then((roomData) => {
         app.tournamentRoom = { ...roomData.room, playerState: roomData.playerState };
         app.tournamentLeaderboard = roomData.entries ?? [];
@@ -2303,6 +2335,8 @@ async function submitTournamentAbandon() {
   try {
     await submitTournamentRun(proof.runId, result, proof.actions, { abandoned: true });
     clearTournamentRecovery(proof);
+    const code = proof.code ?? app.tournamentRoom?.code;
+    if (code) sendTournamentBroadcast("score", { code }).catch(() => {});
   } catch (error) {
     console.error("[tournament] abandon submit failed:", error);
   } finally {

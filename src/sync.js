@@ -308,7 +308,7 @@ export async function subscribeTournamentRoom(code, roomId, { onPresenceSync, on
   // Room rows are deliberately not exposed through Realtime because they
   // contain the tournament seed. Broadcast only carries non-sensitive events
   // such as "the host pressed Start".
-  for (const event of ["room-live", "kick", "ready"]) {
+  for (const event of ["room-live", "kick", "ready", "score"]) {
     channel.on("broadcast", { event }, ({ payload }) => {
       try { onBroadcast?.({ event, payload }); } catch (e) { console.error(e); }
     });

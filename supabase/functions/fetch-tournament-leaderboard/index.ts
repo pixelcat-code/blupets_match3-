@@ -27,9 +27,14 @@ Deno.serve(async (req) => {
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
     const userId = userData.user.id;
 
-    const { error: closeExpiredError } = await supabase.rpc("close_expired_tournament_rooms");
-    if (closeExpiredError) throw closeExpiredError;
-
+    // This is the high-frequency polling read (every client, every few seconds).
+    // Room-lifecycle cleanup is intentionally NOT run here — it still runs in the
+    // low-frequency decision-path functions (create/get-tournament-room,
+    // start-tournament-run, submit-tournament-run), so rooms are still closed at
+    // the moments that matter. The client's "ended" UI is driven by ends_at
+    // (isTournamentEnded), which is unaffected by the status flip, so dropping the
+    // per-poll scan changes no player-visible behavior — it only removes redundant
+    // DB load.
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
       .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, vibe_id, rules")
