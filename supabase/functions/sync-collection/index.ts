@@ -59,6 +59,8 @@ Deno.serve(async (req) => {
     // authenticated and canonicalized at the server boundary. Unioning makes
     // an accidental stale browser snapshot unable to hide prior discoveries.
     const collectionTiles = {
+      ...sanitizeCollectionTiles(priorProgress.collectionTiles),
+      ...sanitizeCollectionTiles(priorProgress.verifiedCollectionTiles),
       ...sanitizeCollectionTiles(priorProgress.publicCollectionTiles),
       ...requestedTiles,
     };

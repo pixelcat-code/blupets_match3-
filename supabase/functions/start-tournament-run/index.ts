@@ -6,6 +6,21 @@ function normalizeCode(value: unknown) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
 }
 
+function labelForUser(user: any) {
+  const meta = user?.user_metadata ?? {};
+  return meta.display_name || meta.full_name || meta.name || meta.preferred_username || user?.email || user?.id || "Player";
+}
+
+function avatarForUser(user: any) {
+  const raw = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || "";
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   const cors = corsHeaders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -75,6 +90,8 @@ Deno.serve(async (req) => {
         user_id: userData.user.id,
         seed: room.seed,
         started_at: startedAt,
+        draft_account_name: labelForUser(userData.user),
+        draft_avatar_url: avatarForUser(userData.user),
       })
       .select("id")
       .single();

@@ -68,6 +68,7 @@ import {
   startTrustedRun,
   submitGuestRun,
   submitTournamentRun,
+  saveTournamentDraft,
   syncProfile,
   syncCollectionSnapshot,
   syncProgressSnapshot,
@@ -76,7 +77,7 @@ import {
   unsubscribeTournamentRoom,
   presenceTrack,
   sendTournamentBroadcast,
-} from "./sync.js?v=20260710-collection-public-1";
+} from "./sync.js?v=20260710-tournament-drafts-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
@@ -221,6 +222,8 @@ const TOURNAMENT_RECOVERY_KEY = "blupets_tournament_recovery_v1";
 // Rooms may legitimately last up to 24 hours. Keep a recovery record a little
 // longer than that so a temporary outage never erases a still-recoverable run.
 const TOURNAMENT_RECOVERY_MAX_AGE_MS = 26 * 60 * 60_000;
+let tournamentDraftSyncTimer = null;
+let tournamentDraftSyncInFlight = false;
 
 function delay(ms) {
   return new Promise((resolve) => {
@@ -284,6 +287,62 @@ function persistTournamentRecovery({ pendingResult = null, abandoned = false } =
     };
     localStorage.setItem(TOURNAMENT_RECOVERY_KEY, JSON.stringify(payload));
   } catch { /* A run still works when browser storage is unavailable. */ }
+}
+
+function scheduleTournamentDraftSync({ immediate = false } = {}) {
+  if (!runProof?.tournament || !app.state || app.state.gameOver || app.state.victory) return;
+  if (tournamentDraftSyncTimer) clearTimeout(tournamentDraftSyncTimer);
+  tournamentDraftSyncTimer = window.setTimeout(() => {
+    tournamentDraftSyncTimer = null;
+    syncTournamentDraft();
+  }, immediate ? 0 : 700);
+}
+
+async function syncTournamentDraft() {
+  if (tournamentDraftSyncInFlight || !runProof?.tournament || !app.state || app.state.gameOver || app.state.victory) return;
+  const proof = runProof;
+  const result = buildTournamentResultFromState(app.state);
+  if (!result) return;
+  tournamentDraftSyncInFlight = true;
+  try {
+    await saveTournamentDraft(proof.runId, result, proof.actions);
+  } catch (error) {
+    // Local recovery still has every action; the next interaction, reconnect,
+    // or pagehide checkpoint retries server storage.
+    console.warn("[tournament] draft checkpoint deferred:", error);
+  } finally {
+    tournamentDraftSyncInFlight = false;
+  }
+}
+
+function sendTournamentDraftOnPagehide() {
+  if (!isTournamentRunInProgress()) return;
+  persistTournamentRecovery();
+  const proof = runProof;
+  const result = buildTournamentResultFromState(app.state);
+  if (!proof || !result) return;
+  const cfg = getSupabaseConfig();
+  if (!cfg.configured) return;
+  let token = app.authState?.session?.access_token;
+  if (!token) {
+    try {
+      const raw = localStorage.getItem("sb-yccfnorilbisrxbwtlwv-auth-token");
+      if (raw) token = JSON.parse(raw)?.access_token;
+    } catch { /* Best effort only. */ }
+  }
+  if (!token) return;
+  try {
+    fetch(`${cfg.supabaseUrl}/functions/v1/save-tournament-draft`, {
+      method: "POST",
+      keepalive: true,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: cfg.supabaseAnonKey,
+      },
+      body: JSON.stringify({ runId: proof.runId, result, actions: proof.actions }),
+    }).catch(() => {});
+  } catch { /* local recovery remains available */ }
 }
 
 function recoveryOptions(recovery, room) {
@@ -353,6 +412,32 @@ function restoreTournamentRecovery(room) {
   render();
   showToast("Tournament run restored.");
   return true;
+}
+
+function restoreTournamentServerDraft(room) {
+  if (readTournamentRecovery()) return false;
+  const resume = room?.playerState?.resume;
+  if (!resume?.runId || !Number.isInteger(Number(resume.seed)) || !Array.isArray(resume.actions)) return false;
+  try {
+    localStorage.setItem(TOURNAMENT_RECOVERY_KEY, JSON.stringify({
+      version: 1,
+      userId: app.authState.user?.id ?? "",
+      code: room.code,
+      runId: resume.runId,
+      seed: Number(resume.seed) >>> 0,
+      vibeId: room.vibe_id ?? null,
+      rules: room.rules ?? {},
+      startedAt: room.playerState?.startedAt ?? null,
+      expiresAt: room.playerState?.expiresAt ?? null,
+      actions: resume.actions,
+      pendingResult: null,
+      abandoned: false,
+      savedAt: Date.now(),
+    }));
+  } catch {
+    return false;
+  }
+  return restoreTournamentRecovery(room);
 }
 
 async function retryPendingTournamentSubmission(room = app.tournamentRoom) {
@@ -824,6 +909,7 @@ async function startTournamentAttempt() {
       rng: runRng,
     });
     persistTournamentRecovery();
+    scheduleTournamentDraftSync({ immediate: true });
     app.tournamentStatus = "ready";
     setStartRunLoading(false);
     resetInteractionState();
@@ -1359,6 +1445,9 @@ async function openTournamentRoom(code) {
     app.tournamentLeaderboard = data.entries ?? [];
     app.tournamentStatus = "ready";
     if (restoreTournamentRecovery(app.tournamentRoom)) {
+      return;
+    }
+    if (restoreTournamentServerDraft(app.tournamentRoom)) {
       return;
     }
     // A completed card survives a network outage or a tab reload. Retry its
@@ -2124,6 +2213,9 @@ function applyState(nextState) {
   const wasVictory = app.state?.victory;
   const prevTiers = app.state?.evolutionTiers ?? {};
   app.state = nextState;
+  if (runProof?.tournament && !nextState?.gameOver && !nextState?.victory) {
+    scheduleTournamentDraftSync();
+  }
   // Soft-endless: each color that newly reaches T4 this step celebrates in place
   // and continues the same run. Leaderboard/result submit happens only at gameOver.
   if (nextState?.endlessRun && !nextState.victory) {
@@ -5107,39 +5199,12 @@ window.addEventListener("popstate", (e) => {
   _inPopstate = false;
 });
 
-// Leaving/closing the tab mid-run records the score reached so far (best-effort:
-// the reliable path is the in-app exits which submit via the supabase client).
+// A reload, mobile OS eviction, or a temporary connection loss is not a player
+// choosing to abandon. Keep the recoverable attempt locally and let the player
+// resume it while its server deadline is still open. Explicit in-app exits use
+// submitTournamentAbandon() instead.
 window.addEventListener("pagehide", () => {
-  if (_tournamentAbandonSent || !isTournamentRunInProgress()) return;
-  _tournamentAbandonSent = true;
-  const proof = runProof;
-  const result = buildTournamentResultFromState(app.state);
-  if (!result || Number(result.score) < 0) return;
-  persistTournamentRecovery({ pendingResult: result, abandoned: true });
-  const cfg = getSupabaseConfig();
-  if (!cfg.configured) return;
-  let token = app.authState?.session?.access_token;
-  if (!token) {
-    try {
-      const raw = localStorage.getItem("sb-yccfnorilbisrxbwtlwv-auth-token");
-      if (raw) token = JSON.parse(raw)?.access_token;
-    } catch (_) { /* best-effort */ }
-  }
-  if (!token) return;
-  try {
-    fetch(`${cfg.supabaseUrl}/functions/v1/submit-tournament-run`, {
-      method: "POST",
-      keepalive: true,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        apikey: cfg.supabaseAnonKey,
-      },
-      body: JSON.stringify({ runId: proof.runId, result, actions: proof.actions, abandoned: true }),
-    }).catch(() => {});
-  } catch (error) {
-    console.error("[tournament] unload beacon failed:", error);
-  }
+  sendTournamentDraftOnPagehide();
 });
 
 // Capture any demo-screen request BEFORE the history.replaceState below strips

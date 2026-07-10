@@ -105,6 +105,15 @@ export async function submitTournamentRun(runId, result, actions = [], { abandon
   return data;
 }
 
+export async function saveTournamentDraft(runId, result, actions = []) {
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("save-tournament-draft", {
+    body: { runId, result, actions },
+  });
+  if (error) throw new Error(await fnErrorCode(error));
+  return data;
+}
+
 export async function fetchTournamentLeaderboard(code, limit = 100) {
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("fetch-tournament-leaderboard", {

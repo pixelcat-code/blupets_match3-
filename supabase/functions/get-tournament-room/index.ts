@@ -81,11 +81,12 @@ Deno.serve(async (req) => {
       rank: null as number | null,
       startedAt: null as string | null,
       expiresAt: null as string | null,
+      resume: null as any,
     };
     if (userId) {
       const { data: run } = await supabase
         .from("tournament_runs")
-        .select("id, started_at, submitted_at")
+        .select("id, seed, started_at, submitted_at, draft_actions")
         .eq("room_id", room.id)
         .eq("user_id", userId)
         .maybeSingle();
@@ -104,6 +105,12 @@ Deno.serve(async (req) => {
         rank: own?.rank ?? null,
         startedAt: run?.started_at ?? null,
         expiresAt: Number.isFinite(expiryMs) ? new Date(expiryMs).toISOString() : null,
+        // This is returned only to the authenticated owner of the run. It
+        // contains the server-verified checkpoint needed to continue from a
+        // different tab/device after a browser close.
+        resume: run && !run.submitted_at && Array.isArray(run.draft_actions)
+          ? { runId: run.id, seed: Number(run.seed) >>> 0, actions: run.draft_actions }
+          : null,
       };
     }
 
