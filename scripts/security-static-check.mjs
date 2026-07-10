@@ -66,8 +66,9 @@ if (!guestSubmit.includes("missing_guest_run_id") || guestSubmit.includes('valid
 }
 
 const progressSync = read("supabase/functions/sync-progress/index.ts");
-if (progressSync.includes('.from("leaderboard_entries")')) {
-  fail("sync-progress must not let client-owned capsule state alter leaderboard rows");
+if (progressSync.includes('.from("leaderboard_entries")') &&
+    (!progressSync.includes("publishCollection") || !progressSync.includes("VALID_FORM_KEYS"))) {
+  fail("sync-progress collection publishing must be explicit and canonicalized");
 }
 
 if (failures.length) {

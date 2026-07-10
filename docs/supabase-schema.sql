@@ -29,8 +29,8 @@ drop policy if exists "user_progress: global read" on public.user_progress;
 drop policy if exists "user_progress: own insert" on public.user_progress;
 drop policy if exists "user_progress: own update" on public.user_progress;
 
--- Own read only. Public profiles must use get-public-collection, which returns
--- only server-derived collection fields through an allowlisted response.
+-- Own read only. Public profiles use the get_public_collection RPC, which
+-- returns only an allowlisted JSON snapshot.
 create policy "user_progress: own read"
   on public.user_progress for select
   using (auth.uid() = user_id);

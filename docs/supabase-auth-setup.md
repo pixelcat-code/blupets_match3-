@@ -57,7 +57,7 @@ The app redirects back to the current page, stripping the `#hash`.
 - X/Twitter sign-in
 - Sign-out
 - **Supabase progress** — trusted wins, runs, forms, and public collection snapshots are written by replay-verified run submissions; client-local capsule/quest state is stored only as private account progress
-- **Leaderboard writes** — `start-run` and `start-guest-run` issue server seeds; both submit routes replay-verify an action log. `sync-progress` stores private client progress without changing public collection rankings, and `sync-collection` is a compatibility no-op
+- **Leaderboard writes** — `start-run` and `start-guest-run` issue server seeds; both submit routes replay-verify an action log. `sync-progress` stores private progress and optionally publishes a canonicalized capsule collection snapshot in the same request.
 - **Avatar URL security** — provider avatar URLs are validated (`https:` only) before use in CSS or `<img>` src
 
 ## 6. Deploy Edge Functions

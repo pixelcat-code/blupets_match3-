@@ -47,33 +47,25 @@ Deno.serve(async (req) => {
     }
     const userId = userData.user.id;
 
-    // ── Atomic name reservation (only when changing the display name) ───────
+    const profilePatch: Record<string, unknown> = {
+      user_id: userId,
+      updated_at: new Date().toISOString(),
+    };
     if (rawName !== null) {
-      const normalizedName = rawName.toLowerCase();
-      const { error: reserveError } = await supabase
-        .from("account_names")
-        .upsert({ user_id: userId, normalized_name: normalizedName }, { onConflict: "user_id" });
-      if (reserveError) {
-        // PostgreSQL unique_violation is the only expected conflict here.
-        if (reserveError.code === "23505") return json({ error: "name_taken" }, 409, cors);
-        throw reserveError;
-      }
+      profilePatch.account_name = rawName;
+      profilePatch.normalized_name = rawName.toLowerCase();
     }
-    // ─────────────────────────────────────────────────────────────────────────
+    if (rawAvatarUrl !== null) profilePatch.avatar_url = rawAvatarUrl;
 
-    const patch: Record<string, string> = {};
-    if (rawName !== null) patch.account_name = rawName;
-    if (rawAvatarUrl !== null) patch.avatar_url = rawAvatarUrl;
+    const { error: profileError } = await supabase
+      .from("player_public_profiles")
+      .upsert(profilePatch, { onConflict: "user_id" });
+    if (profileError) {
+      if (profileError.code === "23505") return json({ error: "name_taken" }, 409, cors);
+      throw profileError;
+    }
 
-    const { error: leaderError, count } = await supabase
-      .from("leaderboard_entries")
-      .update(patch, { count: "exact" })
-      .eq("user_id", userId)
-      .select("user_id");
-
-    if (leaderError) throw leaderError;
-
-    return json({ ok: true, updatedCount: count ?? 0 }, 200, cors);
+    return json({ ok: true, updatedCount: 1 }, 200, cors);
   } catch (error) {
     console.error("update-account-name failed:", error);
     return json({ error: "update_failed" }, 500, cors);

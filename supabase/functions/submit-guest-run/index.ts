@@ -221,23 +221,27 @@ Deno.serve(async (req) => {
       (progressRow?.progress as any)?.verifiedCollectionTiles,
       getReplayCollectionTiles(replay.state),
     );
-    const blupetsCount = Object.keys(collectionTilesEntry).length;
+    const { data: publicProfile, error: publicProfileError } = await supabase
+      .from("player_public_profiles")
+      .select("collection_tiles")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (publicProfileError) throw publicProfileError;
+    const publicCollectionTiles = mergeTrustedCollectionTiles(
+      publicProfile?.collection_tiles,
+      collectionTilesEntry,
+    );
+    const blupetsCount = Object.keys(publicCollectionTiles).length;
 
     const entry = {
       user_id: user.id,
-      account_name: accountName,
-      avatar_url: avatarUrl || null,
       score: result.score,
       moves_used: result.movesUsed,
       t4_color: result.colorId,
       t4_partner: result.partnerColorId,
       t4_form_key: result.formKey,
       vibe: result.vibe,
-      family_badges: {},
-      blupets_count: blupetsCount,
-      collection_tiles: collectionTilesEntry,
       validation_mode: "guest_replay_verified",
-      collection_trusted: true,
     };
 
     const progress = mergeRunResult({
@@ -273,15 +277,20 @@ Deno.serve(async (req) => {
     );
     if (progressError) throw progressError;
 
+    const { error: publicProfileUpsertError } = await supabase
+      .from("player_public_profiles")
+      .upsert({
+        user_id: user.id,
+        account_name: accountName,
+        avatar_url: avatarUrl || null,
+        collection_tiles: publicCollectionTiles,
+        blupets_count: blupetsCount,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+    if (publicProfileUpsertError) throw publicProfileUpsertError;
+
     const { error: entryError } = await supabase.from("leaderboard_entries").insert(entry);
     if (entryError) throw entryError;
-
-    const { error: backfillError } = await supabase
-      .from("leaderboard_entries")
-      .update({ blupets_count: blupetsCount, collection_tiles: collectionTilesEntry, collection_trusted: true })
-      .eq("user_id", user.id)
-      .eq("collection_trusted", true);
-    if (backfillError) throw backfillError;
 
     return json({ ok: true, entry, progress: progressSnapshot }, 200, cors);
   } catch (error) {

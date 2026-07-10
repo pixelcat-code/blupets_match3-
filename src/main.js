@@ -72,19 +72,24 @@ import {
   submitTournamentRun,
   saveTournamentDraft,
   syncProfile,
-  syncCollectionSnapshot,
   syncProgressSnapshot,
   submitTrustedRun,
   subscribeTournamentRoom,
   unsubscribeTournamentRoom,
   presenceTrack,
   sendTournamentBroadcast,
-} from "./sync.js?v=20260711-rt-leaderboard-1";
+} from "./sync.js?v=20260711-durable-load-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
 import { isTournamentEnded } from "./util/tournament-deadline.js?v=20260710-1";
+import {
+  TOURNAMENT_FINAL_REFRESH_GRACE_MS,
+  TOURNAMENT_POLL_TICK_MS,
+  tournamentDraftSyncDelayMs,
+  tournamentPollIntervalMs,
+} from "./util/tournament-sync-policy.js?v=20260711-1";
 import { replayRun } from "./run-replay.js?v=20260710-tournament-recovery-1";
 import { elements } from "./ui/dom.js?v=20260706-1";
 import { app } from "./ui/store.js?v=20260629-5";
@@ -226,6 +231,9 @@ const TOURNAMENT_RECOVERY_KEY = "blupets_tournament_recovery_v1";
 const TOURNAMENT_RECOVERY_MAX_AGE_MS = 26 * 60 * 60_000;
 let tournamentDraftSyncTimer = null;
 let tournamentDraftSyncInFlight = false;
+let tournamentDraftSyncDirty = false;
+let tournamentDraftLastAttemptAt = 0;
+let tournamentDraftSyncGeneration = 0;
 
 function delay(ms) {
   return new Promise((resolve) => {
@@ -293,28 +301,53 @@ function persistTournamentRecovery({ pendingResult = null, abandoned = false } =
 
 function scheduleTournamentDraftSync({ immediate = false } = {}) {
   if (!runProof?.tournament || !app.state || app.state.gameOver || app.state.victory) return;
-  if (tournamentDraftSyncTimer) clearTimeout(tournamentDraftSyncTimer);
+  tournamentDraftSyncDirty = true;
+  if (tournamentDraftSyncInFlight || tournamentDraftSyncTimer) return;
+  const delayMs = tournamentDraftSyncDelayMs({
+    immediate,
+    lastAttemptAt: tournamentDraftLastAttemptAt,
+  });
   tournamentDraftSyncTimer = window.setTimeout(() => {
     tournamentDraftSyncTimer = null;
     syncTournamentDraft();
-  }, immediate ? 0 : 700);
+  }, delayMs);
 }
 
 async function syncTournamentDraft() {
-  if (tournamentDraftSyncInFlight || !runProof?.tournament || !app.state || app.state.gameOver || app.state.victory) return;
+  if (tournamentDraftSyncInFlight || !tournamentDraftSyncDirty) return;
+  if (!runProof?.tournament || !app.state || app.state.gameOver || app.state.victory) return;
   const proof = runProof;
+  const generation = tournamentDraftSyncGeneration;
   const result = buildTournamentResultFromState(app.state);
   if (!result) return;
+  const actionCount = proof.actions.length;
+  tournamentDraftSyncDirty = false;
   tournamentDraftSyncInFlight = true;
+  tournamentDraftLastAttemptAt = Date.now();
   try {
     await saveTournamentDraft(proof.runId, result, proof.actions);
   } catch (error) {
-    // Local recovery still has every action; the next interaction, reconnect,
-    // or pagehide checkpoint retries server storage.
+    // Local recovery still has every action. Keep the draft dirty so the
+    // batched retry runs later; pagehide also sends the full current log.
+    if (generation === tournamentDraftSyncGeneration) tournamentDraftSyncDirty = true;
     console.warn("[tournament] draft checkpoint deferred:", error);
   } finally {
+    if (generation !== tournamentDraftSyncGeneration) return;
     tournamentDraftSyncInFlight = false;
+    if (runProof === proof && proof.actions.length > actionCount) {
+      tournamentDraftSyncDirty = true;
+    }
+    if (tournamentDraftSyncDirty) scheduleTournamentDraftSync();
   }
+}
+
+function resetTournamentDraftSyncState() {
+  tournamentDraftSyncGeneration += 1;
+  if (tournamentDraftSyncTimer) clearTimeout(tournamentDraftSyncTimer);
+  tournamentDraftSyncTimer = null;
+  tournamentDraftSyncInFlight = false;
+  tournamentDraftSyncDirty = false;
+  tournamentDraftLastAttemptAt = 0;
 }
 
 function sendTournamentDraftOnPagehide() {
@@ -409,6 +442,8 @@ function restoreTournamentRecovery(room) {
       expiresAt: saved.expiresAt,
     },
   };
+  resetTournamentDraftSyncState();
+  scheduleTournamentDraftSync({ immediate: true });
   resetInteractionState();
   setScreen("game");
   render();
@@ -450,7 +485,6 @@ async function retryPendingTournamentSubmission(room = app.tournamentRoom) {
   try {
     await submitTournamentRun(saved.runId, saved.pendingResult, saved.actions, { abandoned: saved.abandoned });
     clearTournamentRecovery({ runId: saved.runId });
-    if (saved.code) sendTournamentBroadcast("score", { code: saved.code }).catch(() => {});
     showToast("Tournament score saved.");
     return true;
   } catch (error) {
@@ -540,6 +574,7 @@ function persistProgress() {
 }
 
 function clearRunProof() {
+  resetTournamentDraftSyncState();
   runProof = null;
   runRng = Math.random;
 }
@@ -876,6 +911,7 @@ async function startTournamentAttempt() {
   _tournamentAbandonSent = false;
   tournamentTimeExpired = false;
   tournamentTimeExpiryQueued = false;
+  resetTournamentDraftSyncState();
   app.tournamentRunProof = null;
 
   try {
@@ -1084,6 +1120,11 @@ function hasLiveRun() {
 }
 
 let tournamentPollTimer = null;
+let tournamentLastRefreshAt = 0;
+let tournamentRefreshInFlight = null;
+let tournamentRefreshInFlightCode = "";
+let tournamentFinalRefreshTimer = null;
+let tournamentFinalRefreshEndsAt = "";
 
 function normalizeTournamentCode(value) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
@@ -1117,38 +1158,48 @@ function stopTournamentPolling() {
     clearInterval(tournamentPollTimer);
     tournamentPollTimer = null;
   }
+  if (tournamentFinalRefreshTimer) {
+    clearTimeout(tournamentFinalRefreshTimer);
+    tournamentFinalRefreshTimer = null;
+  }
+  tournamentFinalRefreshEndsAt = "";
+  tournamentLastRefreshAt = 0;
+}
+
+function scheduleTournamentFinalRefresh(room = app.tournamentRoom) {
+  const endsAt = room?.ends_at ?? "";
+  const endMs = new Date(endsAt).getTime();
+  if (!Number.isFinite(endMs) || !endsAt || tournamentFinalRefreshEndsAt === endsAt) return;
+  if (tournamentFinalRefreshTimer) clearTimeout(tournamentFinalRefreshTimer);
+  tournamentFinalRefreshEndsAt = endsAt;
+  const delayMs = Math.max(0, endMs - Date.now() + TOURNAMENT_FINAL_REFRESH_GRACE_MS);
+  tournamentFinalRefreshTimer = window.setTimeout(() => {
+    tournamentFinalRefreshTimer = null;
+    refreshTournamentLeaderboard().catch((error) => {
+      console.error("[tournament] final standings refresh failed:", error);
+    });
+  }, delayMs);
 }
 
 function startTournamentPolling() {
   stopTournamentPolling();
   const code = app.tournamentRoom?.code;
   if (!code) return;
+  tournamentLastRefreshAt = Date.now();
+  scheduleTournamentFinalRefresh();
   tournamentPollTimer = window.setInterval(() => {
-    // Realtime is the primary path for leaderboard updates: a "score" broadcast
-    // fires on every submit — the only event that changes the standings — and
-    // drives a refetch. While the channel is joined we skip the periodic fetch
-    // entirely. If the channel is not joined (never connected, dropped, or
-    // mid-rejoin) we fall back to the original 5s poll, so a disconnected client
-    // is never worse off than before.
-    if (app.tournamentChannel?.state === "joined") return;
+    // Realtime is primary. Poll only as a safety net: frequently while the
+    // channel is unavailable, every 30s in the lobby (so a missed Start/Ready
+    // broadcast self-heals), and only every ten minutes during live play.
+    const intervalMs = tournamentPollIntervalMs({
+      channelJoined: app.tournamentChannel?.state === "joined",
+      roomStatus: app.tournamentRoom?.status,
+    });
+    if (Date.now() - tournamentLastRefreshAt < intervalMs) return;
     refreshTournamentLeaderboard().catch((error) => {
       console.error("[tournament] leaderboard refresh failed:", error);
     });
-  }, 5000);
-}
-
-// A "score" broadcast can arrive from many clients at once when a tournament
-// ends (everyone submits together). Coalesce the refetches into one so a full
-// room doesn't fire N leaderboard reads per submit.
-let tournamentScoreRefetchTimer = null;
-function refetchTournamentLeaderboardSoon() {
-  if (tournamentScoreRefetchTimer) return;
-  tournamentScoreRefetchTimer = window.setTimeout(() => {
-    tournamentScoreRefetchTimer = null;
-    refreshTournamentLeaderboard().catch((error) => {
-      console.error("[tournament] score refresh failed:", error);
-    });
-  }, 600);
+  }, TOURNAMENT_POLL_TICK_MS);
 }
 
 let tournamentCountdownTimer = null;
@@ -1233,6 +1284,7 @@ async function handleHostStartTournament() {
     const data = await startTournamentRoom(code);
     const room = data.room ?? data;
     app.tournamentRoom = { ...app.tournamentRoom, ...room };
+    scheduleTournamentFinalRefresh(app.tournamentRoom);
     app.tournamentReady = false;
     trackTournamentPresence("lobby");
     app.tournamentStatus = "ready";
@@ -1259,17 +1311,63 @@ async function handleHostStartTournament() {
 
 async function refreshTournamentLeaderboard() {
   const code = app.tournamentRoom?.code;
-  if (!code) return;
-  const data = await fetchTournamentLeaderboard(code);
-  app.tournamentLeaderboard = data?.entries ?? [];
-  if (data?.room) {
-    app.tournamentRoom = { ...app.tournamentRoom, ...data.room };
-    app.tournamentRoster = data?.players ?? app.tournamentRoster;
-  }
-  renderTournamentRoom();
-  maybeAutoStartTournamentAttempt().catch((error) => {
-    console.error("[tournament] auto start failed:", error);
+  if (!code) return null;
+  if (tournamentRefreshInFlight && tournamentRefreshInFlightCode === code) return tournamentRefreshInFlight;
+  const request = (async () => {
+    const data = await fetchTournamentLeaderboard(code);
+    // Ignore a response if the user switched rooms while it was in flight.
+    if (app.tournamentRoom?.code !== code) return data;
+    tournamentLastRefreshAt = Date.now();
+    app.tournamentLeaderboard = data?.entries ?? [];
+    if (data?.room) {
+      app.tournamentRoom = { ...app.tournamentRoom, ...data.room };
+      app.tournamentRoster = data?.players ?? app.tournamentRoster;
+      scheduleTournamentFinalRefresh(app.tournamentRoom);
+    }
+    renderTournamentRoom();
+    maybeAutoStartTournamentAttempt().catch((error) => {
+      console.error("[tournament] auto start failed:", error);
+    });
+    return data;
+  })();
+  tournamentRefreshInFlight = request;
+  tournamentRefreshInFlightCode = code;
+  request.then(() => {
+    if (tournamentRefreshInFlight === request) {
+      tournamentRefreshInFlight = null;
+      tournamentRefreshInFlightCode = "";
+    }
+  }, () => {
+    if (tournamentRefreshInFlight === request) {
+      tournamentRefreshInFlight = null;
+      tournamentRefreshInFlightCode = "";
+    }
   });
+  return request;
+}
+
+function applyTournamentLeaderboardInsert(row) {
+  if (!row || row.room_id !== app.tournamentRoom?.id || !row.user_id) return;
+  const entry = {
+    userId: row.user_id,
+    accountName: row.account_name || "Player",
+    avatarUrl: row.avatar_url || "",
+    score: Number(row.score) || 0,
+    movesUsed: Number(row.moves_used) || 0,
+    submittedAt: row.created_at || new Date().toISOString(),
+    isPlayer: row.user_id === app.authState.user?.id,
+  };
+  const entries = (app.tournamentLeaderboard ?? [])
+    .filter((current) => current.userId !== entry.userId)
+    .concat(entry)
+    .sort((a, b) =>
+      (Number(b.score) || 0) - (Number(a.score) || 0) ||
+      (Number(a.movesUsed) || 0) - (Number(b.movesUsed) || 0) ||
+      String(a.submittedAt || "").localeCompare(String(b.submittedAt || "")),
+    )
+    .map((current, index) => ({ ...current, rank: index + 1 }));
+  app.tournamentLeaderboard = entries;
+  renderTournamentRoom();
 }
 
 function renderTournamentLeaderboardRows() {
@@ -1580,6 +1678,10 @@ async function openTournamentRoom(code) {
     startTournamentCountdownTicker();
     try {
       const channel = await subscribeTournamentRoom(normalized, app.tournamentRoom.id, {
+        // Only the host needs the live spectator feed. Players receive the
+        // complete table after their own submit and from the safety refresh.
+        // This avoids multiplying every result by every connected player.
+        onLeaderboardInsert: app.tournamentIsHost ? applyTournamentLeaderboardInsert : undefined,
         onPresenceSync: (state) => {
           // Everyone shares the room-code presence key, so metas arrive in one
           // array. Collapse to one row per user by the newest meta; this lets
@@ -1637,12 +1739,6 @@ async function openTournamentRoom(code) {
             refreshTournamentLeaderboard().catch((error) => {
               console.error("[tournament] room-live refresh failed:", error);
             });
-          }
-          if (event === "score") {
-            // Someone submitted a run — the only event that changes the
-            // standings. Refetch (coalesced) so connected clients see it in
-            // ~1s instead of waiting for the (now channel-gated) poll.
-            refetchTournamentLeaderboardSoon();
           }
         },
       });
@@ -2275,10 +2371,6 @@ function submitTournamentResult(stateLike, formMeta = null, { abandoned = false 
       clearTournamentRecovery(proof);
       const code = proof.code ?? app.tournamentRoom?.code;
       if (!code) return null;
-      // Tell other clients the standings changed so they refetch immediately
-      // (replaces their periodic poll). Best-effort; a missed broadcast is
-      // caught by their fallback poll if their channel ever drops.
-      sendTournamentBroadcast("score", { code }).catch(() => {});
       return getTournamentRoom(code).then((roomData) => {
         app.tournamentRoom = { ...roomData.room, playerState: roomData.playerState };
         app.tournamentLeaderboard = roomData.entries ?? [];
@@ -2335,8 +2427,6 @@ async function submitTournamentAbandon() {
   try {
     await submitTournamentRun(proof.runId, result, proof.actions, { abandoned: true });
     clearTournamentRecovery(proof);
-    const code = proof.code ?? app.tournamentRoom?.code;
-    if (code) sendTournamentBroadcast("score", { code }).catch(() => {});
   } catch (error) {
     console.error("[tournament] abandon submit failed:", error);
   } finally {
@@ -3970,13 +4060,7 @@ function updateAfterCapsuleReveal(results, source) {
 
 function syncCollectionLeaderboard() {
   if (!app.authState.user) return;
-  const familyBadges = collectionFamilySnapshot(app.progress);
-  syncProgressSnapshot(app.progress)
-    .then(() => syncCollectionSnapshot({
-      familyBadges,
-      blupetsCount: collectionTileCount(app.progress),
-      collectionTiles: app.progress.collectionTiles,
-    }))
+  syncProgressSnapshot(app.progress, { publishCollection: true })
     .then(() => fetchGlobalLeaderboard())
     .then((entries) => {
       app.remoteLeaderboard = entries;

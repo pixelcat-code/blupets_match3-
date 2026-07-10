@@ -1,5 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
+import { BLUPETS_FAMILIES } from "../../../src/blupets-canon-data.js";
+
+const VALID_FORM_KEYS = new Set(
+  BLUPETS_FAMILIES.flatMap((family) =>
+    [...family.forms["2"], ...family.forms["3"], ...family.forms["4"]].map((form) => form.key),
+  ),
+);
 
 function safeObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -13,7 +20,7 @@ function safeObject(value: unknown): Record<string, unknown> {
 function trustedCollectionTiles(value: unknown): Record<string, true> {
   const out: Record<string, true> = {};
   for (const [key, entry] of Object.entries(safeObject(value)).slice(0, 512)) {
-    if (entry === true) out[String(key).slice(0, 96)] = true;
+    if (entry === true && VALID_FORM_KEYS.has(key)) out[key] = true;
   }
   return out;
 }
@@ -58,6 +65,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const clientProgress = sanitizeClientProgress(body.progress);
+    const publishCollection = body.publishCollection === true;
 
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
@@ -82,15 +90,19 @@ Deno.serve(async (req) => {
     const bestScore = int(existing?.best_score);
     const fewestMovesWin = existing?.fewest_moves_win == null ? null : int(existing?.fewest_moves_win);
     const forms = safeObject(existing?.forms);
-    // Preserve public collection snapshots written by the dedicated,
-    // canonicalizing sync-collection function. The raw client collection stays
-    // private in clientProgress.collectionTiles.
+    // Public collection publishing is opt-in so ordinary progress saves never
+    // touch leaderboard rows. The snapshot is canonicalized and unioned, so a
+    // stale browser cannot hide forms that were already published.
     const verifiedCollectionTiles = trustedCollectionTiles(
       safeObject(existing?.progress).verifiedCollectionTiles,
     );
-    const publicCollectionTiles = trustedCollectionTiles(
-      safeObject(existing?.progress).publicCollectionTiles,
-    );
+    const publicCollectionTiles = publishCollection
+      ? {
+          ...trustedCollectionTiles(safeObject(existing?.progress).publicCollectionTiles),
+          ...trustedCollectionTiles(safeObject(existing?.progress).collectionTiles),
+          ...trustedCollectionTiles(clientProgress.collectionTiles),
+        }
+      : trustedCollectionTiles(safeObject(existing?.progress).publicCollectionTiles);
     const progress = {
       ...clientProgress,
       wins,
@@ -117,7 +129,25 @@ Deno.serve(async (req) => {
     );
     if (error) throw error;
 
-    return json({ ok: true, progress }, 200, cors);
+    if (publishCollection) {
+      const meta = userData.user.user_metadata ?? {};
+      const accountName = String(
+        meta.display_name || meta.full_name || meta.name ||
+        meta.preferred_username || meta.user_name || userData.user.email || "Player",
+      ).slice(0, 128);
+      const { error: profileError } = await supabase
+        .from("player_public_profiles")
+        .upsert({
+          user_id: userData.user.id,
+          account_name: accountName,
+          collection_tiles: publicCollectionTiles,
+          blupets_count: Object.keys(publicCollectionTiles).length,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
+      if (profileError) throw profileError;
+    }
+
+    return json({ ok: true, progress, collectionTiles: publicCollectionTiles }, 200, cors);
   } catch (error) {
     console.error("sync-progress failed:", error);
     return json({ error: "sync_progress_failed" }, 500, cors);
