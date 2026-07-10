@@ -77,7 +77,7 @@ import {
   unsubscribeTournamentRoom,
   presenceTrack,
   sendTournamentBroadcast,
-} from "./sync.js?v=20260710-tournament-drafts-1";
+} from "./sync.js?v=20260710-tournament-resume-server-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
@@ -899,15 +899,22 @@ async function startTournamentAttempt() {
     };
     trackTournamentPresence("playing");
     const rules = proof.rules && typeof proof.rules === "object" ? proof.rules : {};
-    runRng = createSeededRng(proof.seed);
-    app.state = createInitialState({
+    const options = {
       diagonalAssist: Boolean(rules.diagonalAssist),
       diagonalSwaps: Boolean(rules.diagonalSwaps),
       specialTiles: rules.specialTiles !== false,
       endlessRun: rules.endlessRun !== false,
       vibe: getVibeById(proof.vibeId),
-      rng: runRng,
-    });
+    };
+    if (proof.resumed) {
+      const replay = replayRun(proof.seed, proof.actions, options);
+      proof.actions = replay.actions;
+      runRng = replay.rng;
+      app.state = replay.state;
+    } else {
+      runRng = createSeededRng(proof.seed);
+      app.state = createInitialState({ ...options, rng: runRng });
+    }
     persistTournamentRecovery();
     scheduleTournamentDraftSync({ immediate: true });
     app.tournamentStatus = "ready";
@@ -915,7 +922,8 @@ async function startTournamentAttempt() {
     resetInteractionState();
     setScreen("game");
     render();
-    showVibeIntro();
+    if (proof.resumed) showToast("Tournament run restored.");
+    else showVibeIntro();
   } catch (error) {
     console.error("[tournament] start failed:", error);
     app.tournamentStatus = "ready";

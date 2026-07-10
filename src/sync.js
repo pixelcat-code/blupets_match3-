@@ -93,7 +93,12 @@ export async function startTournamentRun(code) {
   });
   if (error) throw new Error(await fnErrorCode(error));
   if (!data?.runId) throw new Error("Tournament run service returned an invalid run.");
-  return { ...data, seed: data.seed >>> 0, actions: [], tournament: true };
+  return {
+    ...data,
+    seed: data.seed >>> 0,
+    actions: Array.isArray(data.actions) ? data.actions : [],
+    tournament: true,
+  };
 }
 
 export async function submitTournamentRun(runId, result, actions = [], { abandoned = false } = {}) {

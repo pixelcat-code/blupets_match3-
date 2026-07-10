@@ -78,8 +78,38 @@ Deno.serve(async (req) => {
     if (reservationError) throw reservationError;
     if (!reservedPlayer) return json({ error: "not_registered_for_room" }, 403, cors);
 
-    const startedAt = new Date(now).toISOString();
     const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
+    const { data: existingRun, error: existingRunError } = await supabase
+      .from("tournament_runs")
+      .select("id, seed, started_at, submitted_at, draft_actions")
+      .eq("room_id", room.id)
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    if (existingRunError) throw existingRunError;
+    if (existingRun) {
+      if (existingRun.submitted_at) return json({ error: "attempt_already_used" }, 409, cors);
+      const existingStartedMs = new Date(existingRun.started_at).getTime();
+      const existingExpiresMs = tournamentAttemptExpiresAt(existingStartedMs, durationMs, roomEndsAtMs);
+      if (!Number.isFinite(existingStartedMs) || now >= existingExpiresMs) {
+        return json({ error: "tournament_ended" }, 422, cors);
+      }
+      // A duplicate start means the browser is returning, not requesting a
+      // second attempt. Resume the same seed and server checkpoint.
+      return json({
+        runId: existingRun.id,
+        roomId: room.id,
+        code: room.code,
+        seed: Number(existingRun.seed) >>> 0,
+        vibeId: room.vibe_id,
+        rules: room.rules,
+        startedAt: existingRun.started_at,
+        expiresAt: new Date(existingExpiresMs).toISOString(),
+        actions: Array.isArray(existingRun.draft_actions) ? existingRun.draft_actions : [],
+        resumed: true,
+      }, 200, cors);
+    }
+
+    const startedAt = new Date(now).toISOString();
     // An attempt cannot extend the shared tournament window.
     const expiresAt = new Date(tournamentAttemptExpiresAt(now, durationMs, roomEndsAtMs)).toISOString();
 
@@ -98,7 +128,9 @@ Deno.serve(async (req) => {
 
     if (runError) {
       if (String(runError.message ?? "").toLowerCase().includes("duplicate")) {
-        return json({ error: "attempt_already_used" }, 409, cors);
+        // Another tab won a simultaneous first-start race. The next request
+        // follows the existing-run branch above and resumes that same attempt.
+        return json({ error: "start_race_retry" }, 409, cors);
       }
       throw runError;
     }
