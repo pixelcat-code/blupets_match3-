@@ -644,6 +644,8 @@ async function startTournamentAttempt() {
   gameoverRevealBatch = [];
   runProof = null;
   _tournamentAbandonSent = false;
+  tournamentTimeExpired = false;
+  tournamentTimeExpiryQueued = false;
   app.tournamentRunProof = null;
 
   try {
@@ -1107,6 +1109,8 @@ function renderTournamentCountdown() {
 // the time-left card counts down live, independent of moves/actions. Separate
 // from the lobby countdown ticker (startTournamentCountdownTicker).
 let tournamentRunTicker = null;
+let tournamentTimeExpired = false;
+let tournamentTimeExpiryQueued = false;
 function stopTournamentRunTicker() {
   if (tournamentRunTicker) { clearInterval(tournamentRunTicker); tournamentRunTicker = null; }
 }
@@ -1116,6 +1120,32 @@ function updateTournamentRunTimer() {
   if (!elements.timerValue || !room) return;
   const endValue = proof?.expiresAt ?? proof?.expires_at ?? room.playerState?.expiresAt;
   elements.timerValue.textContent = endValue ? formatTimeLeft(endValue) : "--:--";
+  const expiresAt = new Date(endValue ?? "").getTime();
+  if (Number.isFinite(expiresAt) && Date.now() >= expiresAt && !tournamentTimeExpiryQueued) {
+    // renderTournamentHud() calls this synchronously during render(), so defer
+    // the state transition to avoid rendering recursively from inside render.
+    tournamentTimeExpiryQueued = true;
+    queueMicrotask(() => {
+      tournamentTimeExpiryQueued = false;
+      endTournamentForTimeLimit();
+    });
+  }
+}
+
+function endTournamentForTimeLimit() {
+  if (tournamentTimeExpired || !app.state || app.state.gameOver || app.state.victory) return;
+  tournamentTimeExpired = true;
+  stopTournamentRunTicker();
+  resetInteractionState();
+  // Time, not moves, ended this attempt. Keep the remaining-moves value for
+  // the result record, but lock the board and submit the replay as partial.
+  applyState({
+    ...app.state,
+    gameOver: true,
+    tournamentTimedOut: true,
+    status: "Tournament time is up — run over.",
+    _lastResolution: null,
+  });
 }
 function startTournamentRunTicker() {
   stopTournamentRunTicker();
@@ -1739,7 +1769,7 @@ function recordVictory(nextState) {
 
 function submitRunToLeaderboard(stateLike, formMeta = null) {
   if (runProof?.tournament) {
-    submitTournamentResult(stateLike, formMeta);
+    submitTournamentResult(stateLike, formMeta, { abandoned: Boolean(stateLike?.tournamentTimedOut) });
     return;
   }
   if (!app.authState.user) return;
@@ -1792,7 +1822,7 @@ function submitRunToLeaderboard(stateLike, formMeta = null) {
     });
 }
 
-function submitTournamentResult(stateLike, formMeta = null) {
+function submitTournamentResult(stateLike, formMeta = null, { abandoned = false } = {}) {
   if (!app.authState.user || !runProof?.tournament) return;
   if (!stateLike || !Number.isFinite(Number(stateLike.score)) || Number(stateLike.score) <= 0) {
     clearRunProof();
@@ -1815,7 +1845,7 @@ function submitTournamentResult(stateLike, formMeta = null) {
   };
 
   console.info("[tournament] submitting run result:", proof.runId, result);
-  submitTournamentRun(proof.runId, result, proof.actions)
+  submitTournamentRun(proof.runId, result, proof.actions, { abandoned })
     .then((data) => {
       console.info("[tournament] submit accepted:", data);
       const code = proof.code ?? app.tournamentRoom?.code;
@@ -1910,6 +1940,12 @@ function celebrateEndlessT4() {
 }
 
 function applyState(nextState) {
+  // A timer can expire in the middle of an animation. Never let that in-flight
+  // resolution revive the board after the authoritative tournament cutoff.
+  if (tournamentTimeExpired && !nextState?.tournamentTimedOut) {
+    render();
+    return;
+  }
   const wasVictory = app.state?.victory;
   const prevTiers = app.state?.evolutionTiers ?? {};
   app.state = nextState;
@@ -3592,7 +3628,7 @@ function renderGameoverScreen(stateLike) {
     const ownRank = player.rank ? `Rank #${player.rank}` : "Submitting score...";
     elements.gameoverDetail.innerHTML =
       `<div class="gameover-save-prompt">` +
-        `<p class="gameover-save-text">Tournament score · ${escapeHtml(ownRank)}</p>` +
+        `<p class="gameover-save-text">${stateLike.tournamentTimedOut ? "Time is up · " : ""}Tournament score · ${escapeHtml(ownRank)}</p>` +
       `</div>`;
     if (elements.gameoverBtn) {
       elements.gameoverBtn.textContent = "Back to Room";
