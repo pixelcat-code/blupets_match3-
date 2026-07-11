@@ -65,8 +65,6 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const clientProgress = sanitizeClientProgress(body.progress);
-    const publishCollection = body.publishCollection === true;
-
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
       requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
@@ -90,21 +88,34 @@ Deno.serve(async (req) => {
     const bestScore = int(existing?.best_score);
     const fewestMovesWin = existing?.fewest_moves_win == null ? null : int(existing?.fewest_moves_win);
     const forms = safeObject(existing?.forms);
-    // Public collection publishing is opt-in so ordinary progress saves never
-    // touch leaderboard rows. The snapshot is canonicalized and unioned, so a
-    // stale browser cannot hide forms that were already published.
     const verifiedCollectionTiles = trustedCollectionTiles(
       safeObject(existing?.progress).verifiedCollectionTiles,
     );
-    const publicCollectionTiles = publishCollection
-      ? {
-          ...trustedCollectionTiles(safeObject(existing?.progress).publicCollectionTiles),
-          ...trustedCollectionTiles(safeObject(existing?.progress).collectionTiles),
-          ...trustedCollectionTiles(clientProgress.collectionTiles),
-        }
-      : trustedCollectionTiles(safeObject(existing?.progress).publicCollectionTiles);
+    const collectionCandidate = {
+      ...verifiedCollectionTiles,
+      ...trustedCollectionTiles(safeObject(existing?.progress).publicCollectionTiles),
+      ...trustedCollectionTiles(safeObject(existing?.progress).collectionTiles),
+      ...trustedCollectionTiles(clientProgress.collectionTiles),
+    };
+    const meta = userData.user.user_metadata ?? {};
+    const accountName = String(
+      meta.display_name || meta.full_name || meta.name ||
+      meta.preferred_username || meta.user_name || userData.user.email || "Player",
+    ).slice(0, 128);
+    const { data: mergedCollection, error: collectionMergeError } = await supabase.rpc(
+      "merge_player_public_collection",
+      {
+        target_user_id: userData.user.id,
+        incoming_tiles: collectionCandidate,
+        incoming_account_name: accountName,
+        incoming_avatar_url: null,
+      },
+    );
+    if (collectionMergeError) throw collectionMergeError;
+    const publicCollectionTiles = trustedCollectionTiles(mergedCollection);
     const progress = {
       ...clientProgress,
+      collectionTiles: publicCollectionTiles,
       wins,
       runs,
       bestScore,
@@ -128,24 +139,6 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" },
     );
     if (error) throw error;
-
-    if (publishCollection) {
-      const meta = userData.user.user_metadata ?? {};
-      const accountName = String(
-        meta.display_name || meta.full_name || meta.name ||
-        meta.preferred_username || meta.user_name || userData.user.email || "Player",
-      ).slice(0, 128);
-      const { error: profileError } = await supabase
-        .from("player_public_profiles")
-        .upsert({
-          user_id: userData.user.id,
-          account_name: accountName,
-          collection_tiles: publicCollectionTiles,
-          blupets_count: Object.keys(publicCollectionTiles).length,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id" });
-      if (profileError) throw profileError;
-    }
 
     return json({ ok: true, progress, collectionTiles: publicCollectionTiles }, 200, cors);
   } catch (error) {

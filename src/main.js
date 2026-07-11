@@ -78,7 +78,7 @@ import {
   unsubscribeTournamentRoom,
   presenceTrack,
   sendTournamentBroadcast,
-} from "./sync.js?v=20260711-durable-load-1";
+} from "./sync.js?v=20260711-canonical-collection-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
@@ -104,7 +104,7 @@ import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/rend
 import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260706-navorder-1";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
 import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260710-1";
-import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260710-1";
+import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260711-canonical-collection-2";
 import { renderGuideSection } from "./ui/render-guide.js?v=20260706-hero-unify-1";
 import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260706-nopedestal-1";
@@ -514,7 +514,18 @@ function applyRemoteProgress(remote) {
   if (!remote) return;
   cloudFormsCount = Object.keys(remote.forms ?? {}).length;
   const local = loadProgress();
-  const merged = { ...local, ...remote };
+  const merged = {
+    ...local,
+    ...remote,
+    // Collection ownership is monotonic. Preserve a just-opened local tile
+    // until the canonical server union echoes it back; stale devices cannot
+    // remove keys already known on either side.
+    collectionTiles: {
+      ...(local.collectionTiles ?? {}),
+      ...(remote.collectionTiles ?? {}),
+      ...(remote.publicCollectionTiles ?? {}),
+    },
+  };
   // Quest progress can only go forward: keep whichever side is further ahead
   // so a stale server snapshot never resets a locally-completed quest.
   const lq = getSaraiHeartQuest(local);
@@ -4092,10 +4103,15 @@ function updateAfterCapsuleReveal(results, source) {
 
 function syncCollectionLeaderboard() {
   if (!app.authState.user) return;
-  syncProgressSnapshot(app.progress, { publishCollection: true })
-    .then(() => fetchGlobalLeaderboard())
+  syncProgressSnapshot(app.progress)
+    .then((data) => {
+      if (data?.progress) applyRemoteProgress(data.progress);
+      return fetchGlobalLeaderboard();
+    })
     .then((entries) => {
       app.remoteLeaderboard = entries;
+      updateProfileChip();
+      renderProfile();
       renderLeaderboard();
       renderMetaOverlay();
     })

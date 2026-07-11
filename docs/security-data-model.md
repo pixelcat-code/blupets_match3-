@@ -21,5 +21,5 @@ Rules:
 
 - Browser code must not write directly to `leaderboard_entries`, `game_runs`, `guest_game_runs`, or trusted progress columns.
 - Public profile data must be returned through the allowlisted `get_public_collection` RPC, not direct global reads of `user_progress`.
-- Only canonical form keys from an explicit collection publish may affect the public collection count; shards, capsule counts, quests, and other economy fields stay private.
+- `player_public_profiles.collection_tiles` is the canonical opened-form set. Only allowlisted canonical form keys may enter it; Postgres derives `blupets_count` from those keys, while shards, capsule counts, quests, and other economy fields stay private.
 - New public fields need an entry in this table before implementation.

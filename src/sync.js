@@ -172,13 +172,13 @@ export async function syncProfile({ name, avatarUrl } = {}) {
   return data;
 }
 
-export async function syncProgressSnapshot(progress, { publishCollection = false } = {}) {
+export async function syncProgressSnapshot(progress) {
   const { configured } = getSupabaseConfig();
   if (!configured) return null;
 
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("sync-progress", {
-    body: { progress, publishCollection },
+    body: { progress },
   });
   if (error) throw new Error(await fnErrorCode(error));
   return data;

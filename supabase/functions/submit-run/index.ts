@@ -257,17 +257,17 @@ Deno.serve(async (req) => {
       (progressRow?.progress as any)?.verifiedCollectionTiles,
       getReplayCollectionTiles(replay.state),
     );
-    const { data: publicProfile, error: publicProfileError } = await supabase
-      .from("player_public_profiles")
-      .select("collection_tiles")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (publicProfileError) throw publicProfileError;
-    const publicCollectionTiles = mergeTrustedCollectionTiles(
-      publicProfile?.collection_tiles,
-      collectionTilesEntry,
+    const { data: mergedCollection, error: collectionMergeError } = await supabase.rpc(
+      "merge_player_public_collection",
+      {
+        target_user_id: user.id,
+        incoming_tiles: collectionTilesEntry,
+        incoming_account_name: accountName,
+        incoming_avatar_url: avatarUrl || null,
+      },
     );
-    const blupetsCount = Object.keys(publicCollectionTiles).length;
+    if (collectionMergeError) throw collectionMergeError;
+    const publicCollectionTiles = mergeTrustedCollectionTiles(mergedCollection);
 
     const entry = {
       user_id: user.id,
@@ -297,12 +297,14 @@ Deno.serve(async (req) => {
       }, result);
     const progressSnapshot = {
       ...clientProgress,
+      collectionTiles: publicCollectionTiles,
       wins: progress.wins,
       runs: progress.runs,
       bestScore: progress.bestScore,
       fewestMovesWin: progress.fewestMovesWin,
       forms: progress.forms,
       verifiedCollectionTiles: collectionTilesEntry,
+      publicCollectionTiles,
     };
 
     if (!run.submitted_at) {
@@ -332,18 +334,6 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" },
     );
     if (progressError) throw progressError;
-
-    const { error: publicProfileUpsertError } = await supabase
-      .from("player_public_profiles")
-      .upsert({
-        user_id: user.id,
-        account_name: accountName,
-        avatar_url: avatarUrl || null,
-        collection_tiles: publicCollectionTiles,
-        blupets_count: blupetsCount,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id" });
-    if (publicProfileUpsertError) throw publicProfileUpsertError;
 
     let persistedEntry = entry;
     const { error: entryError } = await supabase.from("leaderboard_entries").insert({ ...entry, run_id: run.id });

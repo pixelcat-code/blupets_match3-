@@ -9,9 +9,10 @@
 //   reading the in-flight app.metaPublicProfile view-state.
 import { app } from "./store.js?v=20260629-5";
 import { elements } from "./dom.js?v=20260629-1";
-import { collectionTileCount, TOTAL_INVENTORY_FORMS } from "../progress.js?v=20260628-guest-gating-1";
+import { TOTAL_INVENTORY_FORMS } from "../progress.js?v=20260628-guest-gating-1";
 import { leaderboardRanksForUser, renderProfileStatsPanel } from "./render-profile-stats.js?v=20260629-2";
 import { renderPublicBlupetsCollection } from "./render-collection.js?v=20260710-1";
+import { buildPublicCollectionSnapshot } from "../util/collection-source.js?v=20260711-1";
 
 export function renderPublicProfile(entries, isSelf = false, userId = "", storedCollectionTiles = null) {
   if (app.currentScreen !== "public-profile") return;
@@ -39,46 +40,23 @@ export function renderPublicProfileHtml(entries, isSelf = false, userId = "", st
 
   // Public collection comes exclusively from replay-verified forms. The owner's
   // local capsule inventory is merged only into their own private profile view.
-  const publicCollectionTiles = {};
-  if (storedCollectionTiles && typeof storedCollectionTiles === "object") {
-    for (const key of Object.keys(storedCollectionTiles)) {
-      publicCollectionTiles[key] = true;
-    }
-  } else {
-    let hasStoredTiles = false;
-    for (const e of entries) {
-      if (e.collectionTiles && typeof e.collectionTiles === "object") {
-        hasStoredTiles = true;
-        for (const key of Object.keys(e.collectionTiles)) {
-          publicCollectionTiles[key] = true;
-        }
-      }
-    }
-    if (!hasStoredTiles) {
-      for (const e of entries.filter((entry) => entry.collectionTrusted)) {
-        if (!e.t4FormKey || e.t4FormKey === "RUN_COMPLETE") continue;
-        publicCollectionTiles[e.t4FormKey] = true;
-      }
-    }
-  }
-
-  // For own profile, merge the full local collection so capsule unlocks and any
-  // forms won since the last submitted run appear immediately.
+  // The owner's capsule collection is an optimistic cache of the same server
+  // source. Run-win `forms` are deliberately not part of this calculation.
   if (isSelf) {
-    for (const key of Object.keys(app.progress.collectionTiles ?? {})) {
-      publicCollectionTiles[key] = true;
-    }
-    for (const key of Object.keys(app.progress.forms ?? {})) {
-      publicCollectionTiles[key] = true;
-    }
     bestScore = Math.max(bestScore, app.progress.bestScore ?? 0);
     gamesPlayed = Math.max(gamesPlayed, Number(app.progress.runs) || 0);
   }
 
   const entryBlupetsCount = entries.reduce((max, e) => Math.max(max, Number(e.blupetsCount) || 0), 0);
-  const publicBlupetsCount = isSelf
-    ? Math.max(Object.keys(publicCollectionTiles).length, entryBlupetsCount, collectionTileCount(app.progress))
-    : Math.max(Object.keys(publicCollectionTiles).length, entryBlupetsCount);
+  const { tiles: publicCollectionTiles, count: publicBlupetsCount } = buildPublicCollectionSnapshot({
+    storedCollectionTiles,
+    entryCollections: entries.map((entry) => entry.collectionTiles),
+    fallbackFormKeys: entries
+      .filter((entry) => entry.collectionTrusted)
+      .map((entry) => entry.t4FormKey),
+    localCollectionTiles: isSelf ? app.progress.collectionTiles : null,
+    entryCount: entryBlupetsCount,
+  });
   const ranks = leaderboardRanksForUser(userId);
   return {
     stats: renderProfileStatsPanel({
