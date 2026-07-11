@@ -3034,7 +3034,7 @@ async function initializeAuth() {
             .catch(() => {})
             .then(() => {
               applyPendingGuestRun();
-              if (collectionTileCount(app.progress) > 0) syncCollectionLeaderboard();
+              syncCollectionLeaderboard();
               render();
             });
         }
@@ -3061,7 +3061,7 @@ async function initializeAuth() {
       .catch(() => {})
       .then(() => {
         applyPendingGuestRun();
-        if (collectionTileCount(app.progress) > 0) syncCollectionLeaderboard();
+        syncCollectionLeaderboard();
         render();
       });
   }
