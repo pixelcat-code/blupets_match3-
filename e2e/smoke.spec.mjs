@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-// Black-box smoke net for src/main.js. Each test loads the real page with all
-// Supabase network blocked, so the app runs as an offline guest. The assertions
+// Black-box smoke net for src/main.js. Supabase is blocked except for a mocked,
+// server-issued guest seed, so gameplay follows the saveable-run contract. The assertions
 // pin the screen-routing wiring (setScreen toggling `hidden`), the board build,
 // the in-game back button, and history (browser back/forward) — the surfaces a
 // main.js refactor (P-4) is most likely to break.
@@ -22,10 +22,14 @@ function clickEl(page, selector) {
  * Returns the errors array so a test can assert nothing threw.
  */
 async function openApp(page) {
-  // Block every call to the live Supabase project. Aborted fetches make
-  // startGuestRun / getSession reject fast, so the app falls back to a local
-  // guest seed immediately instead of waiting out the 8s handshake timeout.
+  // Block every call to the live project, then provide the one deterministic
+  // handshake gameplay needs. Playwright resolves the most recent route first.
   await page.route(SUPABASE_GLOB, (route) => route.abort());
+  await page.route("**/functions/v1/start-guest-run", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ runId: "00000000-0000-4000-8000-000000000001", seed: 12345 }),
+  }));
 
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err));
@@ -33,6 +37,16 @@ async function openApp(page) {
   await page.goto("/");
   return pageErrors;
 }
+
+test("a failed run handshake stays on Home instead of starting an unsaveable game", async ({ page }) => {
+  await page.route(SUPABASE_GLOB, (route) => route.abort());
+  await page.goto("/");
+  await clickEl(page, "#start-run");
+
+  await expect(page.locator("#startScreen")).toBeVisible();
+  await expect(page.locator("#gameScreen")).toBeHidden();
+  await expect(page.locator("#toast")).toContainText("saveable run");
+});
 
 test("start screen renders with the Start button", async ({ page }) => {
   const errors = await openApp(page);

@@ -12,6 +12,11 @@ function clickEl(page, selector) {
 // offline guest and reaches the start screen quickly.
 async function openApp(page) {
   await page.route(SUPABASE_GLOB, (route) => route.abort());
+  await page.route("**/functions/v1/start-guest-run", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ runId: "00000000-0000-4000-8000-000000000002", seed: 54321 }),
+  }));
   const pageErrors = [];
   page.on("pageerror", (err) => pageErrors.push(err));
   await page.goto("/");
@@ -83,6 +88,11 @@ test("guest opening an invite link sees the auth modal, not the room", async ({ 
 // `/t/` strip in setScreen(). (Here a guest dismisses the gate and taps Start.)
 test("navigating away from an invite link drops the code from the URL", async ({ page }) => {
   await page.route(SUPABASE_GLOB, (route) => route.abort());
+  await page.route("**/functions/v1/start-guest-run", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ runId: "00000000-0000-4000-8000-000000000003", seed: 67890 }),
+  }));
   await page.route("**/t/TESTCODE", (route) => route.fulfill({ path: "index.html" }));
 
   await page.goto("/t/TESTCODE");

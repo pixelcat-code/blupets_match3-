@@ -5,6 +5,7 @@ import {
   TOURNAMENT_DRAFT_SYNC_INTERVAL_MS,
   TOURNAMENT_LIVE_SAFETY_POLL_MS,
   TOURNAMENT_LOBBY_SAFETY_POLL_MS,
+  tournamentFinalRefreshRetryDelayMs,
   tournamentDraftSyncDelayMs,
   tournamentPollIntervalMs,
 } from "../src/util/tournament-sync-policy.js";
@@ -13,6 +14,13 @@ test("tournament polling stays fast only while Realtime is unavailable", () => {
   assert.equal(tournamentPollIntervalMs({ channelJoined: false, roomStatus: "lobby" }), TOURNAMENT_DISCONNECTED_POLL_MS);
   assert.equal(tournamentPollIntervalMs({ channelJoined: true, roomStatus: "lobby" }), TOURNAMENT_LOBBY_SAFETY_POLL_MS);
   assert.equal(tournamentPollIntervalMs({ channelJoined: true, roomStatus: "live" }), TOURNAMENT_LIVE_SAFETY_POLL_MS);
+});
+
+test("final standings retries quickly with a bounded backoff", () => {
+  assert.equal(tournamentFinalRefreshRetryDelayMs(0), 5_000);
+  assert.equal(tournamentFinalRefreshRetryDelayMs(1), 15_000);
+  assert.equal(tournamentFinalRefreshRetryDelayMs(2), 30_000);
+  assert.equal(tournamentFinalRefreshRetryDelayMs(99), 60_000);
 });
 
 test("tournament drafts save immediately once, then batch during play", () => {
