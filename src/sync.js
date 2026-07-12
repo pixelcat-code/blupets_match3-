@@ -342,3 +342,16 @@ export async function fetchGlobalLeaderboard(limit = 100) {
   if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
+
+// Authenticated event snapshot. Without an active event the response is null
+// and no event UI is rendered.
+export async function fetchEventSnapshot(limit = 100) {
+  const { configured } = getSupabaseConfig();
+  if (!configured) return { snapshot: null, serverTime: null };
+  const client = await getSupabaseClient();
+  const { data, error } = await client.functions.invoke("get-event", {
+    body: { limit: Math.max(1, Math.min(500, Math.floor(Number(limit) || 100))) },
+  });
+  if (error) throw new Error(await fnErrorCode(error));
+  return { snapshot: data?.snapshot ?? null, serverTime: data?.serverTime ?? null };
+}

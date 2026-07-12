@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Event popup preview</title>
+    <link rel="icon" href="/assets/blu-logo.png" />
+    <link rel="stylesheet" href="/styles.css?v=20260712-event-badges-1" />
+  </head>
+  <body data-theme="light" class="modal-open">
+    <section class="event-popup" id="eventPopup" aria-hidden="false">
+      <div class="event-popup-backdrop" aria-hidden="true"></div>
+      <div class="event-popup-card" role="dialog" aria-modal="true" aria-labelledby="eventPopupTitle">
+        <button class="icon-btn event-popup-close" type="button" aria-label="Close event">✕</button>
+        <div class="event-popup-content" id="preview"></div>
+      </div>
+    </section>
+    <script type="module">
+      import { renderEventPopup } from "/src/ui/render-event.js?v=20260712-badges-1";
+      const ranks = ["Highest", "High", "Mid", "Base"];
+      const badges = ranks.flatMap((rankLabel, rankIndex) => [0, 1].map((badgeIndex) => ({
+        key: `rank-${rankIndex}-${badgeIndex}`,
+        name: `Event badge ${rankIndex * 2 + badgeIndex + 1}`,
+        rankOrder: ranks.length - rankIndex,
+        assetUrl: null,
+        metadata: { rankLabel },
+      })));
+      document.querySelector("#preview").innerHTML = renderEventPopup({
+        event: {
+          id: "preview",
+          status: "active",
+          title: "Event name",
+          description: "Event description is supplied shortly before launch.",
+          heroAsset: null,
+          endsAt: new Date(Date.now() + 4 * 86400000).toISOString(),
+        },
+        badges,
+        progress: {
+          badgeCounts: Object.fromEntries(badges.map((badge, index) => [badge.key, index < 3 ? index + 1 : 0])),
+          rankingVector: [1, 2, 0, 0],
+          totalBadges: 6,
+        },
+        leaderboard: Array.from({ length: 8 }, (_, index) => ({
+          rank: index + 1,
+          userId: index === 3 ? "preview-user" : `user-${index}`,
+          accountName: index === 3 ? "You" : `Player ${index + 1}`,
+          rankingVector: [Math.max(0, 3 - index), 7 + index, 12 - index, 20 + index],
+        })),
+        winners: [],
+      }, { userId: "preview-user" });
+    </script>
+  </body>
+</html>

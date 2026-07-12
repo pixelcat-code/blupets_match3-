@@ -10,7 +10,7 @@
     <base href="/" />
     <link rel="icon" type="image/png" href="./assets/blu-logo.png?v=20260616-1" />
     <link rel="apple-touch-icon" href="./assets/blu-logo.png?v=20260616-1" />
-    <link rel="stylesheet" href="./styles.css?v=20260710-host-controls-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260712-event-badges-1" />
     <script src="./auth-config.js?v=20260617-2"></script>
   </head>
   <body data-theme="light">
@@ -25,6 +25,7 @@
         <div class="start-topleft">
           <button class="start-help-btn" id="start-guide" type="button" aria-label="How to play" title="How to play">?</button>
         </div>
+        <div class="event-banner-host" id="eventBannerHost" hidden aria-live="polite"></div>
         <div class="start-card">
           <div class="bg-sparks" aria-hidden="true">
             <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
@@ -139,6 +140,14 @@
           </form>
         </div>
       </div>
+
+      <section class="event-popup" id="eventPopup" hidden aria-hidden="true">
+        <div class="event-popup-backdrop" id="eventPopupBackdrop" aria-hidden="true"></div>
+        <div class="event-popup-card" role="dialog" aria-modal="true" aria-labelledby="eventPopupTitle">
+          <button class="icon-btn event-popup-close" id="eventPopupClose" type="button" aria-label="Close event">✕</button>
+          <div class="event-popup-content" id="eventPopupContent" aria-live="polite"></div>
+        </div>
+      </section>
 
       <section class="screen game-screen" id="gameScreen" hidden>
         <div class="game-frame">
@@ -557,6 +566,6 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-    <script type="module" src="./src/main.js?v=20260711-canonical-collection-4"></script>
+    <script type="module" src="./src/main.js?v=20260712-event-badges-1"></script>
   </body>
 </html>

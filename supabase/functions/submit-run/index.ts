@@ -2,6 +2,23 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
 import { getReplayCollectionTiles, getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
 
+function secureUnitRoll() {
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  return value[0] / 0x1_0000_0000;
+}
+
+async function awardEventBadge(supabase: any, userId: string, run: any) {
+  const { data, error } = await supabase.rpc("award_event_badge_for_run", {
+    target_user_id: userId,
+    target_run_id: run.id,
+    run_started_at: run.created_at,
+    award_roll: secureUnitRoll(),
+  });
+  if (error) throw error;
+  return data ?? null;
+}
+
 function labelForUser(user: any) {
   const meta = user?.user_metadata ?? {};
   return (
@@ -200,7 +217,10 @@ Deno.serve(async (req) => {
         .select("*")
         .eq("run_id", run.id)
         .maybeSingle();
-      if (existingEntry) return json({ ok: true, entry: existingEntry, recovered: true }, 200, cors);
+      if (existingEntry) {
+        const eventBadge = await awardEventBadge(supabase, user.id, run);
+        return json({ ok: true, entry: existingEntry, eventBadge, recovered: true }, 200, cors);
+      }
     } else {
       // Rate-limit new submissions only. A retry of a claimed run must always
       // be allowed to recover from a transient write failure.
@@ -319,6 +339,11 @@ Deno.serve(async (req) => {
       if (claimError || !claimedRun) return json({ error: "Run already submitted" }, 409, cors);
     }
 
+    // Exactly one random event badge per normal authenticated, replay-verified
+    // run. The RPC returns null when no event is active or the run started
+    // outside the event window, and is idempotent by run id on every retry.
+    const eventBadge = await awardEventBadge(supabase, user.id, run);
+
     const { error: progressError } = await supabase.from("user_progress").upsert(
       {
         user_id: user.id,
@@ -348,7 +373,7 @@ Deno.serve(async (req) => {
       persistedEntry = existingEntry;
     }
 
-    return json({ ok: true, entry: persistedEntry, progress: progressSnapshot }, 200, cors);
+    return json({ ok: true, entry: persistedEntry, progress: progressSnapshot, eventBadge: eventBadge ?? null }, 200, cors);
   } catch (error) {
     console.error("submit-run failed:", error);
     return json({ error: "submit_run_failed" }, 500, cors);

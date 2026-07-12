@@ -78,7 +78,10 @@ import {
   unsubscribeTournamentRoom,
   presenceTrack,
   sendTournamentBroadcast,
-} from "./sync.js?v=20260711-canonical-collection-1";
+  fetchEventSnapshot,
+} from "./sync.js?v=20260712-event-badges-1";
+import { normalizeEventSnapshot } from "./events.js?v=20260712-badges-1";
+import { eventStore, resetEventStore } from "./event-store.js?v=20260712-1";
 import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
@@ -98,7 +101,7 @@ import {
   removeTournamentRecovery,
 } from "./util/tournament-recovery.js?v=20260711-1";
 import { replayRun } from "./run-replay.js?v=20260710-tournament-recovery-1";
-import { elements } from "./ui/dom.js?v=20260706-1";
+import { elements } from "./ui/dom.js?v=20260712-event-popup-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";
 import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260706-navorder-1";
@@ -112,6 +115,7 @@ import { renderAccountSection } from "./ui/render-account.js?v=20260710-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
+import { formatEventCountdown, renderEarnedEventBadge, renderEventBanner, renderEventPopup } from "./ui/render-event.js?v=20260712-badges-1";
 import { getSupabaseConfig } from "./supabase-client.js?v=20260629-client-singleton-1";
 
 const SPECIAL_TILE_ASSETS = Object.freeze({
@@ -534,6 +538,153 @@ function applyRemoteProgress(remote) {
     merged.saraiHeartQuest = local.saraiHeartQuest;
   }
   app.progress = merged;
+}
+
+let _eventCountdownTimer = null;
+let _eventReturnFocus = null;
+let _eventKeyHandler = null;
+let _eventExpiryRefreshPending = false;
+
+function eventNow() {
+  return Date.now() + (Number(eventStore.serverOffsetMs) || 0);
+}
+
+function updateEventCountdowns() {
+  const nodes = [elements.eventBannerHost, elements.eventPopupContent].filter(Boolean);
+  let expired = false;
+  for (const root of nodes) {
+    root.querySelectorAll?.("[data-event-countdown]").forEach((node) => {
+      node.textContent = formatEventCountdown(node.dataset.target, eventNow());
+      const target = Date.parse(node.dataset.target ?? "");
+      if (Number.isFinite(target) && target <= eventNow()) expired = true;
+    });
+  }
+  if (expired && !_eventExpiryRefreshPending && app.authState.user) {
+    _eventExpiryRefreshPending = true;
+    refreshEventState().finally(() => { _eventExpiryRefreshPending = false; });
+  }
+}
+
+function syncEventCountdownTimer() {
+  const visible = Boolean(
+    (!elements.eventBannerHost?.hidden && eventStore.snapshot) ||
+    (!elements.eventPopup?.hidden && eventStore.open)
+  );
+  if (visible && _eventCountdownTimer === null) {
+    _eventCountdownTimer = window.setInterval(updateEventCountdowns, 1000);
+  } else if (!visible && _eventCountdownTimer !== null) {
+    window.clearInterval(_eventCountdownTimer);
+    _eventCountdownTimer = null;
+  }
+  if (visible) updateEventCountdowns();
+}
+
+function setEventPopupVisible(open) {
+  if (!elements.eventPopup) return;
+  eventStore.open = Boolean(open && eventStore.snapshot && app.authState.user);
+  elements.eventPopup.hidden = !eventStore.open;
+  elements.eventPopup.setAttribute("aria-hidden", eventStore.open ? "false" : "true");
+  document.body.classList.toggle("modal-open", eventStore.open);
+  if (!eventStore.open) {
+    if (_eventKeyHandler) document.removeEventListener("keydown", _eventKeyHandler, true);
+    _eventKeyHandler = null;
+    const focusTarget = _eventReturnFocus;
+    _eventReturnFocus = null;
+    focusTarget?.focus?.();
+  }
+  syncEventCountdownTimer();
+}
+
+function renderEventUi() {
+  const snapshot = app.authState.user ? eventStore.snapshot : null;
+  if (elements.eventBannerHost) {
+    const showBanner = Boolean(snapshot?.event?.id);
+    elements.eventBannerHost.hidden = !showBanner;
+    elements.eventBannerHost.innerHTML = showBanner ? renderEventBanner(snapshot, eventNow()) : "";
+  }
+  if (elements.eventPopupContent) {
+    elements.eventPopupContent.innerHTML = eventStore.open && snapshot
+      ? renderEventPopup(snapshot, { userId: app.authState.user?.id ?? "", now: eventNow() })
+      : "";
+  }
+  if (!snapshot && eventStore.open) setEventPopupVisible(false);
+  syncEventCountdownTimer();
+}
+
+async function refreshEventState() {
+  if (!app.authState.user) {
+    resetEventStore();
+    renderEventUi();
+    return null;
+  }
+  eventStore.status = "loading";
+  try {
+    const response = await fetchEventSnapshot(100);
+    eventStore.snapshot = normalizeEventSnapshot(response?.snapshot);
+    eventStore.serverTime = response?.serverTime ?? null;
+    const serverTime = Date.parse(eventStore.serverTime ?? "");
+    eventStore.serverOffsetMs = Number.isFinite(serverTime) ? serverTime - Date.now() : 0;
+    eventStore.status = "ready";
+    eventStore.error = "";
+    if (!eventStore.snapshot) setEventPopupVisible(false);
+    renderEventUi();
+    return eventStore.snapshot;
+  } catch (error) {
+    eventStore.status = "error";
+    eventStore.error = error?.message || "event_unavailable";
+    eventStore.snapshot = null;
+    setEventPopupVisible(false);
+    renderEventUi();
+    return null;
+  }
+}
+
+function openEventPopup({ pushHistory = true } = {}) {
+  if (!app.authState.user || !eventStore.snapshot || !elements.eventPopup) return;
+  _eventReturnFocus = document.activeElement;
+  eventStore.open = true;
+  renderEventUi();
+  setEventPopupVisible(true);
+  elements.eventPopupClose?.focus();
+  _eventKeyHandler = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeEventPopup();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...elements.eventPopup.querySelectorAll("button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])")];
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+  document.addEventListener("keydown", _eventKeyHandler, true);
+  if (pushHistory && !_inPopstate && !history.state?.event) {
+    _historyDepth++;
+    history.pushState(
+      { ...(history.state ?? {}), screen: app.currentScreen, event: true, idx: _historyDepth },
+      "",
+      location.pathname + "#event",
+    );
+  }
+  refreshEventState();
+}
+
+function closeEventPopup({ fromHistory = false } = {}) {
+  if (!eventStore.open) return;
+  if (!fromHistory && !_inPopstate && history.state?.event && _historyDepth > 0) {
+    history.back();
+    return;
+  }
+  setEventPopupVisible(false);
+  renderEventUi();
 }
 
 // Called after sign-in when a guest completed a run just before logging in.
@@ -2369,6 +2520,13 @@ function submitRunToLeaderboard(stateLike, formMeta = null) {
   })
     .then((data) => {
       console.info("[sync] submit-run accepted:", data);
+      if (data?.eventBadge) {
+        refreshEventState();
+        if (runProof === proof && app.currentScreen === "gameover") {
+          lastRunSummary = { ...(lastRunSummary ?? {}), eventBadge: data.eventBadge };
+          renderGameoverScreen(app.state);
+        }
+      }
       if (data?.progress) {
         applyRemoteProgress(data.progress);
         render();
@@ -3031,12 +3189,16 @@ async function initializeAuth() {
         if (app.authState.user) {
           fetchUserProgress()
             .then(applyRemoteProgress)
+            .then(refreshEventState)
             .catch(() => {})
             .then(() => {
               applyPendingGuestRun();
               syncCollectionLeaderboard();
               render();
             });
+        } else {
+          resetEventStore();
+          renderEventUi();
         }
       }
       renderAuth();
@@ -3058,6 +3220,7 @@ async function initializeAuth() {
   if (app.authState.user) {
     fetchUserProgress()
       .then(applyRemoteProgress)
+      .then(refreshEventState)
       .catch(() => {})
       .then(() => {
         applyPendingGuestRun();
@@ -4247,6 +4410,7 @@ function renderGameoverScreen(stateLike) {
     : "Play again to earn reveals";
 
   elements.gameoverDetail.innerHTML =
+    renderEarnedEventBadge(summary.eventBadge) +
     `<button class="run-capsule-summary" type="button" data-gameover-capsule-cta ${balance <= 0 ? "disabled" : ""}>` +
       `<span class="run-capsule-icon"><img src="./assets/blocks/origin.svg" alt="" /></span>` +
       `<span class="run-capsule-copy"><strong>${escapeHtml(ctaTitle)}</strong><small>${escapeHtml(ctaSub)}</small></span>` +
@@ -4628,6 +4792,7 @@ function render() {
     renderQuestsScreen();
     renderGuideScreen();
     renderTournamentRoom();
+    renderEventUi();
   }
 
   if (!app.state) {
@@ -5171,6 +5336,11 @@ bindClick(elements.startRun, () => startRun());
 bindClick(elements.startQuests, () => openMetaSection("quests", "start"));
 bindClick(elements.startGuide, () => openMetaSection("guide", "start"));
 bindClick(elements.startLeaderboard, () => openMetaSection("rank", "start"));
+elements.eventBannerHost?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-event-open]")) openEventPopup();
+});
+bindClick(elements.eventPopupClose, () => closeEventPopup());
+bindClick(elements.eventPopupBackdrop, () => closeEventPopup());
 bindClick(elements.authGoogleBtn, () => handleAuthProvider("google"));
 bindClick(elements.authTwitterBtn, () => handleAuthProvider("x"));
 bindClick(elements.authLogoutBtn, handleAuthLogout);
@@ -5471,6 +5641,8 @@ window.addEventListener("popstate", (e) => {
   _inPopstate = true;
   // Recover depth from the entry's recorded idx — correct for back AND forward.
   _historyDepth = Math.max(0, e.state?.idx ?? 0);
+  if (e.state?.event) openEventPopup({ pushHistory: false });
+  else if (eventStore.open) closeEventPopup({ fromHistory: true });
   // Never restore a finished or absent run into the live game screen: the board
   // would be frozen (victory/gameOver blocks interaction). Send them to start.
   if (screen === "game" && (!app.state || app.state.victory || app.state.gameOver)) {
@@ -5625,6 +5797,7 @@ document.addEventListener("visibilitychange", () => {
       .catch(() => {})
       .then(() => { if (app.currentScreen === "profile") render(); });
   }
+  if (app.authState.user) refreshEventState();
 });
 
 window.addEventListener("online", () => {
