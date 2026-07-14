@@ -79,13 +79,15 @@ test("guest opening an invite link sees the auth modal, not the room", async ({ 
   await expect(page.locator("#authModal")).toBeVisible();
   await expect(page.locator("#startScreen")).toBeVisible();
   await expect(page.locator("#tournamentRoomPanel")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => location.pathname)).toBe("/t/TESTCODE");
 
   expect(pageErrors, pageErrors.map((e) => e.message).join("\n")).toHaveLength(0);
 });
 
 // Once you follow an invite link and navigate on, the `/t/CODE` code must drop
 // out of the URL — it should not cling to every subsequent screen. Guards the
-// `/t/` strip in setScreen(). (Here a guest dismisses the gate and taps Start.)
+// tournament route helper's non-room path. (Here a guest dismisses the gate
+// and taps Start.)
 test("navigating away from an invite link drops the code from the URL", async ({ page }) => {
   await page.route(SUPABASE_GLOB, (route) => route.abort());
   await page.route("**/functions/v1/start-guest-run", (route) => route.fulfill({
