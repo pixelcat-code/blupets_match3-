@@ -42,16 +42,22 @@ test("event banner contains only approved title, image, and countdown content", 
   assert.doesNotMatch(html, /Event badges|leaderboard|totalBadges/);
 });
 
-test("event popup is one page ordered collection before leaderboard", () => {
+test("event popup keeps the approved one-page information hierarchy", () => {
   const html = renderEventPopup(snapshot, {
     userId: "player-1",
     now: Date.parse("2026-07-18T12:00:00Z"),
   });
-  assert.ok(html.indexOf("Your collection") < html.indexOf("Event leaderboard"));
+  assert.ok(html.indexOf("event-popup-hero-art") < html.indexOf("Weekly Event"));
+  assert.ok(html.indexOf("Weekly Event") < html.indexOf("event-popup-timer"));
+  assert.ok(html.indexOf("event-popup-timer") < html.indexOf("event-player-summary"));
+  assert.ok(html.indexOf("event-player-summary") < html.indexOf("Event badges"));
+  assert.ok(html.indexOf("Event badges") < html.indexOf("Event leaderboard"));
   assert.match(html, /Your rank<\/span><strong>#1/);
-  assert.match(html, /Highest<\/span><strong>2/);
-  assert.match(html, /Lowest<\/span><strong>5/);
-  assert.match(html, /is-top3 is-rank1 is-player/);
+  assert.match(html, /Badges earned<\/span><strong>7/);
+  assert.doesNotMatch(html, /Verified runs|Your collection|event-player-ranks/);
+  assert.match(html, /leaderboard-row event-leaderboard-row is-top3 is-rank1 is-player/);
+  assert.match(html, /leaderboard-medal/);
+  assert.match(html, /7 event badges/);
 });
 
 test("event UI escapes content and rejects unsafe image protocols", () => {

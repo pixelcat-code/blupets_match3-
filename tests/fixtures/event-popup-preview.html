@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Event popup preview</title>
     <link rel="icon" href="/assets/blu-logo.png" />
-    <link rel="stylesheet" href="/styles.css?v=20260712-event-badges-1" />
+    <link rel="stylesheet" href="/styles.css?v=20260713-event-layout-4" />
   </head>
   <body data-theme="light" class="modal-open">
     <section class="event-popup" id="eventPopup" aria-hidden="false">
@@ -16,15 +16,15 @@
       </div>
     </section>
     <script type="module">
-      import { renderEventPopup } from "/src/ui/render-event.js?v=20260712-badges-1";
+      import { renderEventPopup } from "/src/ui/render-event.js?v=20260713-layout-2";
       const ranks = ["Highest", "High", "Mid", "Base"];
-      const badges = ranks.flatMap((rankLabel, rankIndex) => [0, 1].map((badgeIndex) => ({
-        key: `rank-${rankIndex}-${badgeIndex}`,
-        name: `Event badge ${rankIndex * 2 + badgeIndex + 1}`,
+      const badges = ranks.map((rankLabel, rankIndex) => ({
+        key: `rank-${rankIndex}`,
+        name: `Event badge ${rankIndex + 1}`,
         rankOrder: ranks.length - rankIndex,
         assetUrl: null,
         metadata: { rankLabel },
-      })));
+      }));
       document.querySelector("#preview").innerHTML = renderEventPopup({
         event: {
           id: "preview",
@@ -36,9 +36,9 @@
         },
         badges,
         progress: {
-          badgeCounts: Object.fromEntries(badges.map((badge, index) => [badge.key, index < 3 ? index + 1 : 0])),
+          badgeCounts: Object.fromEntries(badges.map((badge, index) => [badge.key, index < 2 ? index + 1 : 0])),
           rankingVector: [1, 2, 0, 0],
-          totalBadges: 6,
+          totalBadges: 3,
         },
         leaderboard: Array.from({ length: 8 }, (_, index) => ({
           rank: index + 1,

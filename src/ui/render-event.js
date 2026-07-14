@@ -112,11 +112,18 @@ function renderEventLeaderboard(snapshot, definitions, userId) {
     const rank = int(row.rank) || index + 1;
     const isPlayer = Boolean(userId && row.userId === userId);
     const avatar = safeImgSrc(row.avatarUrl);
-    return `<article class="event-leaderboard-row${rank <= 3 ? ` is-top3 is-rank${rank}` : ""}${isPlayer ? " is-player" : ""}">` +
-      `<span class="event-leaderboard-place">${rank}</span>` +
+    const total = (Array.isArray(row.rankingVector) ? row.rankingVector : []).reduce((sum, value) => sum + int(value), 0);
+    const rankCell = rank <= 3
+      ? `<span class="leaderboard-medal" aria-hidden="true">${rank}</span><span class="sr-only">Rank ${rank}</span>`
+      : `#${rank}`;
+    return `<article class="leaderboard-row event-leaderboard-row${rank <= 3 ? ` is-top3 is-rank${rank}` : rank <= 10 ? " is-top10" : ""}${isPlayer ? " is-player" : ""}">` +
+      `<span class="leaderboard-rank">${rankCell}</span>` +
       `<span class="event-leaderboard-player">` +
-        (avatar ? `<img src="${escapeHtml(avatar)}" alt="" />` : `<span class="event-leaderboard-avatar" aria-hidden="true"></span>`) +
-        `<strong>${escapeHtml(row.accountName || "Player")}</strong>` +
+        (avatar
+          ? `<img class="leaderboard-avatar" src="${escapeHtml(avatar)}" alt="" />`
+          : `<span class="leaderboard-avatar leaderboard-avatar--placeholder" aria-hidden="true"></span>`) +
+        `<span class="leaderboard-user"><strong class="leaderboard-title">${escapeHtml(row.accountName || "Player")}</strong>` +
+          `<span class="leaderboard-meta">${total} event badge${total === 1 ? "" : "s"}</span></span>` +
       `</span>` +
       `<span class="event-leaderboard-counts">${rankCounters(row.rankingVector, definitions)}</span>` +
     `</article>`;
@@ -142,23 +149,24 @@ export function renderEventPopup(snapshot, { userId = "", now = Date.now() } = {
   const playerRow = (snapshot.leaderboard ?? []).find((row) => row.userId === userId);
   return `<div class="event-popup-page">` +
     `<header class="event-popup-hero${safeImgSrc(event.heroAsset) ? " has-image" : ""}">` +
-      eventImage(event.heroAsset, "event-popup-hero-image") +
+      `<div class="event-popup-hero-art">` +
+        eventImage(event.heroAsset, "event-popup-hero-image") +
+        `<span class="event-popup-hero-mark" aria-hidden="true"></span>` +
+      `</div>` +
       `<div class="event-popup-hero-copy">` +
         `<span class="event-section-kicker">${event.status === "results" ? "Final results" : "Limited event"}</span>` +
         `<h1 id="eventPopupTitle">${escapeHtml(event.title || "Event")}</h1>` +
         (event.description ? `<p>${escapeHtml(event.description)}</p>` : "") +
-        countdownMarkup(snapshot, now) +
+        `<div class="event-popup-timer"><span>${event.status === "results" ? "Results close in" : "Ends in"}</span>${countdownMarkup(snapshot, now)}</div>` +
       `</div>` +
     `</header>` +
     renderResultsIntro(snapshot) +
     `<section class="event-player-summary" aria-label="Your event progress">` +
       `<div><span>Your rank</span><strong>${playerRow ? `#${int(playerRow.rank)}` : "—"}</strong></div>` +
       `<div><span>Badges earned</span><strong>${int(snapshot.progress?.totalBadges)}</strong></div>` +
-      `<div><span>Verified runs</span><strong>${int(snapshot.progress?.totalBadges)}</strong></div>` +
     `</section>` +
     `<section class="event-popup-section">` +
-      `<div class="event-section-heading"><div><span class="event-section-kicker">Your collection</span><h2>Event badges</h2></div>` +
-      `<div class="event-player-ranks">${rankCounters(snapshot.progress?.rankingVector, definitions)}</div></div>` +
+      `<div class="event-section-heading"><div><h2>Event badges</h2></div></div>` +
       renderEventBadges(snapshot, definitions) +
     `</section>` +
     `<section class="event-popup-section event-popup-leaderboard">` +

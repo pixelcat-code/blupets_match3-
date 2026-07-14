@@ -115,7 +115,7 @@ import { renderAccountSection } from "./ui/render-account.js?v=20260710-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
-import { formatEventCountdown, renderEarnedEventBadge, renderEventBanner, renderEventPopup } from "./ui/render-event.js?v=20260712-badges-1";
+import { formatEventCountdown, renderEarnedEventBadge, renderEventBanner, renderEventPopup } from "./ui/render-event.js?v=20260713-layout-2";
 import { getSupabaseConfig } from "./supabase-client.js?v=20260629-client-singleton-1";
 
 const SPECIAL_TILE_ASSETS = Object.freeze({
