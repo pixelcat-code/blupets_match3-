@@ -1,10 +1,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
+import { tournamentReject } from "../_shared/tournament-errors.ts";
 import { getReplayResultSummary, replayRun } from "../../../src/run-replay.js";
 import { NEUTRAL_VIBE, VIBES } from "../../../src/vibes.js";
 import { tournamentAttemptExpiresAt, tournamentEndMs } from "../../../src/util/tournament-deadline.js";
 
 const MAX_ACTIONS = 500;
+
+function isUuid(value: unknown) {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 function str(value: unknown, maxLen: number): string | null {
   if (typeof value !== "string") return null;
@@ -65,10 +70,17 @@ Deno.serve(async (req) => {
     if (!token) return json({ error: "Missing bearer token" }, 401, cors);
     const body = await req.json().catch(() => ({}));
     const runId = String(body.runId ?? "");
+    const clientSessionId = body.clientSessionId;
+    const rejectionContext = {
+      actionCount: Array.isArray(body.actions) ? body.actions.length : -1,
+    };
     const { result, error: resultError } = validateResult(body.result);
-    if (!runId || resultError) return json({ error: resultError ?? "missing_run_id" }, 422, cors);
+    if (!runId || !isUuid(clientSessionId) || resultError) {
+      const requestError = !runId ? "missing_run_id" : !isUuid(clientSessionId) ? "invalid_client_session" : resultError;
+      return tournamentReject("save-tournament-draft", requestError ?? "invalid_request", 422, cors, rejectionContext);
+    }
     if (!Array.isArray(body.actions) || body.actions.length > MAX_ACTIONS) {
-      return json({ error: "invalid_actions" }, 422, cors);
+      return tournamentReject("save-tournament-draft", "invalid_actions", 422, cors, rejectionContext);
     }
 
     const supabase = createClient(
@@ -81,28 +93,37 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await supabase
       .from("tournament_runs")
-      .select("id, user_id, seed, created_at, started_at, submitted_at, draft_action_count, tournament_rooms(ends_at, duration_minutes, vibe_id, rules)")
+      .select("id, user_id, seed, created_at, started_at, submitted_at, draft_action_count, client_session_id, tournament_rooms(ends_at, duration_minutes, vibe_id, rules)")
       .eq("id", runId)
       .eq("user_id", userData.user.id)
       .single();
     if (runError || !run) return json({ error: "run_not_found" }, 404, cors);
     if (run.submitted_at) return json({ ok: true, finalized: true }, 200, cors);
+    if (run.client_session_id !== clientSessionId) {
+      return tournamentReject("save-tournament-draft", "attempt_active_elsewhere", 409, cors, rejectionContext);
+    }
 
     const room = Array.isArray(run.tournament_rooms) ? run.tournament_rooms[0] : run.tournament_rooms;
     if (!room) return json({ error: "room_not_found" }, 404, cors);
     const startMs = new Date(run.started_at || run.created_at).getTime();
     const endMs = tournamentEndMs(room.ends_at);
-    if (!Number.isFinite(startMs) || endMs === null) return json({ error: "invalid_room_deadline" }, 422, cors);
+    if (!Number.isFinite(startMs) || endMs === null) {
+      return tournamentReject("save-tournament-draft", "invalid_room_deadline", 422, cors, rejectionContext);
+    }
     const attemptEndMs = tournamentAttemptExpiresAt(
       startMs,
       Math.max(1, Number(room.duration_minutes || 30)) * 60_000,
       endMs,
     );
-    if (Date.now() > attemptEndMs) return json({ error: "attempt_expired" }, 422, cors);
+    if (Date.now() > attemptEndMs) {
+      return tournamentReject("save-tournament-draft", "attempt_expired", 422, cors, rejectionContext);
+    }
 
     const replay = replayRun(Number(run.seed) >>> 0, body.actions, tournamentOptions(room) as any);
     const replayed = getReplayResultSummary(replay.state);
-    if (!replayed || !sameResult(result, replayed)) return json({ error: "replay_mismatch" }, 422, cors);
+    if (!replayed || !sameResult(result, replayed)) {
+      return tournamentReject("save-tournament-draft", "replay_mismatch", 422, cors, rejectionContext);
+    }
 
     // Pagehide and periodic requests can arrive out of order. Never let an
     // older snapshot overwrite a draft with more player actions.
@@ -115,9 +136,11 @@ Deno.serve(async (req) => {
         draft_result: result,
         draft_action_count: actionCount,
         draft_saved_at: new Date().toISOString(),
+        client_session_seen_at: new Date().toISOString(),
       })
       .eq("id", run.id)
       .eq("user_id", userData.user.id)
+      .eq("client_session_id", clientSessionId)
       .is("submitted_at", null)
       .lte("draft_action_count", actionCount)
       .select("id")

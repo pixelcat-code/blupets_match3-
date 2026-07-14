@@ -104,10 +104,11 @@ Deno.serve(async (req) => {
           seed,
           vibe_id: vibe.id,
           rules,
+          lobby_expires_at: new Date(now + 6 * 60 * 60_000).toISOString(),
         })
         // A tournament seed is secret until an authenticated player starts an
         // attempt. Returning it from the lobby lets clients pre-compute a run.
-        .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, max_players, vibe_id, rules")
+        .select("id, code, title, creator_user_id, status, started_at, ends_at, duration_minutes, max_players, vibe_id, rules, lobby_expires_at")
         .single();
 
       if (!error && data) {

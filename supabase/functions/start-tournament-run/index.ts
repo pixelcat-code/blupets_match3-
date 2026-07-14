@@ -1,9 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.108.2";
 import { bearerToken, corsHeaders, json, requireEnv } from "../_shared/http.ts";
+import { tournamentReject } from "../_shared/tournament-errors.ts";
 import { isTournamentEnded, tournamentAttemptExpiresAt, tournamentEndMs } from "../../../src/util/tournament-deadline.js";
+
+const SESSION_LEASE_MS = 120_000;
 
 function normalizeCode(value: unknown) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+}
+
+function isUuid(value: unknown) {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function labelForUser(user: any) {
@@ -31,7 +38,11 @@ Deno.serve(async (req) => {
     if (!token) return json({ error: "Missing bearer token" }, 401, cors);
     const body = await req.json().catch(() => ({}));
     const code = normalizeCode(body.code);
+    const clientSessionId = body.clientSessionId;
     if (!code) return json({ error: "missing_code" }, 400, cors);
+    if (!isUuid(clientSessionId)) {
+      return tournamentReject("start-tournament-run", "invalid_client_session", 400, cors);
+    }
 
     const supabase = createClient(
       requireEnv("SUPABASE_URL"),
@@ -42,9 +53,6 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) return json({ error: "Unauthorized" }, 401, cors);
 
-    const { error: closeExpiredError } = await supabase.rpc("close_expired_tournament_rooms");
-    if (closeExpiredError) throw closeExpiredError;
-
     const { data: room, error: roomError } = await supabase
       .from("tournament_rooms")
       .select("id, code, title, status, started_at, ends_at, duration_minutes, seed, vibe_id, rules")
@@ -53,7 +61,7 @@ Deno.serve(async (req) => {
     if (roomError || !room) return json({ error: "room_not_found" }, 404, cors);
 
     if (room.status !== "live" || !room.started_at) {
-      return json({ error: "room_not_live" }, 422, cors);
+      return tournamentReject("start-tournament-run", "room_not_live", 422, cors);
     }
 
     const now = Date.now();
@@ -66,32 +74,58 @@ Deno.serve(async (req) => {
         .update({ status: "ended" })
         .eq("id", room.id)
         .eq("status", "live");
-      return json({ error: "tournament_ended" }, 422, cors);
+      return tournamentReject("start-tournament-run", "tournament_ended", 422, cors);
     }
 
-    const { data: reservedPlayer, error: reservationError } = await supabase
+    const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
+    const reservationRequest = supabase
       .from("tournament_room_players")
       .select("user_id, removed_at")
       .eq("room_id", room.id)
       .eq("user_id", userData.user.id)
       .maybeSingle();
-    if (reservationError) throw reservationError;
-    if (!reservedPlayer || reservedPlayer.removed_at) return json({ error: "not_registered_for_room" }, 403, cors);
-
-    const durationMs = Math.max(1, Number(room.duration_minutes || 30)) * 60_000;
-    const { data: existingRun, error: existingRunError } = await supabase
+    const existingRunRequest = supabase
       .from("tournament_runs")
-      .select("id, seed, started_at, submitted_at, draft_actions")
+      .select("id, seed, started_at, submitted_at, draft_actions, client_session_id, client_session_seen_at")
       .eq("room_id", room.id)
       .eq("user_id", userData.user.id)
       .maybeSingle();
+    const [
+      { data: reservedPlayer, error: reservationError },
+      { data: existingRun, error: existingRunError },
+    ] = await Promise.all([reservationRequest, existingRunRequest]);
+    if (reservationError) throw reservationError;
     if (existingRunError) throw existingRunError;
+    if (!reservedPlayer || reservedPlayer.removed_at) {
+      return tournamentReject("start-tournament-run", "not_registered_for_room", 403, cors);
+    }
     if (existingRun) {
-      if (existingRun.submitted_at) return json({ error: "attempt_already_used" }, 409, cors);
+      if (existingRun.submitted_at) {
+        return tournamentReject("start-tournament-run", "attempt_already_used", 409, cors);
+      }
       const existingStartedMs = new Date(existingRun.started_at).getTime();
       const existingExpiresMs = tournamentAttemptExpiresAt(existingStartedMs, durationMs, roomEndsAtMs);
       if (!Number.isFinite(existingStartedMs) || now >= existingExpiresMs) {
-        return json({ error: "tournament_ended" }, 422, cors);
+        return tournamentReject("start-tournament-run", "tournament_ended", 422, cors);
+      }
+      const leaseCutoff = new Date(now - SESSION_LEASE_MS).toISOString();
+      const sameSession = existingRun.client_session_id === clientSessionId;
+      const { data: claimedRun, error: claimError } = await supabase
+        .from("tournament_runs")
+        .update({
+          client_session_id: clientSessionId,
+          client_session_seen_at: new Date(now).toISOString(),
+        })
+        .eq("id", existingRun.id)
+        .is("submitted_at", null)
+        .or(`client_session_id.is.null,client_session_id.eq.${clientSessionId},client_session_seen_at.lt.${leaseCutoff}`)
+        .select("id")
+        .maybeSingle();
+      if (claimError) throw claimError;
+      if (!claimedRun) {
+        return tournamentReject("start-tournament-run", "attempt_active_elsewhere", 409, cors, {
+          sameSession,
+        });
       }
       // A duplicate start means the browser is returning, not requesting a
       // second attempt. Resume the same seed and server checkpoint.
@@ -106,6 +140,7 @@ Deno.serve(async (req) => {
         expiresAt: new Date(existingExpiresMs).toISOString(),
         actions: Array.isArray(existingRun.draft_actions) ? existingRun.draft_actions : [],
         resumed: true,
+        serverNow: new Date(now).toISOString(),
       }, 200, cors);
     }
 
@@ -122,6 +157,8 @@ Deno.serve(async (req) => {
         started_at: startedAt,
         draft_account_name: labelForUser(userData.user),
         draft_avatar_url: avatarForUser(userData.user),
+        client_session_id: clientSessionId,
+        client_session_seen_at: startedAt,
       })
       .select("id")
       .single();
@@ -130,7 +167,7 @@ Deno.serve(async (req) => {
       if (String(runError.message ?? "").toLowerCase().includes("duplicate")) {
         // Another tab won a simultaneous first-start race. The next request
         // follows the existing-run branch above and resumes that same attempt.
-        return json({ error: "start_race_retry" }, 409, cors);
+        return tournamentReject("start-tournament-run", "start_race_retry", 409, cors);
       }
       throw runError;
     }
@@ -144,6 +181,7 @@ Deno.serve(async (req) => {
       rules: room.rules,
       startedAt,
       expiresAt,
+      serverNow: new Date(now).toISOString(),
     }, 200, cors);
   } catch (error) {
     console.error("start-tournament-run failed:", error);

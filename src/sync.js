@@ -104,10 +104,10 @@ export async function setTournamentReady(code, ready) {
   return data;
 }
 
-export async function startTournamentRun(code) {
+export async function startTournamentRun(code, clientSessionId) {
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("start-tournament-run", {
-    body: { code },
+    body: { code, clientSessionId },
   });
   if (error) throw new Error(await fnErrorCode(error));
   if (!data?.runId) throw new Error("Tournament run service returned an invalid run.");
@@ -119,19 +119,19 @@ export async function startTournamentRun(code) {
   };
 }
 
-export async function submitTournamentRun(runId, result, actions = [], { abandoned = false } = {}) {
+export async function submitTournamentRun(runId, result, actions = [], { abandoned = false, clientSessionId } = {}) {
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("submit-tournament-run", {
-    body: { runId, result, actions, abandoned },
+    body: { runId, result, actions, abandoned, clientSessionId },
   });
   if (error) throw new Error(await fnErrorCode(error));
   return data;
 }
 
-export async function saveTournamentDraft(runId, result, actions = []) {
+export async function saveTournamentDraft(runId, result, actions = [], { clientSessionId } = {}) {
   const client = await getSupabaseClient();
   const { data, error } = await client.functions.invoke("save-tournament-draft", {
-    body: { runId, result, actions },
+    body: { runId, result, actions, clientSessionId },
   });
   if (error) throw new Error(await fnErrorCode(error));
   return data;
@@ -248,9 +248,11 @@ export async function fetchPublicCollectionTiles(userId) {
 // leaderboard finals. Presence: ephemeral connected-players list (name/avatar/
 // state), no DB writes. Callers get plain callbacks; we own the single channel.
 let _tournamentChannel = null;
+let _tournamentChannelGeneration = 0;
 
 export async function subscribeTournamentRoom(code, roomId, { onPresenceSync, onBroadcast, onLeaderboardInsert } = {}) {
   await unsubscribeTournamentRoom();
+  const generation = ++_tournamentChannelGeneration;
   const client = await getSupabaseClient();
   const channel = client.channel(`tournament:${code}`, {
     config: { presence: { key: code } },
@@ -306,6 +308,10 @@ export async function subscribeTournamentRoom(code, roomId, { onPresenceSync, on
     await client.removeChannel(channel).catch(() => {});
     throw error;
   }
+  if (generation !== _tournamentChannelGeneration) {
+    await client.removeChannel(channel).catch(() => {});
+    throw new Error("tournament_realtime_superseded");
+  }
   _tournamentChannel = channel;
   return channel;
 }
@@ -320,6 +326,7 @@ export function sendTournamentBroadcast(event, payload = {}) {
 }
 
 export async function unsubscribeTournamentRoom() {
+  _tournamentChannelGeneration += 1;
   if (!_tournamentChannel) return;
   const channel = _tournamentChannel;
   _tournamentChannel = null;
