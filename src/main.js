@@ -17,7 +17,7 @@ import {
   previewSwap,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260710-security-1";
+} from "./game.js?v=20260715-cross-trigger-1";
 import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260625-mobile-audio-2";
 import { initAuth, signInWithProvider, signInWithUsername, signUpWithUsername, updateDisplayName, uploadAvatar, updateAvatarUrl, signOut } from "./auth.js?v=20260629-signin-guard-1";
@@ -82,7 +82,7 @@ import {
 } from "./sync.js?v=20260714-tournament-session-1";
 import { normalizeEventSnapshot } from "./events.js?v=20260712-badges-1";
 import { eventStore, resetEventStore } from "./event-store.js?v=20260712-1";
-import { createComboFeedback } from "./combo-feedback.js?v=20260625-semantic-popups-1";
+import { createComboFeedback } from "./combo-feedback.js?v=20260715-cross-trigger-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
@@ -107,11 +107,11 @@ import {
   putTournamentRecovery,
   removeTournamentRecovery,
 } from "./util/tournament-recovery.js?v=20260711-1";
-import { replayRun } from "./run-replay.js?v=20260710-tournament-recovery-1";
+import { replayRun } from "./run-replay.js?v=20260715-cross-trigger-1";
 import { elements } from "./ui/dom.js?v=20260712-event-popup-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";
-import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260706-navorder-1";
+import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260715-cross-trigger-1";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
 import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260710-1";
 import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260711-canonical-collection-2";
@@ -120,8 +120,8 @@ import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260706-nopedestal-1";
 import { renderAccountSection } from "./ui/render-account.js?v=20260710-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
-import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260629-1";
-import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260629-1";
+import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260715-cross-trigger-1";
+import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260715-cross-trigger-1";
 import { formatEventCountdown, renderEarnedEventBadge, renderEventBanner, renderEventPopup } from "./ui/render-event.js?v=20260713-layout-2";
 import { getSupabaseConfig } from "./supabase-client.js?v=20260629-client-singleton-1";
 
@@ -137,7 +137,7 @@ import {
   renderVibeStrip,
   renderStatus,
   resetScoreBaseline,
-} from "./ui/render-game.js?v=20260706-no-game-logs-1";
+} from "./ui/render-game.js?v=20260715-cross-trigger-1";
 import {
   renderQuestsSection,
   renderQuestStatsHeader,
@@ -5092,14 +5092,30 @@ function scheduleBoardSizeSync() {
   });
 }
 
-function playTriggeredSpecialSfx(step, stepIndex) {
-  const triggered = new Set();
-  for (const tile of step.clearedTiles ?? []) {
-    const source = step.boardBeforeClear?.[tile.row]?.[tile.col];
+function getTriggeredSpecials(step) {
+  if (Array.isArray(step.triggeredSpecials)) {
+    return step.triggeredSpecials;
+  }
+
+  // Backward-compatible fallback for resolution payloads created before the
+  // engine exposed triggered specials explicitly.
+  const triggered = [];
+  for (const position of step.clearedTiles ?? []) {
+    const source = step.boardBeforeClear?.[position.row]?.[position.col];
     if (source?.special) {
-      triggered.add(source.special);
+      triggered.push({
+        row: position.row,
+        col: position.col,
+        color: source.color,
+        special: source.special,
+      });
     }
   }
+  return triggered;
+}
+
+function playTriggeredSpecialSfx(step, stepIndex) {
+  const triggered = new Set(getTriggeredSpecials(step).map((tile) => tile.special));
   if (triggered.has("cross")) {
     sfx("crossTrigger", stepIndex);
   }
@@ -5119,13 +5135,7 @@ function playCreatedSpecialSfx(step, stepIndex) {
 }
 
 function playMatchHaptics(step, stepIndex) {
-  const triggered = new Set();
-  for (const tile of step.clearedTiles ?? []) {
-    const source = step.boardBeforeClear?.[tile.row]?.[tile.col];
-    if (source?.special) {
-      triggered.add(source.special);
-    }
-  }
+  const triggered = new Set(getTriggeredSpecials(step).map((tile) => tile.special));
 
   if (triggered.has("bomb")) {
     buzz([0, 18, 28, 42, 34, 58]);
@@ -5159,12 +5169,7 @@ function spawnSpecialTriggerFx(step) {
   const cell = boardRect.width / size;
   const seen = new Set();
 
-  for (const position of step.clearedTiles ?? []) {
-    const source = step.boardBeforeClear?.[position.row]?.[position.col];
-    if (!source?.special) {
-      continue;
-    }
-
+  for (const position of getTriggeredSpecials(step)) {
     const key = `${position.row}:${position.col}`;
     if (seen.has(key)) {
       continue;
@@ -5172,16 +5177,16 @@ function spawnSpecialTriggerFx(step) {
     seen.add(key);
 
     const el = document.createElement("div");
-    el.className = `fx-special fx-special--${source.special}`;
+    el.className = `fx-special fx-special--${position.special}`;
     el.style.left = `${boardRect.left - shellRect.left + (position.col + 0.5) * cell}px`;
     el.style.top = `${boardRect.top - shellRect.top + (position.row + 0.5) * cell}px`;
-    el.style.setProperty("--fx-color", getColor(source.color)?.hex ?? "#5ce8ff");
+    el.style.setProperty("--fx-color", getColor(position.color)?.hex ?? "#5ce8ff");
     el.style.setProperty("--fx-cell", `${cell}px`);
-    el.innerHTML = source.special === "cross"
+    el.innerHTML = position.special === "cross"
       ? '<span class="fx-special-beam fx-special-beam--h"></span><span class="fx-special-beam fx-special-beam--v"></span><span class="fx-special-core"></span>'
       : '<span class="fx-bomb-flash"></span><span class="fx-special-core"></span>';
     layer.appendChild(el);
-    window.setTimeout(() => el.remove(), source.special === "bomb" ? 520 : 700);
+    window.setTimeout(() => el.remove(), position.special === "bomb" ? 520 : 700);
   }
 }
 
@@ -5191,13 +5196,7 @@ function triggerBombBoardRipple(step) {
     return 0;
   }
 
-  const bombs = [];
-  for (const position of step.clearedTiles ?? []) {
-    const source = step.boardBeforeClear?.[position.row]?.[position.col];
-    if (source?.special === "bomb") {
-      bombs.push(position);
-    }
-  }
+  const bombs = getTriggeredSpecials(step).filter((position) => position.special === "bomb");
   if (bombs.length === 0) {
     return 0;
   }

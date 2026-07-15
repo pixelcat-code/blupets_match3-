@@ -11,11 +11,11 @@
 // rank the leading color.
 import { elements } from "./dom.js?v=20260629-1";
 import { escapeHtml } from "./dom-safety.js?v=20260629-1";
-import { getBlockAsset } from "./block-assets.js?v=20260629-1";
+import { getBlockAsset } from "./block-assets.js?v=20260715-cross-trigger-1";
 import {
   COLORS,
   getProgressPercent,
-} from "../game.js?v=20260622-gameplay-20";
+} from "../game.js?v=20260715-cross-trigger-1";
 
 // The leading color this run: highest evolution tier, then most matches, then
 // alphabetical as a stable tiebreak. Drives the roster emphasis and the

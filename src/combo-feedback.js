@@ -189,11 +189,13 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
   }
 
   function getStepSpecialEvent(step) {
-    const triggered = new Set();
-    for (const tile of step.clearedTiles ?? []) {
-      const source = step.boardBeforeClear?.[tile.row]?.[tile.col];
-      if (source?.special) triggered.add(source.special);
-    }
+    const triggered = new Set(
+      Array.isArray(step.triggeredSpecials)
+        ? step.triggeredSpecials.map((tile) => tile.special)
+        : (step.clearedTiles ?? [])
+          .map((tile) => step.boardBeforeClear?.[tile.row]?.[tile.col]?.special)
+          .filter(Boolean),
+    );
     if (triggered.has("bomb")) return { key: "bombTrigger", tier: 4 };
     if (triggered.has("cross")) return { key: "crossTrigger", tier: 3 };
 

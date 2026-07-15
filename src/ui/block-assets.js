@@ -5,7 +5,7 @@
 // the static BASE_BLOCK_ASSETS table. No module globals, no DOM. This lets both
 // main.js (board patching) and the render-game module share one source for
 // "which SVG does this color show right now".
-import { getChosenEvolutionForm } from "../game.js?v=20260622-gameplay-20";
+import { getChosenEvolutionForm } from "../game.js?v=20260715-cross-trigger-1";
 
 export const BASE_BLOCK_ASSETS = Object.freeze({
   black: "./assets/blocks/black.svg",

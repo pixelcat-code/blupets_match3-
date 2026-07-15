@@ -955,7 +955,7 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
     // Start from the matched cells, then (when specials are on) expand with the
     // blast of any EXISTING special caught in the match, chaining into others.
     const clearSet = new Map();
-    const triggeredSpecials = new Set();
+    const triggeredSpecials = new Map();
     if (specialsOn) {
       const queue = [...cells.values()];
       while (queue.length > 0) {
@@ -966,9 +966,17 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
         }
         clearSet.set(key, position);
         const tile = nextBoard[position.row][position.col];
-        // A cell we are about to convert into a fresh special must not detonate.
-        if (tile && tile.special && !spawns.has(key)) {
-          triggeredSpecials.add(key);
+        // Existing specials always detonate when caught in a match. This also
+        // applies when the same cell is earmarked to receive a newly created
+        // special after the clear (for example, a cross in the middle of a
+        // 4-line that creates another cross).
+        if (tile?.special) {
+          triggeredSpecials.set(key, {
+            row: position.row,
+            col: position.col,
+            color: tile.color,
+            special: tile.special,
+          });
           for (const blastCell of blastCellsFor(nextBoard.length, position, tile)) {
             queue.push(blastCell);
           }
@@ -1024,6 +1032,7 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       clearedTiles,
       colorClearCounts,
       specialSpawns,
+      triggeredSpecials: [...triggeredSpecials.values()],
       boardBeforeClear,
       boardAfterClear,
       boardAfterCollapse: null,

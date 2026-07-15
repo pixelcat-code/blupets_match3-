@@ -9,7 +9,7 @@ import { app } from "./store.js?v=20260629-5";
 import { elements } from "./dom.js?v=20260629-1";
 import { escapeHtml, safeImgSrc } from "./dom-safety.js?v=20260629-1";
 import { renderMetaNav } from "./render-meta.js?v=20260706-navorder-1";
-import { getColor } from "../game.js?v=20260622-gameplay-20";
+import { getColor } from "../game.js?v=20260715-cross-trigger-1";
 import { TOTAL_INVENTORY_FORMS } from "../progress.js?v=20260628-guest-gating-1";
 import { renderTabHero } from "./render-tab-hero.js?v=20260706-hero-unify-1";
 

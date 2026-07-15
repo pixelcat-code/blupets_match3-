@@ -727,6 +727,34 @@ test("special tiles: an existing cross caught in a match detonates its whole row
   assert.deepEqual([...colTwoCleared].sort((a, b) => a - b), [0, 1, 2, 3, 4]);
 });
 
+test("special tiles: an existing cross detonates when a 4-line also spawns on its cell", () => {
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(212) });
+  state.board = boardFromColorIds([
+    ["red", "red", "red", "red", "green"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+  // A 4-line plans its new cross at index 2. An existing cross in that exact
+  // cell must still detonate before the replacement cross is created.
+  state.board[0][2] = { id: 9992, color: "red", special: "cross", dir: null };
+
+  const result = resolveBoard(state.board, state, makeRng(213));
+  const step = result.cascadeSteps[0];
+  const clearedRow = new Set(step.clearedTiles.filter((tile) => tile.row === 0).map((tile) => tile.col));
+  const clearedColumn = new Set(step.clearedTiles.filter((tile) => tile.col === 2).map((tile) => tile.row));
+
+  assert.deepEqual(step.triggeredSpecials, [
+    { row: 0, col: 2, color: "red", special: "cross" },
+  ]);
+  assert.deepEqual([...clearedRow].sort((a, b) => a - b), [0, 1, 3, 4]);
+  assert.deepEqual([...clearedColumn].sort((a, b) => a - b), [1, 2, 3, 4]);
+  assert.equal(step.specialSpawns.length, 1);
+  assert.equal(step.specialSpawns[0].special, "cross");
+  assert.equal(step.boardAfterCollapse[0][2].special, "cross");
+});
+
 test("special tiles stay off by default: a match of 4 clears all four tiles", () => {
   const state = createInitialState({ diagonalAssist: false, rng: makeRng(208) });
   state.board = boardFromColorIds([

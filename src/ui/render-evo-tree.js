@@ -5,8 +5,8 @@
 // The T1 base pair always renders in full. The open/close controllers and the
 // card-tap handler stay in main.js; this module only builds the inner HTML.
 import { escapeHtml } from "./dom-safety.js?v=20260629-1";
-import { BASE_BLOCK_ASSETS } from "./block-assets.js?v=20260629-1";
-import { COLORS } from "../game.js?v=20260622-gameplay-20";
+import { BASE_BLOCK_ASSETS } from "./block-assets.js?v=20260715-cross-trigger-1";
+import { COLORS } from "../game.js?v=20260715-cross-trigger-1";
 
 const EVO_COLOR_BY_ID = Object.fromEntries(COLORS.map((c) => [c.id, c]));
 
