@@ -107,7 +107,7 @@ import {
   putTournamentRecovery,
   removeTournamentRecovery,
 } from "./util/tournament-recovery.js?v=20260711-1";
-import { replayRun } from "./run-replay.js?v=20260717-special-spawn-1";
+import { replayRun } from "./run-replay-browser.js?v=20260717-replay-split-1";
 import { elements } from "./ui/dom.js?v=20260712-event-popup-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";

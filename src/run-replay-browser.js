@@ -1,5 +1,5 @@
-// Server/test entrypoint. Supabase's function bundler resolves local files from
-// disk and cannot package browser cache-bust query strings in import specifiers.
+// Browser entrypoint. Keep these URLs aligned with main.js so replay recovery
+// and live gameplay share one cache-busted instance of the engine modules.
 import {
   COLORS,
   createInitialState,
@@ -8,9 +8,9 @@ import {
   attemptSwap,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js";
-import { createSeededRng } from "./rng.js";
-import { createRunReplayRuntime } from "./run-replay-core.js";
+} from "./game.js?v=20260717-special-spawn-1";
+import { createSeededRng } from "./rng.js?v=20260710-1";
+import { createRunReplayRuntime } from "./run-replay-core.js?v=20260717-replay-split-1";
 
 const runtime = createRunReplayRuntime({
   COLORS,
