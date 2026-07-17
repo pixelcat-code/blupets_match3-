@@ -57,10 +57,6 @@ function makeTile(color) {
 // later caught in a match; their blast chains into any other specials it hits.
 // The whole system is gated behind state.specialTiles, so behaviour is
 // unchanged when it is off.
-function makeSpecialTile(color, special, dir = null) {
-  return { id: nextTileId++, color, special, dir };
-}
-
 function blastCellsFor(size, pos, tile) {
   const cells = [];
   if (tile.special === "cross") {
@@ -139,6 +135,20 @@ function keyFor(row, col) {
 
 function cloneBoard(board) {
   return board.map((row) => [...row]);
+}
+
+function findTilePositionById(board, id) {
+  if (id == null) {
+    return null;
+  }
+  for (let row = 0; row < board.length; row += 1) {
+    for (let col = 0; col < board[row].length; col += 1) {
+      if (board[row][col]?.id === id) {
+        return { row, col };
+      }
+    }
+  }
+  return null;
 }
 
 function emptyCountMap() {
@@ -951,6 +961,9 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
 
     const specialsOn = state.specialTiles ?? false;
     const spawns = specialsOn ? planSpecialSpawns(groups, nextBoard) : new Map();
+    const spawnSourceIds = new Map(
+      [...spawns].map(([key, spawn]) => [key, nextBoard[spawn.row][spawn.col]?.id ?? null]),
+    );
 
     // Start from the matched cells, then (when specials are on) expand with the
     // blast of any EXISTING special caught in the match, chaining into others.
@@ -994,12 +1007,10 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
     for (const position of clearSet.values()) {
       const key = keyFor(position.row, position.col);
       if (spawns.has(key)) {
-        // This cell will host a freshly created special. Clear the matched tile
-        // now so gravity refills the cell during the collapse below; the special
-        // then adopts the color of whatever tile lands here (assigned after
-        // collapse). Not counted as a color clear — the cell transforms rather
-        // than simply clearing, so evolution progress is unchanged.
-        nextBoard[position.row][position.col] = null;
+        // Preserve the matched source tile through gravity, then transform that
+        // same tile into the new power-up below. Converting an arbitrary faller
+        // here could overwrite an existing cross or bomb that happened to land
+        // in the earmarked cell.
         continue;
       }
       const tile = nextBoard[position.row][position.col];
@@ -1017,9 +1028,9 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
       cleared += 1;
     }
 
-    // Newly created specials are placed AFTER the collapse below, so each one can
-    // take the color of the tile that falls into its cell (not the matched color).
-    // Record the spawn specs now; their final color is filled in post-collapse.
+    // Newly created specials are applied AFTER collapse to the preserved source
+    // tile from the match. Record the specs now; their coordinates may move with
+    // gravity and are updated below.
     const specialSpawns = [...spawns.values()];
     const specialScore = Number(state.vibe.specialScore) || 0;
     if (specialScore > 0) {
@@ -1040,18 +1051,23 @@ function resolveBoardInternal(board, state, rng = Math.random, matchResolver = d
 
     collapseBoard(nextBoard, rng, state.diagonalAssist, matchResolver, state.diagonalSwaps);
 
-    // Gravity has now refilled each earmarked cell. Turn the tile that fell into
-    // place into the power-up, keeping that tile's id and color so it animates
-    // dropping in and reads as "the tile that landed here, now a power-up" —
-    // rather than a leftover tile of the matched color sitting in place.
-    for (const spawn of spawns.values()) {
-      const landed = nextBoard[spawn.row][spawn.col];
-      if (landed) {
-        nextBoard[spawn.row][spawn.col] = { ...landed, special: spawn.special, dir: spawn.dir };
-        spawn.color = landed.color;
-      } else {
-        nextBoard[spawn.row][spawn.col] = makeSpecialTile(spawn.color, spawn.special, spawn.dir);
+    // Transform the exact matched tile reserved for each spawn. Existing power-
+    // ups elsewhere in the column remain independent tiles and can fall without
+    // being silently replaced by this newly created special.
+    for (const [key, spawn] of spawns) {
+      const sourcePosition = findTilePositionById(nextBoard, spawnSourceIds.get(key));
+      if (!sourcePosition) {
+        throw new Error("Special spawn source tile was lost during collapse.");
       }
+      const source = nextBoard[sourcePosition.row][sourcePosition.col];
+      nextBoard[sourcePosition.row][sourcePosition.col] = {
+        ...source,
+        special: spawn.special,
+        dir: spawn.dir,
+      };
+      spawn.row = sourcePosition.row;
+      spawn.col = sourcePosition.col;
+      spawn.color = source.color;
     }
 
     cascadeSteps[cascadeSteps.length - 1].boardAfterCollapse = cloneBoard(nextBoard);

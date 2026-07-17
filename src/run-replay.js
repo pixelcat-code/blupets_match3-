@@ -6,7 +6,7 @@ import {
   attemptSwap,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260715-cross-trigger-1";
+} from "./game.js?v=20260717-special-spawn-1";
 import { createSeededRng } from "./rng.js";
 
 const MAX_ACTIONS = 500;

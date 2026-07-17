@@ -642,12 +642,11 @@ test("specialScore vibe grants score when special tiles form", () => {
   assert.equal(boostedResult.scoreDelta, baseResult.scoreDelta + 120);
 });
 
-test("special tiles: the spawned power-up takes the color of the tile that falls into its cell, not the matched color", () => {
+test("special tiles: the spawned power-up preserves the matched source tile through gravity", () => {
   const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(210) });
-  // A red 4-match on row 2 spawns a cross at its middle cell (2,2). The only
-  // cell cleared in column 2 is (2,2) itself, so the green tile directly above
-  // at (1,2) drops into place. The cross must end up GREEN (the faller), never
-  // red (the matched color).
+  // A red 4-match on row 2 spawns a cross from its middle source tile (2,2).
+  // That exact tile remains the source of the new power-up; a different tile
+  // falling above it must never be converted in its place.
   state.board = boardFromColorIds([
     ["blue", "green", "blue", "green", "blue"],
     ["green", "blue", "green", "blue", "green"],
@@ -656,6 +655,7 @@ test("special tiles: the spawned power-up takes the color of the tile that falls
     ["blue", "green", "blue", "green", "blue"],
   ]);
 
+  const sourceId = state.board[2][2].id;
   const result = resolveBoard(state.board, state, makeRng(211));
   const step = result.cascadeSteps[0];
 
@@ -663,8 +663,31 @@ test("special tiles: the spawned power-up takes the color of the tile that falls
   assert.equal(step.specialSpawns[0].special, "cross");
   const spawned = step.boardAfterCollapse[2][2];
   assert.equal(spawned.special, "cross");
-  assert.equal(spawned.color, "green");
-  assert.notEqual(spawned.color, "red");
+  assert.equal(spawned.color, "red");
+  assert.equal(spawned.id, sourceId);
+});
+
+test("special tiles: creating a cross never replaces an existing bomb above it", () => {
+  const state = createInitialState({ diagonalAssist: false, specialTiles: true, rng: makeRng(214) });
+  state.board = boardFromColorIds([
+    ["blue", "green", "blue", "green", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["red", "red", "red", "red", "blue"],
+    ["green", "blue", "green", "blue", "green"],
+    ["blue", "green", "blue", "green", "blue"],
+  ]);
+  const bombId = state.board[1][2].id;
+  state.board[1][2] = { ...state.board[1][2], special: "bomb", dir: null };
+
+  const result = resolveBoard(state.board, state, makeRng(215));
+  const step = result.cascadeSteps[0];
+  const bomb = step.boardAfterCollapse.flat().find((tile) => tile?.id === bombId);
+  const cross = step.specialSpawns[0];
+
+  assert.equal(cross.special, "cross");
+  assert.equal(step.boardAfterCollapse[cross.row][cross.col].special, "cross");
+  assert.equal(bomb?.special, "bomb");
+  assert.notEqual(bomb?.id, step.boardAfterCollapse[cross.row][cross.col].id);
 });
 
 test("special tiles: a straight match of 5 spawns a bomb", () => {
@@ -694,11 +717,14 @@ test("special tiles: an L/T intersection of two 3-lines spawns a bomb", () => {
     ["green", "blue", "green", "blue", "green"],
     ["blue", "green", "blue", "green", "blue"],
   ]);
+  const sourceId = state.board[0][0].id;
 
   const result = resolveBoard(state.board, state, makeRng(205));
   const spawns = result.cascadeSteps[0].specialSpawns;
+  const bomb = spawns.find((spawn) => spawn.special === "bomb");
 
-  assert.equal(spawns.some((s) => s.special === "bomb" && s.row === 0 && s.col === 0), true);
+  assert.ok(bomb);
+  assert.equal(result.cascadeSteps[0].boardAfterCollapse[bomb.row][bomb.col].id, sourceId);
 });
 
 test("special tiles: an existing cross caught in a match detonates its whole row and column", () => {
@@ -752,7 +778,9 @@ test("special tiles: an existing cross detonates when a 4-line also spawns on it
   assert.deepEqual([...clearedColumn].sort((a, b) => a - b), [1, 2, 3, 4]);
   assert.equal(step.specialSpawns.length, 1);
   assert.equal(step.specialSpawns[0].special, "cross");
-  assert.equal(step.boardAfterCollapse[0][2].special, "cross");
+  const replacement = step.specialSpawns[0];
+  assert.equal(step.boardAfterCollapse[replacement.row][replacement.col].special, "cross");
+  assert.equal(step.boardAfterCollapse[replacement.row][replacement.col].id, 9992);
 });
 
 test("special tiles stay off by default: a match of 4 clears all four tiles", () => {

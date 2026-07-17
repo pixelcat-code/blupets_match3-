@@ -17,7 +17,7 @@ import {
   previewSwap,
   selectEvolutionForm,
   selectFusionPartner,
-} from "./game.js?v=20260715-cross-trigger-1";
+} from "./game.js?v=20260717-special-spawn-1";
 import { runTour } from "./coachmarks.js?v=20260618-1";
 import { sfx, buzz, unlockAudio, isMuted, toggleMute, startMusic, stopMusic, isMusicPlaying } from "./audio.js?v=20260625-mobile-audio-2";
 import { initAuth, signInWithProvider, signInWithUsername, signUpWithUsername, updateDisplayName, uploadAvatar, updateAvatarUrl, signOut } from "./auth.js?v=20260629-signin-guard-1";
@@ -107,11 +107,11 @@ import {
   putTournamentRecovery,
   removeTournamentRecovery,
 } from "./util/tournament-recovery.js?v=20260711-1";
-import { replayRun } from "./run-replay.js?v=20260715-cross-trigger-1";
+import { replayRun } from "./run-replay.js?v=20260717-special-spawn-1";
 import { elements } from "./ui/dom.js?v=20260712-event-popup-1";
 import { app } from "./ui/store.js?v=20260629-5";
 import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";
-import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260715-cross-trigger-1";
+import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260717-special-spawn-1";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
 import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260710-1";
 import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260711-canonical-collection-2";
@@ -120,8 +120,8 @@ import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260706-nopedestal-1";
 import { renderAccountSection } from "./ui/render-account.js?v=20260710-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
-import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260715-cross-trigger-1";
-import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260715-cross-trigger-1";
+import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260717-special-spawn-1";
+import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260717-special-spawn-1";
 import { formatEventCountdown, renderEarnedEventBadge, renderEventBanner, renderEventPopup } from "./ui/render-event.js?v=20260713-layout-2";
 import { getSupabaseConfig } from "./supabase-client.js?v=20260629-client-singleton-1";
 
@@ -137,7 +137,7 @@ import {
   renderVibeStrip,
   renderStatus,
   resetScoreBaseline,
-} from "./ui/render-game.js?v=20260715-cross-trigger-1";
+} from "./ui/render-game.js?v=20260717-special-spawn-1";
 import {
   renderQuestsSection,
   renderQuestStatsHeader,
