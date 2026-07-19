@@ -2,7 +2,7 @@
 // only dependency is escapeHtml. Shown on the dedicated guide screen and inside
 // the start-screen meta overlay's "guide" section.
 import { escapeHtml } from "./dom-safety.js?v=20260629-1";
-import { renderTabHero } from "./render-tab-hero.js?v=20260706-hero-unify-1";
+import { renderTabHero } from "./render-tab-hero.js?v=20260719-blupets-unify-1";
 
 export function renderGuideSection({ back = false } = {}) {
   const section = (title, icon, items) => `
@@ -36,12 +36,18 @@ export function renderGuideSection({ back = false } = {}) {
         ${section("Goal", "★", [
         "Match tiles, build score, and evolve Blupets through their lineage",
         "A strong run reaches Ascended forms and earns leaderboard-ready results",
-        "Every run can still add lifetime progress, quests, reveals, or shards",
+        "Every run can still add lifetime progress, quests, Blupets, or shards",
         ])}
         ${section("How To Play", "↔", [
         "Swap adjacent tiles to make matches of 3 or more",
         "Valid swaps consume moves and resolve cascades automatically",
         "Larger matches and cascades increase score and can create special tiles",
+        "A run continues until your moves run out — reaching Ascended is a milestone, not the end",
+        ])}
+        ${section("Run Vibe", "◈", [
+        "Every run rolls a vibe bonus, revealed before you touch the board",
+        "Vibes can change essence gain, moves, decay, or how score is earned",
+        "Play into the vibe you rolled to push the run further",
         ])}
         ${section("Evolution", "◆", [
         "Matching a color fills essence for that color",
@@ -54,9 +60,9 @@ export function renderGuideSection({ back = false } = {}) {
         "Special clears count toward quests and make high-score runs easier",
         ])}
         ${section("Rewards", "●", [
-        "Score thresholds and milestone quests award Blupet reveals",
+        "Score thresholds and milestone quests award Blupets",
         "Reveal Blupets to add collection forms",
-        "Duplicate reveals become shards, and shards can be exchanged for more reveals",
+        "Duplicate Blupets become shards, and shards can be exchanged for more Blupets",
         ])}
         ${section("Quests And Leaderboard", "#", [
         "Quests track collection, colors, specials, combos, score, and endurance",
@@ -69,7 +75,7 @@ export function renderGuideSection({ back = false } = {}) {
         <span class="guide-reward-icon" aria-hidden="true"><img src="./assets/blocks/origin.svg" alt="" /></span>
         <div>
           <strong>Reveal Blupets</strong>
-          <small>Duplicates become shards, shards exchange back into more reveals.</small>
+          <small>Duplicates become shards, shards exchange back into more Blupets.</small>
         </div>
       </section>
     </div>`;

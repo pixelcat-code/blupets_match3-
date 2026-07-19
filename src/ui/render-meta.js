@@ -66,7 +66,7 @@ export function metaTitle(section) {
 
 export function metaStatus(section) {
   if (section === "collection") return "";
-  if (section === "capsules") return `${Math.max(0, Math.floor(Number(app.progress.capsules) || 0))} reveals ready, ${Math.max(0, Math.floor(Number(app.progress.shards) || 0))}/${SHARDS_PER_CAPSULE} shards`;
+  if (section === "capsules") return `${Math.max(0, Math.floor(Number(app.progress.capsules) || 0))} Blupets ready, ${Math.max(0, Math.floor(Number(app.progress.shards) || 0))}/${SHARDS_PER_CAPSULE} shards`;
   if (section === "quests") {
     return "";
   }

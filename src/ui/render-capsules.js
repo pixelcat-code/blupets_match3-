@@ -13,7 +13,7 @@ function renderCapsulePanel() {
   const ctaTitle = capsules > 0 ? `${capsules} Blupet${capsules === 1 ? "" : "s"} ready` : "No Blupets ready";
   const ctaSub = capsules > 0
     ? "Tap to reveal one Blupet"
-    : "Earn reveals from runs and badges";
+    : "Earn Blupets from runs and badges";
   return `
     <section class="capsule-panel" aria-label="Reveal Blupets">
       <div class="capsule-open-stack">

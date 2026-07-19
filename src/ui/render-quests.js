@@ -19,7 +19,7 @@ import {
   questSentenceText,
 } from "./quest-logic.js?v=20260629-1";
 import { renderCollectionProgress } from "./render-profile-stats.js?v=20260629-2";
-import { renderTabHero } from "./render-tab-hero.js?v=20260706-hero-unify-1";
+import { renderTabHero } from "./render-tab-hero.js?v=20260719-blupets-unify-1";
 
 const QUEST_TYPES = [
   ["collection", "Collection", ["collection"]],
@@ -95,7 +95,7 @@ function renderQuestRow(quest) {
   const complete = questIsComplete(quest);
   return `
     <div class="quest-row${complete ? " is-complete" : ""}" data-category="${escapeHtml(quest.category)}">
-      <span class="quest-status" aria-label="${reward} reveal${reward === 1 ? "" : "s"} reward">
+      <span class="quest-status" aria-label="${reward} Blupet${reward === 1 ? "" : "s"} reward">
         <img src="./assets/blocks/origin.svg" alt="" aria-hidden="true" />
         <b>${reward}</b>
       </span>

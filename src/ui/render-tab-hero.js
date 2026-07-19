@@ -56,7 +56,7 @@ const SCENES = {
   quests: {
     extraClass: "hero-quests",
     title: "Quests",
-    sub: "Clear challenges, earn capsules.",
+    sub: "Clear challenges, earn Blupets.",
     art: `
       <div class="quest-scene">
         ${pet(ART.green, "q-pet")}

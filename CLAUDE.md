@@ -95,11 +95,11 @@ stale files. The discipline:
 
 Current versions (bump on change):
 - `styles.css` → `?v=20260706-lb-fix-93`
-- `src/main.js` → `?v=20260706-nav-actions-14`
-- `render-quests.js` import in `main.js` → `?v=20260706-hero-unify-1`
-- `render-leaderboard.js` import in `main.js` → `?v=20260706-navorder-1`
+- `src/main.js` → `?v=20260719-blupets-unify-1`
+- `render-quests.js` import in `main.js` → `?v=20260719-blupets-unify-1`
+- `render-leaderboard.js` import in `main.js` → `?v=20260719-blupets-unify-1`
 - `dom.js` import in `main.js` → `?v=20260706-1`
-- `render-meta.js` import in `main.js` → `?v=20260706-navorder-1`
+- `render-meta.js` import in `main.js` → `?v=20260719-blupets-unify-1`
 - `auth-config.js` → `?v=20260617-2`
 - `sync.js` import in `main.js` → `?v=20260710-security-1`
 - `auth.js` import in `main.js` → `?v=20260629-signin-guard-1`

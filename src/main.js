@@ -110,15 +110,15 @@ import {
 import { replayRun } from "./run-replay-browser.js?v=20260717-replay-split-1";
 import { elements } from "./ui/dom.js?v=20260712-event-popup-1";
 import { app } from "./ui/store.js?v=20260629-5";
-import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260706-navorder-1";
-import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260717-special-spawn-1";
+import { renderMetaNav, renderGlobalNav, metaTitle, metaStatus } from "./ui/render-meta.js?v=20260719-blupets-unify-1";
+import { renderLeaderboard, renderLeaderboardContent } from "./ui/render-leaderboard.js?v=20260719-blupets-unify-1";
 import { renderCollectionProgress, leaderboardRanksForUser, renderProfileStatsPanel } from "./ui/render-profile-stats.js?v=20260629-2";
-import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260710-1";
-import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260711-canonical-collection-2";
-import { renderGuideSection } from "./ui/render-guide.js?v=20260706-hero-unify-1";
-import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260629-2";
+import { renderOwnBlupetsCollection, renderPublicBlupetsCollection, renderCollectionGrid } from "./ui/render-collection.js?v=20260719-blupets-unify-1";
+import { renderPublicProfile, renderPublicProfileHtml, renderMetaPublicProfileContent } from "./ui/render-public-profile.js?v=20260719-blupets-unify-1";
+import { renderGuideSection } from "./ui/render-guide.js?v=20260719-blupets-unify-1";
+import { renderCapsulesSection } from "./ui/render-capsules.js?v=20260719-blupets-unify-1";
 import { renderCapsuleRevealOutput } from "./ui/render-capsule-reveal.js?v=20260706-nopedestal-1";
-import { renderAccountSection } from "./ui/render-account.js?v=20260710-1";
+import { renderAccountSection } from "./ui/render-account.js?v=20260719-blupets-unify-1";
 import { shortAuthLabel } from "./util/auth-label.js?v=20260629-1";
 import { getBaseBlockAsset, getBlockAsset } from "./ui/block-assets.js?v=20260717-special-spawn-1";
 import { buildEvoTree } from "./ui/render-evo-tree.js?v=20260717-special-spawn-1";
@@ -143,7 +143,7 @@ import {
   renderQuestStatsHeader,
   questCompletionSummary,
   normalizeQuestTab,
-} from "./ui/render-quests.js?v=20260706-hero-unify-1";
+} from "./ui/render-quests.js?v=20260719-blupets-unify-1";
 
 // Global pacing multiplier for the board-resolution
 // animations (swap / clear / drop / cascade pause / reshuffle). Scales BOTH the
@@ -1344,7 +1344,7 @@ async function showTutorialForStateTransition(previousState, nextState) {
     await showTutorialCoachmark("rewards", {
       target: () => null,
       title: "Rewards",
-      body: "After the run, score thresholds and quests can award reveal chances. Reveal Blupets to grow your collection; duplicates become shards.",
+      body: "After the run, score thresholds and quests can award Blupets. Reveal them to grow your collection; duplicates become shards.",
     });
     stopTutorialRun();
   }
@@ -4660,7 +4660,7 @@ function renderGameoverScreen(stateLike) {
     : "No Blupets ready";
   const ctaSub = balance > 0
     ? (balance > 1 ? "Tap to reveal your Blupets" : "Tap to reveal your Blupet")
-    : "Play again to earn reveals";
+    : "Play again to earn Blupets";
 
   elements.gameoverDetail.innerHTML =
     renderEarnedEventBadge(summary.eventBadge) +

@@ -8,10 +8,10 @@
 import { app } from "./store.js?v=20260629-5";
 import { elements } from "./dom.js?v=20260629-1";
 import { escapeHtml, safeImgSrc } from "./dom-safety.js?v=20260629-1";
-import { renderMetaNav } from "./render-meta.js?v=20260706-navorder-1";
+import { renderMetaNav } from "./render-meta.js?v=20260719-blupets-unify-1";
 import { getColor } from "../game.js?v=20260717-special-spawn-1";
 import { TOTAL_INVENTORY_FORMS } from "../progress.js?v=20260628-guest-gating-1";
-import { renderTabHero } from "./render-tab-hero.js?v=20260706-hero-unify-1";
+import { renderTabHero } from "./render-tab-hero.js?v=20260719-blupets-unify-1";
 
 // Defensive color lookup for persisted leaderboard entries: a legacy or partial
 // record (missing/renamed color field) must not crash the whole list render.
