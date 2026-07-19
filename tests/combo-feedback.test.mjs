@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyEvent } from "../src/combo-feedback.js";
+import { classifyEvent, formatScoreGain } from "../src/combo-feedback.js";
 
 function makeStep(groupLengths) {
   return {
@@ -46,4 +46,10 @@ test("classifyEvent: group size does not upgrade first-clear text", () => {
     clearedTiles: [],
   };
   assert.equal(classifyEvent(step, 0), 0);
+});
+
+test("formatScoreGain makes the last-move score explicit and ignores empty gains", () => {
+  assert.equal(formatScoreGain(7298), "+7,298 points");
+  assert.equal(formatScoreGain(0), null);
+  assert.equal(formatScoreGain(-50), null);
 });

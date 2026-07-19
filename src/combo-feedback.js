@@ -1,7 +1,8 @@
 // src/combo-feedback.js
 // On-board praise feedback system for Blupets Match-3.
 // All tunable values live in FEEDBACK_CONFIG.
-// Call createComboFeedback() once to get { onCascadeStep, onEvolutionTrigger }.
+// Call createComboFeedback() once to get
+// { onCascadeStep, onEvolutionTrigger, onFinalScoreGain }.
 
 // ── Configuration — edit here to tune feel ──────────────────────────────────
 
@@ -80,6 +81,11 @@ export function classifyEvent(step, stepIndex) {
   return 0;
 }
 
+export function formatScoreGain(scoreDelta) {
+  const points = Math.max(0, Math.round(Number(scoreDelta) || 0));
+  return points > 0 ? `+${points.toLocaleString("en-US")} points` : null;
+}
+
 // ── Factory ──────────────────────────────────────────────────────────────────
 
 /**
@@ -88,7 +94,7 @@ export function classifyEvent(step, stepIndex) {
  * @param {HTMLElement} boardShellEl - .board-shell (parent that fxLayer is relative to)
  * @param {object}      opts
  * @param {function}    [opts.playSfx]      - sfx(name) from audio.js (injected to avoid import coupling)
- * @returns {{ onCascadeStep(step, stepIndex): void, onEvolutionTrigger(): void }}
+ * @returns {{ onCascadeStep(step, stepIndex): void, onEvolutionTrigger(): void, onFinalScoreGain(scoreDelta): void }}
  */
 export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
   const { playSfx = () => {} } = opts;
@@ -348,5 +354,27 @@ export function createComboFeedback(fxLayer, boardEl, boardShellEl, opts = {}) {
     playPraiseSfx(4);
   }
 
-  return { onCascadeStep, onEvolutionTrigger };
+  // The normal HUD score bump is easy to miss on the last move because the game
+  // immediately transitions to the result screen. Give that final resolution an
+  // explicit points label over the settled board before Game Over appears.
+  function onFinalScoreGain(scoreDelta) {
+    if (!fxLayer || !boardEl || !boardShellEl) return;
+    const phrase = formatScoreGain(scoreDelta);
+    if (!phrase) return;
+
+    const points = Math.max(0, Math.round(Number(scoreDelta) || 0));
+    const tier = points >= 2500 ? 3 : points >= 1000 ? 2 : 1;
+    const fallback = getBoardComboPosition(Math.max(2, tier + 1));
+    const { x, y } = resolvePopupPosition(fallback);
+    const stackedY = resolveStackedY(x, y, tier);
+
+    activeCount++;
+    setTimeout(() => {
+      activeCount--;
+    }, CFG.anim.durationMs[tier]);
+
+    spawnPraiseText(phrase, tier, x, stackedY);
+  }
+
+  return { onCascadeStep, onEvolutionTrigger, onFinalScoreGain };
 }

@@ -82,7 +82,7 @@ import {
 } from "./sync.js?v=20260714-tournament-session-1";
 import { normalizeEventSnapshot } from "./events.js?v=20260712-badges-1";
 import { eventStore, resetEventStore } from "./event-store.js?v=20260712-1";
-import { createComboFeedback } from "./combo-feedback.js?v=20260715-cross-trigger-1";
+import { createComboFeedback } from "./combo-feedback.js?v=20260719-final-score-1";
 import { escapeHtml, safeImgSrc, safeCssUrl } from "./ui/dom-safety.js?v=20260629-1";
 import { renderShareCard, downloadBlob, copyShareText } from "./ui/share-card.js?v=20260706-card-1";
 import { cellKey, sameTile } from "./util/tiles.js?v=20260629-1";
@@ -167,6 +167,8 @@ const BOMB_RIPPLE_MS = 720 * ANIM_SCALE;
 const DROP_STAGGER_MS = 90 * ANIM_SCALE;
 const CASCADE_SETTLE_MS = 80 * ANIM_SCALE;
 const RESHUFFLE_ANIMATION_MS = 320 * ANIM_SCALE;
+// Let the player read the final score gain before Game Over replaces the board.
+const FINAL_SCORE_HOLD_MS = 850;
 // Push the same multiplier into CSS so the keyframe durations scale in lockstep
 // with the JS pacing above (see styles.css: calc(<ms> * var(--anim-scale, 1))).
 document.documentElement.style.setProperty("--anim-scale", String(ANIM_SCALE));
@@ -5427,8 +5429,16 @@ async function performSwap(first, second) {
     console.error("Match animation failed", error);
   } finally {
     resetBoardAnimation();
-    app.isAnimating = false;
     collectSaraiHeartQuestProgress(currentState, resolution);
+    if (nextState.gameOver && resolution.scoreDelta > 0) {
+      // `app.state` still points at the pre-swap state during animation. Paint the
+      // authoritative final totals directly, then keep interaction locked while
+      // the explicit +points feedback plays over the settled board.
+      renderTopBar(nextState);
+      feedback.onFinalScoreGain(resolution.scoreDelta);
+      await delay(FINAL_SCORE_HOLD_MS);
+    }
+    app.isAnimating = false;
     applyState(nextState);
     if (evolutionQueued) {
       window.setTimeout(() => feedback.onEvolutionTrigger(), isMobilePopupLayout() ? 260 : 120);

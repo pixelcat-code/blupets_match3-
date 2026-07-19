@@ -95,7 +95,7 @@ stale files. The discipline:
 
 Current versions (bump on change):
 - `styles.css` → `?v=20260706-lb-fix-93`
-- `src/main.js` → `?v=20260719-blupets-unify-1`
+- `src/main.js` → `?v=20260719-final-score-2`
 - `render-quests.js` import in `main.js` → `?v=20260719-blupets-unify-1`
 - `render-leaderboard.js` import in `main.js` → `?v=20260719-blupets-unify-1`
 - `dom.js` import in `main.js` → `?v=20260706-1`
